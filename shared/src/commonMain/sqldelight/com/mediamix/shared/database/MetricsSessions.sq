@@ -1,0 +1,49 @@
+-- 性能指标会话表 — 播放会话汇总数据
+CREATE TABLE MetricsSessions (
+    sessionId TEXT NOT NULL PRIMARY KEY,
+    videoId TEXT NOT NULL,
+    firstFrameTimeMs INTEGER NOT NULL DEFAULT 0,
+    bufferingCount INTEGER NOT NULL DEFAULT 0,
+    bufferingTotalMs INTEGER NOT NULL DEFAULT 0,
+    stutterRate REAL NOT NULL DEFAULT 0.0,
+    qualityChanges INTEGER NOT NULL DEFAULT 0,
+    seekCount INTEGER NOT NULL DEFAULT 0,
+    seekAvgMs INTEGER NOT NULL DEFAULT 0,
+    errorCount INTEGER NOT NULL DEFAULT 0,
+    cacheHits INTEGER NOT NULL DEFAULT 0,
+    cacheMisses INTEGER NOT NULL DEFAULT 0,
+    avgBandwidthKbps REAL NOT NULL DEFAULT 0.0,
+    peakBandwidthKbps REAL NOT NULL DEFAULT 0.0,
+    startTime INTEGER NOT NULL,
+    endTime INTEGER,
+    uploaded INTEGER NOT NULL DEFAULT 0
+);
+
+-- 查询所有会话
+selectAll:
+SELECT * FROM MetricsSessions;
+
+-- 查询未上传的会话（限制数量）
+selectUnuploaded:
+SELECT * FROM MetricsSessions WHERE uploaded = 0 LIMIT ?;
+
+-- 插入或替换会话
+insertOrReplace:
+INSERT OR REPLACE INTO MetricsSessions (
+    sessionId, videoId, firstFrameTimeMs, bufferingCount, bufferingTotalMs,
+    stutterRate, qualityChanges, seekCount, seekAvgMs, errorCount,
+    cacheHits, cacheMisses, avgBandwidthKbps, peakBandwidthKbps,
+    startTime, endTime, uploaded
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- 标记会话为已上传
+markUploaded:
+UPDATE MetricsSessions SET uploaded = 1 WHERE sessionId IN ?;
+
+-- 删除已上传的会话
+deleteUploaded:
+DELETE FROM MetricsSessions WHERE uploaded = 1;
+
+-- 删除过期会话（开始时间早于指定值）
+deleteOlderThan:
+DELETE FROM MetricsSessions WHERE startTime < ?;

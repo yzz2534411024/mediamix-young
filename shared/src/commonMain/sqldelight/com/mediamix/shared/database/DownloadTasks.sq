@@ -1,0 +1,40 @@
+-- 下载任务表
+CREATE TABLE DownloadTasks (
+    id TEXT NOT NULL PRIMARY KEY,
+    vodId TEXT NOT NULL,
+    vodName TEXT NOT NULL,
+    episodeName TEXT NOT NULL,
+    videoUrl TEXT NOT NULL,
+    localPath TEXT NOT NULL DEFAULT '',
+    status INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    fileSize INTEGER NOT NULL DEFAULT 0,
+    createTime INTEGER NOT NULL
+);
+
+-- 查询所有下载任务（按创建时间倒序）
+selectAll:
+SELECT * FROM DownloadTasks ORDER BY createTime DESC;
+
+-- 根据 ID 查询下载任务
+selectById:
+SELECT * FROM DownloadTasks WHERE id = ?;
+
+-- 插入或替换下载任务
+insertOrReplace:
+INSERT OR REPLACE INTO DownloadTasks (id, vodId, vodName, episodeName, videoUrl, localPath, status, progress, fileSize, createTime)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- 更新下载任务
+update:
+UPDATE DownloadTasks
+SET vodId = ?, vodName = ?, episodeName = ?, videoUrl = ?, localPath = ?, status = ?, progress = ?, fileSize = ?
+WHERE id = ?;
+
+-- 删除下载任务
+deleteById:
+DELETE FROM DownloadTasks WHERE id = ?;
+
+-- 删除已完成的下载任务
+deleteCompleted:
+DELETE FROM DownloadTasks WHERE status = 2;

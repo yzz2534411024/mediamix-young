@@ -1,0 +1,24 @@
+-- 播放进度表
+CREATE TABLE PlaybackProgresses (
+    videoUrl TEXT NOT NULL PRIMARY KEY,
+    position INTEGER NOT NULL,
+    duration INTEGER NOT NULL,
+    lastPlayTime INTEGER NOT NULL
+);
+
+-- 查询所有播放进度
+selectAll:
+SELECT * FROM PlaybackProgresses;
+
+-- 查询指定视频的播放进度
+selectByVideoUrl:
+SELECT * FROM PlaybackProgresses WHERE videoUrl = ?;
+
+-- 保存播放进度（插入或替换）
+insertOrReplace:
+INSERT OR REPLACE INTO PlaybackProgresses (videoUrl, position, duration, lastPlayTime)
+VALUES (?, ?, ?, ?);
+
+-- 删除指定视频的播放进度
+deleteByVideoUrl:
+DELETE FROM PlaybackProgresses WHERE videoUrl = ?;

@@ -1,0 +1,32 @@
+-- 视频接口源表
+CREATE TABLE VideoSources (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'tbox',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    lastUpdateTime INTEGER
+);
+
+-- 查询所有视频源
+selectAll:
+SELECT * FROM VideoSources;
+
+-- 根据 ID 查询视频源
+selectById:
+SELECT * FROM VideoSources WHERE id = ?;
+
+-- 插入或替换视频源
+insertOrReplace:
+INSERT OR REPLACE INTO VideoSources (id, name, url, type, enabled, lastUpdateTime)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- 更新视频源
+update:
+UPDATE VideoSources
+SET name = ?, url = ?, type = ?, enabled = ?, lastUpdateTime = ?
+WHERE id = ?;
+
+-- 删除视频源
+deleteById:
+DELETE FROM VideoSources WHERE id = ?;

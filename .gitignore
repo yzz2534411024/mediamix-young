@@ -1,0 +1,55 @@
+# Kotlin
+*.iml
+.kotlin/
+
+# Gradle
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iws
+*.ipr
+.vscode/
+
+# Android
+local.properties
+*.jks
+*.keystore
+*.apk
+*.aab
+*.ap_
+*.dex
+/captures
+.externalNativeBuild
+.cxx
+
+# Desktop
+*.exe
+*.msi
+*.dmg
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+out/
+target/
+
+# Logs
+*.log
+
+# Test
+reports/
+test-results/
+
+# Temporary files
+*.tmp
+*.bak
+build_output.txt
+
+# 工作区本地数据（WorkBuddy 会话记忆等，不入库）
+.workbuddy/

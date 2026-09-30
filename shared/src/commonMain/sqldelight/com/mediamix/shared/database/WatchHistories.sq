@@ -1,0 +1,30 @@
+-- 观看历史表
+CREATE TABLE WatchHistories (
+    vodId TEXT NOT NULL PRIMARY KEY,
+    vodName TEXT NOT NULL,
+    vodPic TEXT,
+    sourceKey TEXT NOT NULL,
+    episodeName TEXT,
+    lastWatchTime INTEGER NOT NULL
+);
+
+-- 查询所有观看历史（按时间倒序）
+selectAll:
+SELECT * FROM WatchHistories ORDER BY lastWatchTime DESC;
+
+-- 根据 vodId 查询
+selectById:
+SELECT * FROM WatchHistories WHERE vodId = ?;
+
+-- 插入或替换观看历史
+insertOrReplace:
+INSERT OR REPLACE INTO WatchHistories (vodId, vodName, vodPic, sourceKey, episodeName, lastWatchTime)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- 删除单条观看历史
+deleteById:
+DELETE FROM WatchHistories WHERE vodId = ?;
+
+-- 清空所有观看历史
+clearAll:
+DELETE FROM WatchHistories;

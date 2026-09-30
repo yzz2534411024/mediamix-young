@@ -1,0 +1,20 @@
+# 统一行尾：源码在仓库内一律 LF（CI 在 ubuntu 上跑 ./gradlew，CRLF 会导致 bad interpreter）
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制，不做任何转换
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.klib binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.exe binary
+*.zip binary

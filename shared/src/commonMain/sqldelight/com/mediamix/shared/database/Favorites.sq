@@ -1,0 +1,35 @@
+-- 收藏表
+CREATE TABLE Favorites (
+    vodId TEXT NOT NULL PRIMARY KEY,
+    vodName TEXT NOT NULL,
+    vodPic TEXT,
+    sourceKey TEXT NOT NULL,
+    typeName TEXT,
+    lastEpisodeCount INTEGER NOT NULL DEFAULT 0,
+    addTime INTEGER NOT NULL
+);
+
+-- 查询所有收藏（按收藏时间倒序）
+selectAll:
+SELECT * FROM Favorites ORDER BY addTime DESC;
+
+-- 根据 vodId 查询收藏
+selectById:
+SELECT * FROM Favorites WHERE vodId = ?;
+
+-- 查询是否已收藏
+isFavorite:
+SELECT COUNT(*) > 0 FROM Favorites WHERE vodId = ?;
+
+-- 插入或替换收藏
+insertOrReplace:
+INSERT OR REPLACE INTO Favorites (vodId, vodName, vodPic, sourceKey, typeName, lastEpisodeCount, addTime)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- 更新追番集数
+updateEpisodeCount:
+UPDATE Favorites SET lastEpisodeCount = ? WHERE vodId = ?;
+
+-- 删除收藏
+deleteById:
+DELETE FROM Favorites WHERE vodId = ?;
