@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -36,6 +37,7 @@ import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.VideoItem
 import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.SkeletonCard
+import com.mediamix.ui.platform.horizontalWheelScroll
 import com.mediamix.ui.viewmodel.VideoHomeViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -208,10 +210,13 @@ private fun SourceRow(
     onSelect: (CmsApiSite) -> Unit,
 ) {
     if (sites.isEmpty()) return
+    val state = rememberLazyListState()
     LazyRow(
+        state = state,
         modifier =
             Modifier
                 .fillMaxWidth()
+                .horizontalWheelScroll(state)
                 .padding(top = 2.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -255,8 +260,10 @@ private fun SiteNodeRow(
     selectedKey: String?,
     onSelect: (com.mediamix.shared.services.SiteNode) -> Unit,
 ) {
+    val state = rememberLazyListState()
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        state = state,
+        modifier = Modifier.fillMaxWidth().horizontalWheelScroll(state),
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -289,8 +296,10 @@ private fun ClassRow(
     selectedId: String?,
     onSelect: (com.mediamix.shared.models.SpiderCategory?) -> Unit,
 ) {
+    val state = rememberLazyListState()
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        state = state,
+        modifier = Modifier.fillMaxWidth().horizontalWheelScroll(state),
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -313,8 +322,10 @@ private fun CategoryRow(
     selectedId: Int?,
     onSelect: (com.mediamix.shared.models.VideoCategory?) -> Unit,
 ) {
+    val state = rememberLazyListState()
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        state = state,
+        modifier = Modifier.fillMaxWidth().horizontalWheelScroll(state),
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
