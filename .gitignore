@@ -56,3 +56,6 @@ build_output.txt
 MediaMix-桌面版/
 MediaMix-桌面版.zip
 MediaMix-桌面版/
+
+# libmpv 运行库（121MB，本地放置，见 memory 说明）
+shared/src/desktopMain/resources/native/**/*.dll
