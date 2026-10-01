@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.VideoSize
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -82,6 +83,20 @@ actual class PlayerEngine actual constructor() {
                 val newState = if (isPlaying) PlayerState.PLAYING else PlayerState.PAUSED
                 currentState = newState
                 listener?.onStateChanged(newState)
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                // 宽高比要把像素宽高比（SAR）算进去，否则 anamorphic 片源比例会偏
+                val ratio =
+                    if (videoSize.height > 0 && videoSize.width > 0) {
+                        videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                    } else {
+                        0f
+                    }
+                if (ratio > 0f && kotlin.math.abs(ratio - videoAspectRatio) > 0.001f) {
+                    videoAspectRatio = ratio
+                    listener?.onVideoAspectRatioChanged(ratio)
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -394,6 +409,25 @@ actual class PlayerEngine actual constructor() {
         currentState = PlayerState.IDLE
         listener?.onStateChanged(PlayerState.IDLE)
     }
+
+    // === 画面比例 ===
+
+    /** 当前视频宽高比（w * pixelRatio / h）；未知为 0f。 */
+    @Volatile
+    private var videoAspectRatio: Float = 0f
+
+    /**
+     * Android 端不在这里处理画面比例：TextureView 的尺寸由 UI 层（PlayerScreen）
+     * 按 [getVideoAspectRatio] + [AspectMode] 约束 —— TextureView 自己不会适配比例。
+     */
+    actual fun setAspectMode(mode: AspectMode) {
+        // no-op：尺寸约束在 Compose 层完成
+    }
+
+    /** Android 端画面比例由 UI 层处理（非引擎内部）。 */
+    actual val handlesAspectInternally: Boolean get() = false
+
+    actual fun getVideoAspectRatio(): Float = videoAspectRatio
 
     // ==================== 内部辅助方法 ====================
 

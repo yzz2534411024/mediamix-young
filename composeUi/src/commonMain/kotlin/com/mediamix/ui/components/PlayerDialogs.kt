@@ -309,7 +309,7 @@ fun EpisodeSheetContent(
 // 更多面板
 // ============================================================================
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PlayerMoreSheet(
     aspectMode: AspectMode,
@@ -342,20 +342,19 @@ fun PlayerMoreSheet(
         )
 
         SettingGroup(icon = Icons.Default.AspectRatio, title = "画面比例") {
-            // 只暴露三种真正生效的模式：ExoPlayer 的 TextureView 天然等比适配，
-            // "拉伸/裁剪"需要自定义 GL 处理，这里不做假的选项。
-            val modes =
-                listOf(
-                    AspectMode.ORIGINAL to "自适应",
-                    AspectMode.RATIO_16_9 to "16:9",
-                    AspectMode.RATIO_4_3 to "4:3",
-                )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                modes.forEach { (mode, label) ->
+            // 全量模式（手机与桌面行为由引擎分工实现）：
+            //  - 自适应/铺满裁剪/拉伸铺满/原始比例：手机端由 Compose 按视频真实宽高比
+            //    约束 TextureView 尺寸，桌面端映射为 mpv 的 keepaspect/panscan；
+            //  - 16:9 / 4:3 / 21:9：固定比例（桌面用 video-aspect-override）。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                AspectMode.entries.forEach { mode ->
                     FilterChip(
                         selected = aspectMode == mode,
                         onClick = { onAspectSelect(mode) },
-                        label = { Text(label, fontSize = 12.sp) },
+                        label = { Text(mode.label, fontSize = 12.sp) },
                     )
                 }
             }

@@ -112,6 +112,17 @@ class PlayerCoreManager(
     var onError: ((ErrorEvent) -> Unit)? = null
 
     /**
+     * 视频宽高比变化回调（w/h）。
+     *
+     * UI 层据此约束画面尺寸 —— TextureView 不会自动适配视频比例，
+     * 不约束就是默认拉伸填满（画面比例失真，实测用户反馈「自适应太大」）。
+     */
+    var onVideoAspectRatioChanged: ((Float) -> Unit)? = null
+
+    /** 引擎是否自行处理画面比例（桌面 mpv = true，UI 层不再约束尺寸）。 */
+    val engineHandlesAspectInternally: Boolean get() = playerEngine.handlesAspectInternally
+
+    /**
      * 最近一次未被消费的错误。
      *
      * 播放页的 onError 回调是在 viewModel.initialize() 时才注册的 —— 若初始化/装载
@@ -190,7 +201,7 @@ class PlayerCoreManager(
     private var skipInterval = 10
     private val skipIntervals = listOf(5, 10, 30, 60)
     private var playMode = PlayMode.SEQUENTIAL
-    private var aspectMode = AspectMode.ORIGINAL
+    private var aspectMode = AspectMode.ADAPTIVE
     private var currentEpisodeIndex = 0
     private var currentEpisodeName = ""
     private var currentQualityIndex = 0
@@ -656,6 +667,11 @@ class PlayerCoreManager(
         }
     }
 
+    override fun onVideoAspectRatioChanged(aspectRatio: Float) {
+        if (isDisposed) return
+        onVideoAspectRatioChanged?.invoke(aspectRatio)
+    }
+
     override fun onPlaybackEnded() {
         if (isDisposed) return
         metricsEngine.recordEvent(MetricsEvent.PLAY_COMPLETE)
@@ -781,6 +797,9 @@ class PlayerCoreManager(
 
     fun setAspectMode(mode: AspectMode) {
         aspectMode = mode
+        // 之前只改字段、从未下发引擎 —— 比例切换实际是空操作（实测）。
+        // 桌面端由 mpv 原生参数处理；Android 端引擎 no-op，尺寸约束在 Compose 层。
+        playerEngine.setAspectMode(mode)
     }
 
     fun setVolume(v: Float) {

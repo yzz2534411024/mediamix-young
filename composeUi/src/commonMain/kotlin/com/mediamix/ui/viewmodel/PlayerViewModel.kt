@@ -96,8 +96,21 @@ class PlayerViewModel(
     private val _playMode = MutableStateFlow(PlayMode.SEQUENTIAL)
     val playMode: StateFlow<PlayMode> = _playMode.asStateFlow()
 
-    private val _aspectMode = MutableStateFlow(AspectMode.ORIGINAL)
+    private val _aspectMode = MutableStateFlow(AspectMode.ADAPTIVE)
     val aspectMode: StateFlow<AspectMode> = _aspectMode.asStateFlow()
+
+    /**
+     * 视频真实宽高比（w/h），未知为 0f。
+     *
+     * Android 用 TextureView 渲染，**不会自动适配视频比例** —— UI 层必须按这个值
+     * 约束画面尺寸，否则默认拉伸填满（实测用户反馈「自适应比例太大」）。
+     * 桌面端由 mpv 自行处理，该值恒为 0。
+     */
+    private val _videoAspectRatio = MutableStateFlow(0f)
+    val videoAspectRatio: StateFlow<Float> = _videoAspectRatio.asStateFlow()
+
+    /** 引擎是否自行处理画面比例（桌面 mpv = true → UI 层不再约束尺寸）。 */
+    val engineHandlesAspect: Boolean get() = playerCoreManager.engineHandlesAspectInternally
 
     private val _isBuffering = MutableStateFlow(false)
     val isBuffering: StateFlow<Boolean> = _isBuffering.asStateFlow()
@@ -180,6 +193,8 @@ class PlayerViewModel(
         // 补发：注册回调之前发生的初始化失败（如桌面端缺 mpv 运行库）——
         // 不补发的话用户只会看到白屏，永远等不到错误提示
         playerCoreManager.consumePendingError()?.let { _lastError.value = it.message }
+        // 视频比例：`onVideoSizeChanged` 后 UI 层按比例约束画面（Android）
+        playerCoreManager.onVideoAspectRatioChanged = { ratio -> _videoAspectRatio.value = ratio }
         // 剧集变化事件（切集 / 自动连播）——取代了原来的 500ms 轮询
         playerCoreManager.onEpisodeChanged = { _, _ -> syncEpisodeState() }
         playerCoreManager.onTracksChanged = { audio, video ->
