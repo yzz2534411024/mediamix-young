@@ -11,14 +11,25 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.mediamix.shared.di.sharedModule
+import com.mediamix.shared.models.CmsApiSite
+import com.mediamix.shared.network.HttpClientFactory
+import com.mediamix.shared.spider.SpiderService
+import com.mediamix.shared.spider.TvBoxSelfTestRunner
 import com.mediamix.ui.App
 import com.mediamix.ui.di.uiModule
 import com.mediamix.ui.theme.MediaMixTheme
 import com.mediamix.ui.theme.ThemeConfig
+import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import java.io.File
 
-fun main() {
+fun main(args: Array<String>) {
+    // 命令行自检模式：MediaMix.exe --self-test
+    // 跳过 UI/Koin/数据库，独立跑 TVBox 接口自检，结果打印到 stdout —— 供自动化测试。
+    if ("--self-test" in args) {
+        runSelfTestCli()
+        return
+    }
     startKoin {
         modules(sharedModule, uiModule)
     }
@@ -38,6 +49,29 @@ fun main() {
             }
         }
     }
+}
+
+/**
+ * 命令行 TVBox 接口自检（`MediaMix.exe --self-test`）。
+ *
+ * 不启动 Koin/DB/UI —— SpiderService 零依赖可构造，CmsApiSite.defaultSites 是纯数据。
+ * 退出码：全部通过 = 0，任一环节失败 = 1。
+ */
+private fun runSelfTestCli() {
+    val site = CmsApiSite.defaultSites.firstOrNull { it.isTvBox }
+    val httpClient = HttpClientFactory.createHttpClient(
+        connectTimeoutSeconds = 8,
+        requestTimeoutSeconds = 20,
+    )
+    val runner = TvBoxSelfTestRunner(spiderService = SpiderService(), httpClient = httpClient)
+    val results = runBlocking { runner.run(site) }
+    println("=== MediaMix TVBox 接口自检 ===")
+    results.forEach { item ->
+        println("${if (item.ok) "[PASS]" else "[FAIL]"} ${item.name}: ${item.detail}")
+    }
+    val failed = results.count { !it.ok }
+    println("=== 结果: ${results.size - failed}/${results.size} 通过 ===")
+    if (failed > 0) kotlin.system.exitProcess(1)
 }
 
 /**
