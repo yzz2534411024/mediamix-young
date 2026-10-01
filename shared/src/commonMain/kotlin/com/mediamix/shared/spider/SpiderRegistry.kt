@@ -94,7 +94,17 @@ class SpiderRegistry private constructor() {
                 // 真 jar 蜘蛛：需要 TVBox 内核（JavaBridge）；内核未就绪则建不出来
                 if (javaBridgeManager != null) JavaBridgeSpider(site = site) else null
 
-            SiteKind.XPATH -> XpathSpider(site = site)
+            SiteKind.XPATH -> {
+                // XPath 蜘蛛的解析规则全在 ext 里；ext 为空就没法工作
+                // （实测饭太硬的 csp_XPathGuard 防诈提示站无 ext，曾把 api 当 URL
+                // 请求到 localhost:80），直接剔除。
+                if (site.ext.isNullOrBlank()) {
+                    logger.w { "XPath 站点缺 ext 规则，跳过: ${site.key} (${site.name})" }
+                    null
+                } else {
+                    XpathSpider(site = site)
+                }
+            }
 
             SiteKind.CMS ->
                 when (site.type) {

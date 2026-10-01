@@ -33,10 +33,25 @@ class SpiderRegistryTest {
 
     @Test
     fun testBuildSpider_type3_returnsXpathSpider() {
-        val site = TvBoxSite(key = "xpath1", name = "XPath站", type = 3, api = "http://api.example.com")
+        // 新语义：XPath 站点必须带 ext 规则（无 ext 无法工作，会被剔除）
+        val site =
+            TvBoxSite(
+                key = "xpath1",
+                name = "XPath站",
+                type = 3,
+                api = "http://api.example.com",
+                ext = "{\"homeUrl\":\"https://example.com\"}",
+            )
         val spider = registry.buildSpider(site)
         assertNotNull(spider)
         assertTrue(spider is XpathSpider)
+    }
+
+    @Test
+    fun testBuildSpider_type3_withoutExt_returnsNull() {
+        // 无 ext 的 XPath 站点无法工作（曾把 api 当 URL 请求到 localhost:80），应剔除
+        val site = TvBoxSite(key = "xpath2", name = "XPath空规则", type = 3, api = "http://api.example.com")
+        assertNull(registry.buildSpider(site))
     }
 
     @Test
@@ -135,7 +150,13 @@ class SpiderRegistryTest {
                 listOf(
                     TvBoxSite(key = "b1", name = "站1", type = 0, api = "http://b1.com"),
                     TvBoxSite(key = "b2", name = "站2", type = 1, api = "http://b2.com"),
-                    TvBoxSite(key = "b3", name = "站3", type = 3, api = "http://b3.com"),
+                    TvBoxSite(
+                        key = "b3",
+                        name = "站3",
+                        type = 3,
+                        api = "http://b3.com",
+                        ext = "{\"homeUrl\":\"https://example.com\"}",
+                    ),
                 )
 
             val spiders = registry.createFromSites(sites)
