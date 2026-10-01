@@ -31,7 +31,7 @@ import org.koin.compose.koinInject
 @Composable
 fun HistoryScreen(
     viewModel: HistoryViewModel = koinInject(),
-    onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> }
+    onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> },
 ) {
     val histories by viewModel.histories.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -59,7 +59,7 @@ fun HistoryScreen(
                 TextButton(onClick = { showClearDialog = false }) {
                     Text("取消")
                 }
-            }
+            },
         )
     }
 
@@ -74,49 +74,52 @@ fun HistoryScreen(
                             Icon(Icons.Default.DeleteSweep, contentDescription = "清空历史")
                         }
                     }
-                }
+                },
             )
-        }
+        },
     ) { padding ->
         when {
-            isLoading -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-            histories.isEmpty() -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "暂无观看记录",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+            isLoading ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
                 }
-            }
-            else -> LazyColumn(
-                modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(histories, key = { it.id }) { item ->
-                    HistorySwipeItem(
-                        item = item,
-                        onNavigateToDetail = onNavigateToDetail,
-                        onDelete = { viewModel.deleteHistory(item.id) }
-                    )
+            histories.isEmpty() ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "暂无观看记录",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                    }
                 }
-            }
+            else ->
+                LazyColumn(
+                    modifier = Modifier.padding(padding),
+                    contentPadding = PaddingValues(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(histories, key = { it.id }) { item ->
+                        HistorySwipeItem(
+                            item = item,
+                            onNavigateToDetail = onNavigateToDetail,
+                            onDelete = { viewModel.deleteHistory(item.id) },
+                        )
+                    }
+                }
         }
     }
 }
@@ -126,43 +129,45 @@ fun HistoryScreen(
 private fun HistorySwipeItem(
     item: WatchHistoryItem,
     onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else {
-                false
-            }
-        }
-    )
+    val dismissState =
+        rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) {
+                    onDelete()
+                    true
+                } else {
+                    false
+                }
+            },
+        )
 
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.error),
-                contentAlignment = Alignment.CenterEnd
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.error),
+                contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "删除",
                     tint = Color.White,
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.padding(end = 8.dp),
                 )
             }
         },
-        enableDismissFromStartToEnd = false
+        enableDismissFromStartToEnd = false,
     ) {
         HistoryCard(
             item = item,
-            onClick = { onNavigateToDetail(item.vodId, item.sourceKey) }
+            onClick = { onNavigateToDetail(item.vodId, item.sourceKey) },
         )
     }
 }
@@ -170,25 +175,26 @@ private fun HistorySwipeItem(
 @Composable
 private fun HistoryCard(
     item: WatchHistoryItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             AsyncImage(
                 model = item.vodPic,
                 contentDescription = item.vodName,
-                modifier = Modifier
-                    .size(width = 50.dp, height = 70.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop
+                modifier =
+                    Modifier
+                        .size(width = 50.dp, height = 70.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                contentScale = ContentScale.Crop,
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -196,18 +202,19 @@ private fun HistoryCard(
                     text = item.vodName,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(4.dp))
-                val subtitle = buildString {
-                    if (!item.episodeName.isNullOrEmpty()) append(item.episodeName)
-                    append(" · ")
-                    append(formatRelativeTime(item.lastWatchTime))
-                }
+                val subtitle =
+                    buildString {
+                        if (!item.episodeName.isNullOrEmpty()) append(item.episodeName)
+                        append(" · ")
+                        append(formatRelativeTime(item.lastWatchTime))
+                    }
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.VideoCategory
 import com.mediamix.shared.models.VideoItem
@@ -17,11 +18,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.int
-import co.touchlab.kermit.Logger
 
 /**
  * 首页 ViewModel。
@@ -39,9 +39,12 @@ class VideoHomeViewModel(
     private val sourceRepository: SourceRepository,
     private val videoApiService: VideoApiService,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("VideoHomeViewModel")
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     val sites: StateFlow<List<CmsApiSite>> = sourceRepository.sites
 
@@ -107,10 +110,11 @@ class VideoHomeViewModel(
         _hasMore.value = false
 
         loadJob?.cancel()
-        loadJob = viewModelScope.launch {
-            loadCategoriesInternal(site)
-            loadVideosInternal(site)
-        }
+        loadJob =
+            viewModelScope.launch {
+                loadCategoriesInternal(site)
+                loadVideosInternal(site)
+            }
     }
 
     /**
@@ -120,9 +124,10 @@ class VideoHomeViewModel(
      * 不用自己去源列表里一个个试。
      */
     fun switchToAvailableSource(): CmsApiSite? {
-        val candidate = sourceRepository.enabledSites.firstOrNull {
-            !it.isTvBox && it.key != _currentSite.value?.key
-        } ?: sourceRepository.enabledSites.firstOrNull { !it.isTvBox }
+        val candidate =
+            sourceRepository.enabledSites.firstOrNull {
+                !it.isTvBox && it.key != _currentSite.value?.key
+            } ?: sourceRepository.enabledSites.firstOrNull { !it.isTvBox }
         candidate?.let { selectSite(it) }
         return candidate
     }
@@ -155,22 +160,25 @@ class VideoHomeViewModel(
                     _categories.value = emptyList()
                     return
                 }
-                _categories.value = playable.mapIndexed { index, tvboxSite ->
-                    VideoCategory(typeId = index + 1, typePid = 0, typeName = tvboxSite.name)
-                }
+                _categories.value =
+                    playable.mapIndexed { index, tvboxSite ->
+                        VideoCategory(typeId = index + 1, typePid = 0, typeName = tvboxSite.name)
+                    }
             } else {
                 _isSourceUnsupported.value = false
                 val text = httpClient.get(site.apiUrl).bodyAsText()
                 val classArr = json.parseToJsonElement(text).jsonObject["class"]?.jsonArray ?: return
-                _categories.value = classArr.mapNotNull { elem ->
-                    val obj = elem.jsonObject
-                    val id = obj["type_id"]?.jsonPrimitive?.int ?: return@mapNotNull null
-                    VideoCategory(
-                        typeId = id,
-                        typePid = obj["type_pid"]?.jsonPrimitive?.int ?: 0,
-                        typeName = obj["type_name"]?.jsonPrimitive?.content ?: "",
-                    )
-                }.filter { it.typePid == 0 || it.typePid < 0 }
+                _categories.value =
+                    classArr
+                        .mapNotNull { elem ->
+                            val obj = elem.jsonObject
+                            val id = obj["type_id"]?.jsonPrimitive?.int ?: return@mapNotNull null
+                            VideoCategory(
+                                typeId = id,
+                                typePid = obj["type_pid"]?.jsonPrimitive?.int ?: 0,
+                                typeName = obj["type_name"]?.jsonPrimitive?.content ?: "",
+                            )
+                        }.filter { it.typePid == 0 || it.typePid < 0 }
             }
         } catch (e: Exception) {
             logger.e { "Load categories failed: ${e.message}" }
@@ -234,16 +242,19 @@ class VideoHomeViewModel(
         val category = _selectedCategory.value
 
         if (category != null) {
-            val tvboxSite = config.sites.filterNot { it.isJavaSpider }
-                .getOrNull(category.typeId - 1)
+            val tvboxSite =
+                config.sites
+                    .filterNot { it.isJavaSpider }
+                    .getOrNull(category.typeId - 1)
             if (tvboxSite == null) {
                 _isSourceUnsupported.value = true
                 _notice.value = "该分类来自 TVBox 蜘蛛内核，当前版本无法解析。"
                 _videos.value = emptyList()
                 return
             }
-            val spider = spiderService.getSpider(tvboxSite.key)
-                ?: spiderService.initFromConfig(config).find { it.key == tvboxSite.key }
+            val spider =
+                spiderService.getSpider(tvboxSite.key)
+                    ?: spiderService.initFromConfig(config).find { it.key == tvboxSite.key }
             if (spider == null) {
                 _videos.value = emptyList()
                 _notice.value = "分类「${tvboxSite.name}」的解析器不可用。"
@@ -254,8 +265,10 @@ class VideoHomeViewModel(
             return
         }
 
-        val spiders = spiderService.initFromConfig(config)
-            .filter { spider -> config.sites.any { it.key == spider.key && !it.isJavaSpider } }
+        val spiders =
+            spiderService
+                .initFromConfig(config)
+                .filter { spider -> config.sites.any { it.key == spider.key && !it.isJavaSpider } }
         if (spiders.isEmpty()) {
             _isSourceUnsupported.value = true
             _notice.value = "「${site.name}」的 ${config.sites.size} 个分类全部依赖 TVBox 蜘蛛内核，" +
@@ -306,10 +319,11 @@ class VideoHomeViewModel(
         val site = _currentSite.value ?: return
         _notice.value = null
         loadJob?.cancel()
-        loadJob = viewModelScope.launch {
-            loadCategoriesInternal(site)
-            loadVideosInternal(site)
-        }
+        loadJob =
+            viewModelScope.launch {
+                loadCategoriesInternal(site)
+                loadVideosInternal(site)
+            }
     }
 
     /** 只刷新列表，不动分类（分类栏展开状态下用）*/
@@ -322,16 +336,20 @@ class VideoHomeViewModel(
 
     // ==================== 内部 ====================
 
-    private fun friendlyError(site: CmsApiSite, e: Exception): String = when {
-        e is kotlinx.serialization.SerializationException ->
-            "「${site.name}」返回的数据不是标准 CMS 格式，可能接口已变更。"
-        e.message?.contains("timeout", ignoreCase = true) == true ||
-            e.message?.contains("timed out", ignoreCase = true) == true ->
-            "连接「${site.name}」超时，请检查网络后重试。"
-        e.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
-            "「${site.name}」域名解析失败，该源可能已下线。"
-        else -> "「${site.name}」加载失败：${e.message ?: "未知错误"}"
-    }
+    private fun friendlyError(
+        site: CmsApiSite,
+        e: Exception,
+    ): String =
+        when {
+            e is kotlinx.serialization.SerializationException ->
+                "「${site.name}」返回的数据不是标准 CMS 格式，可能接口已变更。"
+            e.message?.contains("timeout", ignoreCase = true) == true ||
+                e.message?.contains("timed out", ignoreCase = true) == true ->
+                "连接「${site.name}」超时，请检查网络后重试。"
+            e.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
+                "「${site.name}」域名解析失败，该源可能已下线。"
+            else -> "「${site.name}」加载失败：${e.message ?: "未知错误"}"
+        }
 
     /**
      * 拉取一页 CMS 列表。
@@ -339,9 +357,11 @@ class VideoHomeViewModel(
      * 统一委托给 [VideoApiService]：它自带 `ac=detail`、5 分钟列表缓存与 DNS 预解析，
      * 首页不必再自己拼 URL、自己解析 JSON（这套逻辑原先在 UI 层重复实现了一份）。
      */
-    private suspend fun fetchCmsPage(apiUrl: String, page: Int, typeId: Int?): VideoListResponse {
-        return videoApiService.fetchVideoList(apiUrl = apiUrl, page = page, typeId = typeId)
-    }
+    private suspend fun fetchCmsPage(
+        apiUrl: String,
+        page: Int,
+        typeId: Int?,
+    ): VideoListResponse = videoApiService.fetchVideoList(apiUrl = apiUrl, page = page, typeId = typeId)
 
     private fun mergeVideoItems(items: List<VideoItem>): List<VideoItem> {
         val seen = mutableSetOf<String>()

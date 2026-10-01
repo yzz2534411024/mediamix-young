@@ -3,7 +3,6 @@ package com.mediamix.shared.core
 import kotlin.test.*
 
 class DeviceCapabilityTest {
-
     private val capability = DeviceCapability()
 
     @Test

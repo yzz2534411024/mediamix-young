@@ -11,10 +11,14 @@ import kotlinx.serialization.json.JsonPrimitive
 // ============================================================
 
 /** 蜘蛛引擎异常（如 Java Bridge 不可用） */
-class SpiderEngineException(message: String) : Exception(message)
+class SpiderEngineException(
+    message: String,
+) : Exception(message)
 
 /** 数据源不可用（网络失败、格式不支持等），message 可直接展示给用户 */
-class SourceUnavailableException(message: String) : Exception(message)
+class SourceUnavailableException(
+    message: String,
+) : Exception(message)
 
 // ============================================================
 // JSON 取值工具
@@ -29,12 +33,13 @@ class SourceUnavailableException(message: String) : Exception(message)
  * `"`，ExoPlayer 直接抛 Source error —— 这正是「详情页能打开、点播放就报错」
  * 的根因。这里统一改用 [JsonPrimitive.content]。
  */
-fun Any?.plainText(): String? = when (this) {
-    null, is JsonNull -> null
-    is JsonPrimitive -> content.trim().ifEmpty { null }
-    is JsonElement -> toString().trim().ifEmpty { null }
-    else -> toString()?.trim()?.ifEmpty { null }
-}
+fun Any?.plainText(): String? =
+    when (this) {
+        null, is JsonNull -> null
+        is JsonPrimitive -> content.trim().ifEmpty { null }
+        is JsonElement -> toString().trim().ifEmpty { null }
+        else -> toString()?.trim()?.ifEmpty { null }
+    }
 
 /**
  * 清洗播放地址：去掉 JSON 残留引号、包裹空白和全角空格。
@@ -45,11 +50,12 @@ fun Any?.plainText(): String? = when (this) {
  */
 internal fun sanitizePlayUrl(raw: String?): String? {
     if (raw == null) return null
-    val cleaned = raw
-        .trim()
-        .trim('"', '\'', '\u201C', '\u201D', '\u2018', '\u2019', '\uFF02')
-        .replace("\u3000", "")
-        .trim()
+    val cleaned =
+        raw
+            .trim()
+            .trim('"', '\'', '\u201C', '\u201D', '\u2018', '\u2019', '\uFF02')
+            .replace("\u3000", "")
+            .trim()
     if (cleaned.isEmpty()) return null
     if (cleaned.any { it.isWhitespace() }) return null
     return cleaned
@@ -100,28 +106,29 @@ data class CmsApiSite(
          * **全部**是 `csp_*` Java 蜘蛛，需要 TVBox 的 jar + JS 引擎才能解析，本项目架构跑不了。
          * 保留在列表里是为了让用户能看到并理解；首页会给出明确提示并引导切换。
          */
-        val defaultSites: List<CmsApiSite> = listOf(
-            CmsApiSite(key = "mdzyapi", name = "魔都资源", apiUrl = "https://www.mdzyapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "jszyapi", name = "极速资源", apiUrl = "https://jszyapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "apiYhzy", name = "樱花资源", apiUrl = "https://m3u8.apiyhzy.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "hnzy", name = "红牛资源", apiUrl = "https://hongniuzy2.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "apibdzy", name = "百度资源", apiUrl = "https://api.apibdzy.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "zuidapi", name = "最大资源", apiUrl = "https://api.zuidapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "apiwujin", name = "无尽资源", apiUrl = "https://api.wujinapi.me/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "tyyszy", name = "天涯资源", apiUrl = "https://tyyszy.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "bfzy", name = "暴风资源", apiUrl = "https://bfzyapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "dbzy", name = "豆瓣资源", apiUrl = "https://dbzy.tv/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "lzzy", name = "量子资源", apiUrl = "https://cj.lziapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "ffzy", name = "非凡资源", apiUrl = "http://ffzy5.tv/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "dyttzyapi", name = "电影天堂", apiUrl = "http://caiji.dyttzyapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(
-                key = "fantaiying",
-                name = "饭太硬 (TVBox)",
-                apiUrl = "http://www.xn--sss604efuw.net/tv",
-                isBuiltIn = true,
-                isTvBox = true,
-            ),
-        )
+        val defaultSites: List<CmsApiSite> =
+            listOf(
+                CmsApiSite(key = "mdzyapi", name = "魔都资源", apiUrl = "https://www.mdzyapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "jszyapi", name = "极速资源", apiUrl = "https://jszyapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "apiYhzy", name = "樱花资源", apiUrl = "https://m3u8.apiyhzy.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "hnzy", name = "红牛资源", apiUrl = "https://hongniuzy2.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "apibdzy", name = "百度资源", apiUrl = "https://api.apibdzy.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "zuidapi", name = "最大资源", apiUrl = "https://api.zuidapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "apiwujin", name = "无尽资源", apiUrl = "https://api.wujinapi.me/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "tyyszy", name = "天涯资源", apiUrl = "https://tyyszy.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "bfzy", name = "暴风资源", apiUrl = "https://bfzyapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "dbzy", name = "豆瓣资源", apiUrl = "https://dbzy.tv/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "lzzy", name = "量子资源", apiUrl = "https://cj.lziapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "ffzy", name = "非凡资源", apiUrl = "http://ffzy5.tv/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "dyttzyapi", name = "电影天堂", apiUrl = "http://caiji.dyttzyapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(
+                    key = "fantaiying",
+                    name = "饭太硬 (TVBox)",
+                    apiUrl = "http://www.xn--sss604efuw.net/tv",
+                    isBuiltIn = true,
+                    isTvBox = true,
+                ),
+            )
 
         /**
          * 已从默认列表移除的失效源，仅用于兼容旧配置里的 key 反查名字。
@@ -130,14 +137,14 @@ data class CmsApiSite(
          * - 如意资源：TLS 握手失败（UNEXPECTED_EOF_WHILE_READING）
          * - 小猫咪资源：HTTP 404
          */
-        val retiredSites: List<CmsApiSite> = listOf(
-            CmsApiSite(key = "rycjapi", name = "如意资源", apiUrl = "https://cj.rycjapi.com/api.php/provide/vod/", isBuiltIn = true),
-            CmsApiSite(key = "xiaomaomi", name = "小猫咪资源", apiUrl = "https://zy.xiaomaomi.cc/api.php/provide/vod/", isBuiltIn = true),
-        )
+        val retiredSites: List<CmsApiSite> =
+            listOf(
+                CmsApiSite(key = "rycjapi", name = "如意资源", apiUrl = "https://cj.rycjapi.com/api.php/provide/vod/", isBuiltIn = true),
+                CmsApiSite(key = "xiaomaomi", name = "小猫咪资源", apiUrl = "https://zy.xiaomaomi.cc/api.php/provide/vod/", isBuiltIn = true),
+            )
 
         /** 按 key 查源（含已下线源，用于详情页反查 apiUrl） */
-        fun findByKey(key: String): CmsApiSite? =
-            defaultSites.find { it.key == key } ?: retiredSites.find { it.key == key }
+        fun findByKey(key: String): CmsApiSite? = defaultSites.find { it.key == key } ?: retiredSites.find { it.key == key }
 
         /** 第一个可用的非 TVBox 源，作为兜底/首选项 */
         val firstCmsSite: CmsApiSite get() = defaultSites.first { !it.isTvBox }
@@ -151,8 +158,11 @@ data class CmsApiSite(
 /** 视频源类型 */
 @Serializable
 enum class SourceType {
-    @SerialName("cms") CMS,
-    @SerialName("spider") SPIDER,
+    @SerialName("cms")
+    CMS,
+
+    @SerialName("spider")
+    SPIDER,
 }
 
 // ============================================================
@@ -172,14 +182,15 @@ data class VideoSource(
     val playerType: String? = null,
 ) {
     companion object {
-        fun fromCmsSite(site: CmsApiSite): VideoSource = VideoSource(
-            key = site.key,
-            name = site.name,
-            apiUrl = site.apiUrl,
-            enabled = site.enabled,
-            isBuiltIn = site.isBuiltIn,
-            sourceType = SourceType.CMS,
-        )
+        fun fromCmsSite(site: CmsApiSite): VideoSource =
+            VideoSource(
+                key = site.key,
+                name = site.name,
+                apiUrl = site.apiUrl,
+                enabled = site.enabled,
+                isBuiltIn = site.isBuiltIn,
+                sourceType = SourceType.CMS,
+            )
     }
 }
 
@@ -213,8 +224,11 @@ data class VideoItem(
     val sourceKey: String? = null,
 ) {
     companion object {
-        fun fromJson(json: Map<String, Any?>, sourceKey: String? = null): VideoItem {
-            return VideoItem(
+        fun fromJson(
+            json: Map<String, Any?>,
+            sourceKey: String? = null,
+        ): VideoItem =
+            VideoItem(
                 vodId = json["vod_id"].plainText() ?: "",
                 vodName = json["vod_name"].plainText() ?: "未知",
                 vodPic = json["vod_pic"].plainText(),
@@ -224,7 +238,6 @@ data class VideoItem(
                 typeName = json["type_name"].plainText(),
                 sourceKey = sourceKey,
             )
-        }
     }
 }
 
@@ -243,12 +256,13 @@ data class VideoListResponse(
     companion object {
         fun fromJson(json: Map<String, Any?>): VideoListResponse {
             val rawList = json["list"] as? List<*> ?: emptyList<Any>()
-            val items = rawList.mapNotNull { item ->
-                (item as? Map<*, *>)?.let { m ->
-                    @Suppress("UNCHECKED_CAST")
-                    VideoItem.fromJson(m as Map<String, Any?>)
+            val items =
+                rawList.mapNotNull { item ->
+                    (item as? Map<*, *>)?.let { m ->
+                        @Suppress("UNCHECKED_CAST")
+                        VideoItem.fromJson(m as Map<String, Any?>)
+                    }
                 }
-            }
             return VideoListResponse(
                 list = items,
                 page = json["page"].plainText()?.toIntOrNull() ?: 1,
@@ -316,7 +330,10 @@ data class VideoDetail(
      * 分享页、需要二次解析，直连必然失败。播放失败时按顺序回退到这些候选地址，
      * 能显著提升「点进去就能播」的成功率。
      */
-    fun fallbackUrlsFor(episodeIndex: Int, currentSourceIndex: Int): List<String> {
+    fun fallbackUrlsFor(
+        episodeIndex: Int,
+        currentSourceIndex: Int,
+    ): List<String> {
         if (playSources.size <= 1) return emptyList()
         val result = mutableListOf<String>()
         for (index in playSources.indices) {
@@ -328,7 +345,10 @@ data class VideoDetail(
     }
 
     companion object {
-        fun fromJson(json: Map<String, Any?>, sourceKey: String = ""): VideoDetail {
+        fun fromJson(
+            json: Map<String, Any?>,
+            sourceKey: String = "",
+        ): VideoDetail {
             val sources = mutableListOf<PlaySource>()
             val vodPlayFrom = json["vod_play_from"].plainText() ?: ""
             val vodPlayUrl = json["vod_play_url"].plainText() ?: ""
@@ -400,13 +420,12 @@ data class VideoCategory(
     val typeName: String,
 ) {
     companion object {
-        fun fromJson(json: Map<String, Any?>): VideoCategory {
-            return VideoCategory(
+        fun fromJson(json: Map<String, Any?>): VideoCategory =
+            VideoCategory(
                 typeId = json["type_id"].plainText()?.toIntOrNull() ?: 0,
                 typePid = json["type_pid"].plainText()?.toIntOrNull() ?: 0,
                 typeName = json["type_name"].plainText() ?: "",
             )
-        }
     }
 }
 
@@ -423,16 +442,16 @@ data class VideoParser(
     val enabled: Boolean = true,
 ) {
     /** 构建解析后的完整 URL */
-    fun buildUrl(videoUrl: String): String =
-        urlTemplate.replace("{url}", videoUrl)
+    fun buildUrl(videoUrl: String): String = urlTemplate.replace("{url}", videoUrl)
 
     companion object {
-        val defaultParsers: List<VideoParser> = listOf(
-            VideoParser(key = "yparse", name = "YParse", urlTemplate = "https://yparse.ik9.cc/index.php?url={url}"),
-            VideoParser(key = "m3u8tv", name = "M3U8.TV", urlTemplate = "https://jx.m3u8.tv/jiexi/?url={url}"),
-            VideoParser(key = "ik9", name = "IK9 自建", urlTemplate = "http://82.156.40.118:1234/jx/?url={url}"),
-            VideoParser(key = "oftens", name = "Oftens", urlTemplate = "https://jx.oftens.top/player/?url={url}"),
-            VideoParser(key = "jlk", name = "JLK解析", urlTemplate = "https://jlk.jianghu.vip/?url={url}"),
-        )
+        val defaultParsers: List<VideoParser> =
+            listOf(
+                VideoParser(key = "yparse", name = "YParse", urlTemplate = "https://yparse.ik9.cc/index.php?url={url}"),
+                VideoParser(key = "m3u8tv", name = "M3U8.TV", urlTemplate = "https://jx.m3u8.tv/jiexi/?url={url}"),
+                VideoParser(key = "ik9", name = "IK9 自建", urlTemplate = "http://82.156.40.118:1234/jx/?url={url}"),
+                VideoParser(key = "oftens", name = "Oftens", urlTemplate = "https://jx.oftens.top/player/?url={url}"),
+                VideoParser(key = "jlk", name = "JLK解析", urlTemplate = "https://jlk.jianghu.vip/?url={url}"),
+            )
     }
 }

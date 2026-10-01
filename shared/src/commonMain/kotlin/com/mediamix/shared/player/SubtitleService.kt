@@ -1,10 +1,10 @@
 package com.mediamix.shared.player
 
 import co.touchlab.kermit.Logger
+import com.mediamix.shared.network.HttpClientFactory
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import com.mediamix.shared.network.HttpClientFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -13,9 +13,9 @@ import kotlinx.coroutines.coroutineScope
  * 字幕条目
  */
 data class SubtitleEntry(
-    val startMs: Long,    // 开始时间（毫秒）
-    val endMs: Long,      // 结束时间（毫秒）
-    val text: String       // 字幕文本（可能多行）
+    val startMs: Long, // 开始时间（毫秒）
+    val endMs: Long, // 结束时间（毫秒）
+    val text: String, // 字幕文本（可能多行）
 )
 
 /**
@@ -24,32 +24,42 @@ data class SubtitleEntry(
 data class SubtitleTrack(
     val label: String,
     val language: String,
-    val entries: List<SubtitleEntry>
+    val entries: List<SubtitleEntry>,
 )
 
 /**
  * LRU 字幕缓存 — 最大容量 20 条，避免重复解析
  * 使用 LinkedHashMap 实现，按访问顺序排列（最新访问在末尾）
  */
-class SubtitleLruCache(private val maxEntries: Int = 20) {
+class SubtitleLruCache(
+    private val maxEntries: Int = 20,
+) {
     private val cache = LinkedHashMap<String, List<SubtitleEntry>>()
 
     /** 获取缓存，命中时将条目移到末尾（标记为最近使用） */
     fun get(key: String): List<SubtitleEntry>? {
         val value = cache.remove(key) ?: return null
-        cache[key] = value  // 移到末尾
+        cache[key] = value // 移到末尾
         return value
     }
 
     /** 写入缓存，超容量时淘汰最久未使用的条目 */
-    fun put(key: String, entries: List<SubtitleEntry>) {
-        if (cache.containsKey(key)) cache.remove(key)
-        else if (cache.size >= maxEntries) cache.remove(cache.keys.first())
+    fun put(
+        key: String,
+        entries: List<SubtitleEntry>,
+    ) {
+        if (cache.containsKey(key)) {
+            cache.remove(key)
+        } else if (cache.size >= maxEntries) {
+            cache.remove(cache.keys.first())
+        }
         cache[key] = entries
     }
 
     fun containsKey(key: String) = cache.containsKey(key)
+
     val size: Int get() = cache.size
+
     fun clear() = cache.clear()
 }
 
@@ -64,7 +74,7 @@ class SubtitleLruCache(private val maxEntries: Int = 20) {
  * - 多字幕轨道支持
  */
 class SubtitleService(
-    private val httpClient: HttpClient? = null
+    private val httpClient: HttpClient? = null,
 ) {
     private val logger = Logger.withTag("SubtitleService")
     private val subtitleCache = SubtitleLruCache(maxEntries = 20)
@@ -123,15 +133,16 @@ class SubtitleService(
     suspend fun preloadSubtitles(urls: List<String>) {
         logger.d { "开始预加载 ${urls.size} 个字幕文件" }
         coroutineScope {
-            urls.map { url ->
-                async {
-                    try {
-                        loadFromUrl(url)
-                    } catch (e: Exception) {
-                        logger.w { "预加载字幕失败: $url, 错误: ${e.message}" }
+            urls
+                .map { url ->
+                    async {
+                        try {
+                            loadFromUrl(url)
+                        } catch (e: Exception) {
+                            logger.w { "预加载字幕失败: $url, 错误: ${e.message}" }
+                        }
                     }
-                }
-            }.awaitAll()
+                }.awaitAll()
         }
         logger.d { "预加载完成，缓存大小: ${subtitleCache.size}" }
     }
@@ -139,31 +150,31 @@ class SubtitleService(
     /**
      * 加载多轨道字幕 — 根据 URL 和轨道信息加载，支持零延迟切换
      */
-    suspend fun loadMultiTrackFromUrl(
-        trackInfos: List<TrackInfo>
-    ): List<SubtitleTrack> {
+    suspend fun loadMultiTrackFromUrl(trackInfos: List<TrackInfo>): List<SubtitleTrack> {
         logger.d { "开始加载 ${trackInfos.size} 条字幕轨道" }
-        val results = coroutineScope {
-            trackInfos.map { info ->
-                async {
-                    try {
-                        val entries = loadFromUrl(info.id)
-                        SubtitleTrack(
-                            label = info.label,
-                            language = info.language ?: "",
-                            entries = entries
-                        )
-                    } catch (e: Exception) {
-                        logger.e { "加载轨道失败: ${info.label}(${info.language}), 错误: ${e.message}" }
-                        SubtitleTrack(
-                            label = info.label,
-                            language = info.language ?: "",
-                            entries = emptyList()
-                        )
-                    }
-                }
-            }.awaitAll()
-        }
+        val results =
+            coroutineScope {
+                trackInfos
+                    .map { info ->
+                        async {
+                            try {
+                                val entries = loadFromUrl(info.id)
+                                SubtitleTrack(
+                                    label = info.label,
+                                    language = info.language ?: "",
+                                    entries = entries,
+                                )
+                            } catch (e: Exception) {
+                                logger.e { "加载轨道失败: ${info.label}(${info.language}), 错误: ${e.message}" }
+                                SubtitleTrack(
+                                    label = info.label,
+                                    language = info.language ?: "",
+                                    entries = emptyList(),
+                                )
+                            }
+                        }
+                    }.awaitAll()
+            }
         logger.d { "多轨道加载完成，共 ${results.size} 条轨道" }
         return results
     }
@@ -173,8 +184,8 @@ class SubtitleService(
     // 预编译正则，避免每次解析都重新创建
     private val srtBlockSplitRegex = Regex("\\r?\\n\\s*\\r?\\n")
     private val srtLineSplitRegex = Regex("\\r?\\n")
-    private val ssaTagRegex = Regex("\\{[^}]*\\}")      // SSA/ASS 格式标签 {\b1} {\an8} 等
-    private val htmlTagRegex = Regex("<[^>]+>")          // HTML 标签 <b> <i> <font> 等
+    private val ssaTagRegex = Regex("\\{[^}]*\\}") // SSA/ASS 格式标签 {\b1} {\an8} 等
+    private val htmlTagRegex = Regex("<[^>]+>") // HTML 标签 <b> <i> <font> 等
     private val timestampRegex = Regex("""(\d{1,2}):(\d{2}):(\d{2})[.,](\d{1,3})""")
 
     /**
@@ -192,9 +203,10 @@ class SubtitleService(
         val entries = mutableListOf<SubtitleEntry>()
 
         // 剥离 UTF-8 BOM 和前后空白
-        val cleanContent = content
-            .removePrefix("\uFEFF")  // UTF-8 BOM
-            .trim()
+        val cleanContent =
+            content
+                .removePrefix("\uFEFF") // UTF-8 BOM
+                .trim()
 
         // 按空行分割字幕块
         val blocks = cleanContent.split(srtBlockSplitRegex)
@@ -235,16 +247,15 @@ class SubtitleService(
     /**
      * 清理字幕文本：剥离格式标签，保留纯文本
      */
-    private fun cleanSubtitleText(text: String): String {
-        return text
-            .replace(ssaTagRegex, "")    // 移除 {\b1} 等 SSA/ASS 标签
-            .replace(htmlTagRegex, "")   // 移除 <b> <i> 等 HTML 标签
-            .replace("&nbsp;", " ")      // HTML 实体
+    private fun cleanSubtitleText(text: String): String =
+        text
+            .replace(ssaTagRegex, "") // 移除 {\b1} 等 SSA/ASS 标签
+            .replace(htmlTagRegex, "") // 移除 <b> <i> 等 HTML 标签
+            .replace("&nbsp;", " ") // HTML 实体
             .replace("&amp;", "&")
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .trim()
-    }
 
     /**
      * 解析 SRT 时间戳，支持多种格式：
@@ -260,12 +271,13 @@ class SubtitleService(
         val seconds = match.groupValues[3].toLongOrNull() ?: return null
         val millisStr = match.groupValues[4]
         // 补齐到 3 位毫秒（如 "0" -> "000", "12" -> "120"）
-        val millis = when (millisStr.length) {
-            1 -> (millisStr.toLongOrNull() ?: return null) * 100
-            2 -> (millisStr.toLongOrNull() ?: return null) * 10
-            3 -> millisStr.toLongOrNull() ?: return null
-            else -> return null
-        }
+        val millis =
+            when (millisStr.length) {
+                1 -> (millisStr.toLongOrNull() ?: return null) * 100
+                2 -> (millisStr.toLongOrNull() ?: return null) * 10
+                3 -> millisStr.toLongOrNull() ?: return null
+                else -> return null
+            }
         return hours * 3600000 + minutes * 60000 + seconds * 1000 + millis
     }
 
@@ -283,7 +295,7 @@ class SubtitleService(
         entries: List<SubtitleEntry>,
         positionMs: Long,
         offsetSec: Double = 0.0,
-        syncOffset: Long? = null
+        syncOffset: Long? = null,
     ): SubtitleEntry? {
         if (entries.isEmpty()) return null
 
@@ -328,7 +340,10 @@ class SubtitleService(
      * @param audioTimestamps 音频时间戳列表（毫秒）
      * @return 计算出的最佳偏移量（毫秒）
      */
-    fun autoSyncOffset(entries: List<SubtitleEntry>, audioTimestamps: List<Long>): Long {
+    fun autoSyncOffset(
+        entries: List<SubtitleEntry>,
+        audioTimestamps: List<Long>,
+    ): Long {
         if (entries.isEmpty() || audioTimestamps.isEmpty()) {
             logger.w { "字幕或音频时间戳为空，无法计算同步偏移" }
             return syncOffsetMs

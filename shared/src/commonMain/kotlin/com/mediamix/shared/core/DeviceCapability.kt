@@ -8,6 +8,8 @@ package com.mediamix.shared.core
  */
 expect class DeviceCapability() {
     fun supportsHardwareDecoding(codec: String): Boolean
+
     fun getMaxResolution(): Pair<Int, Int>
+
     fun getDeviceName(): String
 }

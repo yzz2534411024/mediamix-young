@@ -1,8 +1,6 @@
 ﻿package com.mediamix.ui.viewmodel
 
-import app.cash.turbine.test
 import com.mediamix.shared.database.FavoriteDao
-import com.mediamix.shared.database.FavoriteItemEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -23,7 +21,6 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FavoriteViewModelTest {
-
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var mockDao: FavoriteDao
     private lateinit var viewModel: FavoriteViewModel
@@ -43,12 +40,13 @@ class FavoriteViewModelTest {
 
     @Test
     fun favoriteItem_defaultValues() {
-        val item = FavoriteItem(
-            id = "1",
-            vodId = "vod_1",
-            vodName = "Test Video",
-            sourceKey = "test_source"
-        )
+        val item =
+            FavoriteItem(
+                id = "1",
+                vodId = "vod_1",
+                vodName = "Test Video",
+                sourceKey = "test_source",
+            )
         assertEquals("1", item.id)
         assertEquals("vod_1", item.vodId)
         assertEquals("Test Video", item.vodName)
@@ -61,16 +59,17 @@ class FavoriteViewModelTest {
 
     @Test
     fun favoriteItem_withAllFields() {
-        val item = FavoriteItem(
-            id = "1",
-            vodId = "vod_1",
-            vodName = "Test Video",
-            vodPic = "https://example.com/pic.jpg",
-            sourceKey = "test_source",
-            typeName = "Movie",
-            lastEpisodeCount = 10,
-            addTime = 5000L
-        )
+        val item =
+            FavoriteItem(
+                id = "1",
+                vodId = "vod_1",
+                vodName = "Test Video",
+                vodPic = "https://example.com/pic.jpg",
+                sourceKey = "test_source",
+                typeName = "Movie",
+                lastEpisodeCount = 10,
+                addTime = 5000L,
+            )
         assertEquals("https://example.com/pic.jpg", item.vodPic)
         assertEquals("Movie", item.typeName)
         assertEquals(10, item.lastEpisodeCount)
@@ -98,68 +97,73 @@ class FavoriteViewModelTest {
     // ========== ViewModel Integration Tests ==========
 
     @Test
-    fun toggleFavorite_addsNewFavorite() = runTest {
-        every { mockDao.observeAll() } returns flowOf(emptyList())
-        coEvery { mockDao.isFavorite("v1") } returns false
-        viewModel = FavoriteViewModel(favoriteDao = mockDao)
+    fun toggleFavorite_addsNewFavorite() =
+        runTest {
+            every { mockDao.observeAll() } returns flowOf(emptyList())
+            coEvery { mockDao.isFavorite("v1") } returns false
+            viewModel = FavoriteViewModel(favoriteDao = mockDao)
 
-        viewModel.toggleFavorite(
-            vodId = "v1",
-            vodName = "Test",
-            vodPic = null,
-            sourceKey = "src",
-            typeName = "Movie",
-            episodeCount = 10,
-        )
+            viewModel.toggleFavorite(
+                vodId = "v1",
+                vodName = "Test",
+                vodPic = null,
+                sourceKey = "src",
+                typeName = "Movie",
+                episodeCount = 10,
+            )
 
-        coVerify {
-            mockDao.insertOrReplace("v1", "Test", null, "src", "Movie", 10L, any())
+            coVerify {
+                mockDao.insertOrReplace("v1", "Test", null, "src", "Movie", 10L, any())
+            }
         }
-    }
 
     @Test
-    fun toggleFavorite_removesExistingFavorite() = runTest {
-        every { mockDao.observeAll() } returns flowOf(emptyList())
-        coEvery { mockDao.isFavorite("v1") } returns true
-        viewModel = FavoriteViewModel(favoriteDao = mockDao)
+    fun toggleFavorite_removesExistingFavorite() =
+        runTest {
+            every { mockDao.observeAll() } returns flowOf(emptyList())
+            coEvery { mockDao.isFavorite("v1") } returns true
+            viewModel = FavoriteViewModel(favoriteDao = mockDao)
 
-        viewModel.toggleFavorite(
-            vodId = "v1",
-            vodName = "Test",
-            vodPic = null,
-            sourceKey = "src",
-            typeName = null,
-            episodeCount = 0,
-        )
+            viewModel.toggleFavorite(
+                vodId = "v1",
+                vodName = "Test",
+                vodPic = null,
+                sourceKey = "src",
+                typeName = null,
+                episodeCount = 0,
+            )
 
-        coVerify { mockDao.deleteByVodId("v1") }
-    }
-
-    @Test
-    fun removeFavorite_callsDao() = runTest {
-        every { mockDao.observeAll() } returns flowOf(emptyList())
-        viewModel = FavoriteViewModel(favoriteDao = mockDao)
-
-        viewModel.removeFavorite("v1")
-
-        coVerify { mockDao.deleteByVodId("v1") }
-    }
+            coVerify { mockDao.deleteByVodId("v1") }
+        }
 
     @Test
-    fun isFavorite_delegatesToDao() = runTest {
-        every { mockDao.observeAll() } returns flowOf(emptyList())
-        coEvery { mockDao.isFavorite("v1") } returns true
-        viewModel = FavoriteViewModel(favoriteDao = mockDao)
+    fun removeFavorite_callsDao() =
+        runTest {
+            every { mockDao.observeAll() } returns flowOf(emptyList())
+            viewModel = FavoriteViewModel(favoriteDao = mockDao)
 
-        assertTrue(viewModel.isFavorite("v1"))
-    }
+            viewModel.removeFavorite("v1")
+
+            coVerify { mockDao.deleteByVodId("v1") }
+        }
 
     @Test
-    fun isFavorite_returnsFalseOnException() = runTest {
-        every { mockDao.observeAll() } returns flowOf(emptyList())
-        coEvery { mockDao.isFavorite(any()) } throws RuntimeException("DB error")
-        viewModel = FavoriteViewModel(favoriteDao = mockDao)
+    fun isFavorite_delegatesToDao() =
+        runTest {
+            every { mockDao.observeAll() } returns flowOf(emptyList())
+            coEvery { mockDao.isFavorite("v1") } returns true
+            viewModel = FavoriteViewModel(favoriteDao = mockDao)
 
-        assertFalse(viewModel.isFavorite("v1"))
-    }
+            assertTrue(viewModel.isFavorite("v1"))
+        }
+
+    @Test
+    fun isFavorite_returnsFalseOnException() =
+        runTest {
+            every { mockDao.observeAll() } returns flowOf(emptyList())
+            coEvery { mockDao.isFavorite(any()) } throws RuntimeException("DB error")
+            viewModel = FavoriteViewModel(favoriteDao = mockDao)
+
+            assertFalse(viewModel.isFavorite("v1"))
+        }
 }

@@ -13,9 +13,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediamix.ui.util.formatFileSize
 import com.mediamix.ui.viewmodel.DownloadTaskStatus
 import com.mediamix.ui.viewmodel.DownloadViewModel
-import com.mediamix.ui.util.formatFileSize
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,13 +48,14 @@ fun DownloadScreen(
                     }
                 },
             )
-        }
+        },
     ) { innerPadding ->
         if (tasks.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -74,9 +75,10 @@ fun DownloadScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
             ) {
                 items(tasks, key = { it.id }) { task ->
                     DownloadTaskTile(
@@ -116,7 +118,7 @@ fun DownloadScreen(
                 TextButton(onClick = { taskToDelete = null }) {
                     Text("\u53d6\u6d88")
                 }
-            }
+            },
         )
     }
 }
@@ -129,21 +131,23 @@ private fun DownloadTaskTile(
     onDelete: () -> Unit,
     onPlay: () -> Unit,
 ) {
-    val statusColor = when (task.status) {
-        DownloadTaskStatus.WAITING -> Color.Gray
-        DownloadTaskStatus.DOWNLOADING -> MaterialTheme.colorScheme.primary
-        DownloadTaskStatus.PAUSED -> Color(0xFFFF9800)
-        DownloadTaskStatus.COMPLETED -> Color(0xFF4CAF50)
-        DownloadTaskStatus.FAILED -> Color(0xFFF44336)
-    }
+    val statusColor =
+        when (task.status) {
+            DownloadTaskStatus.WAITING -> Color.Gray
+            DownloadTaskStatus.DOWNLOADING -> MaterialTheme.colorScheme.primary
+            DownloadTaskStatus.PAUSED -> Color(0xFFFF9800)
+            DownloadTaskStatus.COMPLETED -> Color(0xFF4CAF50)
+            DownloadTaskStatus.FAILED -> Color(0xFFF44336)
+        }
 
-    val statusIcon = when (task.status) {
-        DownloadTaskStatus.WAITING -> Icons.Default.Schedule
-        DownloadTaskStatus.DOWNLOADING -> Icons.Default.Downloading
-        DownloadTaskStatus.PAUSED -> Icons.Default.PauseCircle
-        DownloadTaskStatus.COMPLETED -> Icons.Default.CheckCircle
-        DownloadTaskStatus.FAILED -> Icons.Default.Error
-    }
+    val statusIcon =
+        when (task.status) {
+            DownloadTaskStatus.WAITING -> Icons.Default.Schedule
+            DownloadTaskStatus.DOWNLOADING -> Icons.Default.Downloading
+            DownloadTaskStatus.PAUSED -> Icons.Default.PauseCircle
+            DownloadTaskStatus.COMPLETED -> Icons.Default.CheckCircle
+            DownloadTaskStatus.FAILED -> Icons.Default.Error
+        }
 
     ListItem(
         headlineContent = {
@@ -165,7 +169,7 @@ private fun DownloadTaskTile(
                     Spacer(Modifier.height(2.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
                             text = "\u4e0b\u8f7d\u4e2d ${task.progress}%",
@@ -267,12 +271,11 @@ private fun DownloadTaskTile(
     )
 }
 
-private fun getStatusText(task: com.mediamix.ui.viewmodel.DownloadTaskItem): String {
-    return when (task.status) {
+private fun getStatusText(task: com.mediamix.ui.viewmodel.DownloadTaskItem): String =
+    when (task.status) {
         DownloadTaskStatus.WAITING -> "\u7b49\u5f85\u4e0b\u8f7d"
         DownloadTaskStatus.DOWNLOADING -> "\u4e0b\u8f7d\u4e2d ${task.progress}%"
         DownloadTaskStatus.PAUSED -> "\u5df2\u6682\u505c ${task.progress}%"
         DownloadTaskStatus.COMPLETED -> "\u5df2\u5b8c\u6210 \u00b7 ${formatFileSize(task.fileSize)}"
         DownloadTaskStatus.FAILED -> "\u4e0b\u8f7d\u5931\u8d25"
     }
-}

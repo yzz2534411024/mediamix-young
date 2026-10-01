@@ -11,8 +11,9 @@ import app.cash.sqldelight.driver.android.AndroidSqliteDriver
  * 必须在 Application.onCreate() 中调用 DbHolder.init(context)。
  */
 actual fun createSqlDriver(): SqlDriver {
-    val context = DbHolder.context
-        ?: throw IllegalStateException("DbContextHolder.init(context) must be called in Application.onCreate()")
+    val context =
+        DbHolder.context
+            ?: throw IllegalStateException("DbContextHolder.init(context) must be called in Application.onCreate()")
     return AndroidSqliteDriver(
         schema = MediaMixDatabase.Schema,
         context = context,

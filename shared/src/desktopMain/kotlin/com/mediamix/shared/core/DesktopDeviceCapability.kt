@@ -7,7 +7,6 @@ package com.mediamix.shared.core
  * TODO: 通过 JNA / Runtime.exec 获取真实硬件信息。
  */
 actual class DeviceCapability actual constructor() {
-
     actual fun supportsHardwareDecoding(codec: String): Boolean {
         // mpv 通常支持硬件加速解码（通过 GPU API）
         return when (codec.uppercase()) {

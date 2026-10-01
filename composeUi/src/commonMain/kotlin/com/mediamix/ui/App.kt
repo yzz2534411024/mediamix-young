@@ -22,7 +22,8 @@ fun App() {
     val sessionStore: PlaybackSessionStore = koinInject()
 
     // 判断是否显示底部导航栏（播放器、详情页、源码管理页不显示）
-    val showBottomBar = currentRoute != Screen.Player.route &&
+    val showBottomBar =
+        currentRoute != Screen.Player.route &&
             currentRoute?.startsWith("detail") != true &&
             currentRoute?.startsWith("player") != true &&
             currentRoute != Screen.SourceManage.route
@@ -36,12 +37,12 @@ fun App() {
                 restoreState = true
             }
         },
-        showBottomBar = showBottomBar
+        showBottomBar = showBottomBar,
     ) { paddingModifier ->
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = paddingModifier
+            modifier = paddingModifier,
         ) {
             composable(Screen.Home.route) {
                 VideoHomeScreen(
@@ -52,7 +53,7 @@ fun App() {
                     },
                     onNavigateToSearch = {
                         navController.navigate(Screen.Search.route)
-                    }
+                    },
                 )
             }
             composable(Screen.History.route) {
@@ -61,7 +62,7 @@ fun App() {
                         navController.navigate(Screen.Detail.createRoute(vodId, sourceKey)) {
                             launchSingleTop = true
                         }
-                    }
+                    },
                 )
             }
             composable(Screen.Favorite.route) {
@@ -70,14 +71,14 @@ fun App() {
                         navController.navigate(Screen.Detail.createRoute(vodId, sourceKey)) {
                             launchSingleTop = true
                         }
-                    }
+                    },
                 )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToSourceManage = { navController.navigate(Screen.SourceManage.route) },
                     onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) },
-                    onNavigateToDebug = { navController.navigate(Screen.Debug.route) }
+                    onNavigateToDebug = { navController.navigate(Screen.Debug.route) },
                 )
             }
             composable(Screen.Debug.route) {
@@ -99,7 +100,7 @@ fun App() {
                             launchSingleTop = true
                         }
                     },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Screen.Search.route) {
@@ -108,7 +109,7 @@ fun App() {
                         navController.navigate(Screen.Detail.createRoute(vodId, sourceKey)) {
                             launchSingleTop = true
                         }
-                    }
+                    },
                 )
             }
             composable(Screen.Player.PATTERN) { backStackEntry ->
@@ -119,7 +120,7 @@ fun App() {
                     url = url,
                     title = title,
                     episodeIndex = index,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Screen.SourceManage.route) {
@@ -134,7 +135,7 @@ fun App() {
                         navController.navigate(Screen.Player.createRoute(localPath, title, 0)) {
                             launchSingleTop = true
                         }
-                    }
+                    },
                 )
             }
         }

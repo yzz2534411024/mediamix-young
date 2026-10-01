@@ -53,7 +53,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
                 // org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
             )
             packageName = "MediaMix"
@@ -72,7 +72,7 @@ compose.desktop {
 
             jvmArgs(
                 "-Xmx2g",
-                "-Dfile.encoding=UTF-8"
+                "-Dfile.encoding=UTF-8",
             )
         }
     }

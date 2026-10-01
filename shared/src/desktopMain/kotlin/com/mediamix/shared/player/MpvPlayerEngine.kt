@@ -14,7 +14,6 @@ import com.sun.jna.*
  *   offset 8: format (int, 4 bytes)           — 在后
  */
 actual class PlayerEngine actual constructor() {
-
     private val logger = Logger.withTag("MpvPlayerEngine")
     private var handle: Pointer? = null
     private val mpv: MpvLib by lazy { MpvLib.getInstance() }
@@ -22,6 +21,7 @@ actual class PlayerEngine actual constructor() {
     private var currentState: PlayerState = PlayerState.IDLE
     private var firstFrameReported = false
     private var eventThread: Thread? = null
+
     @Volatile
     private var running = false
 
@@ -67,7 +67,8 @@ actual class PlayerEngine actual constructor() {
             if (thread?.isAlive == true) {
                 logger.e("mpv event thread did not exit within 5s")
             }
-        } catch (_: InterruptedException) { }
+        } catch (_: InterruptedException) {
+        }
         synchronized(this) {
             handle?.let { mpv.mpv_destroy(it) }
             handle = null
@@ -77,14 +78,18 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 播放控制 ====================
 
-    actual fun setSource(url: String, headers: Map<String, String>?) {
+    actual fun setSource(
+        url: String,
+        headers: Map<String, String>?,
+    ) {
         val h = handle ?: return
         // mpv 的 HTTP 头通过 `--http-header-fields` 属性下发；没有头时清空，避免沿用上一集
-        val headerValue = headers
-            ?.entries
-            ?.filter { it.key.isNotBlank() && it.value.isNotBlank() }
-            ?.joinToString(",") { "${it.key}: ${it.value}" }
-            ?: ""
+        val headerValue =
+            headers
+                ?.entries
+                ?.filter { it.key.isNotBlank() && it.value.isNotBlank() }
+                ?.joinToString(",") { "${it.key}: ${it.value}" }
+                ?: ""
         setPropertyString(h, "http-header-fields", headerValue)
         mpv.mpv_command(h, arrayOf("loadfile", url, "replace"))
         firstFrameReported = false
@@ -179,7 +184,8 @@ actual class PlayerEngine actual constructor() {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
         val currentVid = getPropertyString(h, "vid")
-        return tracks.filter { it.mimeType == "video" }
+        return tracks
+            .filter { it.mimeType == "video" }
             .map { it.copy(isSelected = it.id == currentVid) }
     }
 
@@ -199,7 +205,8 @@ actual class PlayerEngine actual constructor() {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
         val currentAid = getPropertyString(h, "aid")
-        return tracks.filter { it.mimeType == "audio" }
+        return tracks
+            .filter { it.mimeType == "audio" }
             .map { it.copy(isSelected = it.id == currentAid) }
     }
 
@@ -219,7 +226,8 @@ actual class PlayerEngine actual constructor() {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
         val currentSid = getPropertyString(h, "sid")
-        return tracks.filter { it.mimeType == "sub" }
+        return tracks
+            .filter { it.mimeType == "sub" }
             .map { it.copy(isSelected = it.id == currentSid) }
     }
 
@@ -244,32 +252,53 @@ actual class PlayerEngine actual constructor() {
 
     // --- mpv 属性读写 ---
 
-    private fun getPropertyDouble(h: Pointer, name: String): Double {
+    private fun getPropertyDouble(
+        h: Pointer,
+        name: String,
+    ): Double {
         val mem = Memory(8).apply { setDouble(0, 0.0) }
         val rc = mpv.mpv_get_property(h, name, MpvLib.MPV_FORMAT_DOUBLE, mem)
         return if (rc >= 0) mem.getDouble(0) else 0.0
     }
 
-    private fun getPropertyFlag(h: Pointer, name: String): Boolean {
+    private fun getPropertyFlag(
+        h: Pointer,
+        name: String,
+    ): Boolean {
         val mem = Memory(4).apply { setInt(0, 0) }
         val rc = mpv.mpv_get_property(h, name, MpvLib.MPV_FORMAT_FLAG, mem)
         return if (rc >= 0) mem.getInt(0) != 0 else false
     }
 
-    private fun getPropertyString(h: Pointer, name: String): String {
+    private fun getPropertyString(
+        h: Pointer,
+        name: String,
+    ): String {
         val mem = Memory(8).apply { setPointer(0, null) }
         val rc = mpv.mpv_get_property(h, name, MpvLib.MPV_FORMAT_STRING, mem)
         if (rc < 0) return ""
         val ptr = mem.getPointer(0) ?: return ""
-        return try { ptr.getString(0) } finally { mpv.mpv_free(ptr) }
+        return try {
+            ptr.getString(0)
+        } finally {
+            mpv.mpv_free(ptr)
+        }
     }
 
-    private fun setPropertyDouble(h: Pointer, name: String, value: Double) {
+    private fun setPropertyDouble(
+        h: Pointer,
+        name: String,
+        value: Double,
+    ) {
         val mem = Memory(8).apply { setDouble(0, value) }
         mpv.mpv_set_property(h, name, MpvLib.MPV_FORMAT_DOUBLE, mem)
     }
 
-    private fun setPropertyString(h: Pointer, name: String, value: String) {
+    private fun setPropertyString(
+        h: Pointer,
+        name: String,
+        value: String,
+    ) {
         val mem = Memory(8).apply { setString(0, value) }
         mpv.mpv_set_property(h, name, MpvLib.MPV_FORMAT_STRING, mem)
     }
@@ -286,10 +315,11 @@ actual class PlayerEngine actual constructor() {
      */
     private fun parseTrackList(h: Pointer): List<TrackInfo> {
         // 分配 mpv_node (16 bytes): data=0, format=0
-        val nodeMem = Memory(16).apply {
-            setPointer(0, null)  // data
-            setInt(8, MpvLib.MPV_FORMAT_NONE) // format
-        }
+        val nodeMem =
+            Memory(16).apply {
+                setPointer(0, null) // data
+                setInt(8, MpvLib.MPV_FORMAT_NONE) // format
+            }
         val rc = mpv.mpv_get_property(h, "track-list", MpvLib.MPV_FORMAT_NODE, nodeMem)
         if (rc < 0) return emptyList()
 
@@ -303,9 +333,10 @@ actual class PlayerEngine actual constructor() {
 
         val result = mutableListOf<TrackInfo>()
         for (i in 0 until numEntries) {
-            val nodePtr = Pointer(
-                Pointer.nativeValue(valuesPtr) + i * MpvNode.SIZE
-            )
+            val nodePtr =
+                Pointer(
+                    Pointer.nativeValue(valuesPtr) + i * MpvNode.SIZE,
+                )
             val nodeFormat = nodePtr.getInt(8) // format at offset 8
             if (nodeFormat != MpvLib.NODE_FORMAT_NODE_MAP) continue
             val mapPtr = nodePtr.getPointer(0) ?: continue // data at offset 0
@@ -322,8 +353,8 @@ actual class PlayerEngine actual constructor() {
                     label = title ?: lang ?: "Track $id",
                     language = lang,
                     mimeType = type,
-                    bitrate = null
-                )
+                    bitrate = null,
+                ),
             )
         }
 
@@ -339,16 +370,17 @@ actual class PlayerEngine actual constructor() {
      */
     private fun parseNodeMap(mapPtr: Pointer): Map<String, Any?> {
         val numKeys = mapPtr.getInt(0).toLong()
-        val keysPtr = mapPtr.getPointer(8) ?: return emptyMap()    // char **keys
+        val keysPtr = mapPtr.getPointer(8) ?: return emptyMap() // char **keys
         val valuesPtr = mapPtr.getPointer(16) ?: return emptyMap() // mpv_node *values
 
         val map = mutableMapOf<String, Any?>()
         for (i in 0 until numKeys) {
             val keyPtr = keysPtr.getPointer(i * 8L)
             val key = keyPtr?.getString(0) ?: continue
-            val nodePtr = Pointer(
-                Pointer.nativeValue(valuesPtr) + i * MpvNode.SIZE
-            )
+            val nodePtr =
+                Pointer(
+                    Pointer.nativeValue(valuesPtr) + i * MpvNode.SIZE,
+                )
             map[key] = readNodeValue(nodePtr)
         }
         return map
@@ -359,8 +391,8 @@ actual class PlayerEngine actual constructor() {
      * nodePtr 布局: offset 0 = data, offset 8 = format
      */
     private fun readNodeValue(nodePtr: Pointer): Any? {
-        val dataPtr = nodePtr.getPointer(0)  // data at offset 0
-        val nodeFormat = nodePtr.getInt(8)   // format at offset 8
+        val dataPtr = nodePtr.getPointer(0) // data at offset 0
+        val nodeFormat = nodePtr.getInt(8) // format at offset 8
         return when (nodeFormat) {
             MpvLib.NODE_FORMAT_STRING -> dataPtr?.getString(0)
             MpvLib.NODE_FORMAT_FLAG -> dataPtr?.getInt(0) != 0
@@ -374,18 +406,19 @@ actual class PlayerEngine actual constructor() {
 
     private fun startEventLoop() {
         running = true
-        eventThread = Thread({
-            while (running) {
-                try {
-                    processEvents()
-                } catch (_: Exception) {
-                    break
+        eventThread =
+            Thread({
+                while (running) {
+                    try {
+                        processEvents()
+                    } catch (_: Exception) {
+                        break
+                    }
                 }
+            }, "mpv-event-loop").apply {
+                isDaemon = true
+                start()
             }
-        }, "mpv-event-loop").apply {
-            isDaemon = true
-            start()
-        }
     }
 
     private fun processEvents() {

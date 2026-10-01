@@ -12,7 +12,7 @@ import com.mediamix.shared.core.PowerMode
 data class CacheResolveResult(
     val url: String,
     val isUsingCache: Boolean,
-    val fallbackQuality: String? = null
+    val fallbackQuality: String? = null,
 )
 
 /**
@@ -27,7 +27,7 @@ enum class ErrorAction {
     RECOVER_FROM_STUCK,
     RECOVER_FROM_BLACK_SCREEN,
     RECOVER_FROM_SILENCE,
-    SWITCH_SOURCE
+    SWITCH_SOURCE,
 }
 
 /**
@@ -35,17 +35,25 @@ enum class ErrorAction {
  */
 data class ErrorHandleResult(
     val action: ErrorAction,
-    val nextQualityIndex: Int? = null
+    val nextQualityIndex: Int? = null,
 )
 
 /**
  * Metrics event enum.
  */
 enum class MetricsEvent {
-    PLAY_START, PLAY_PAUSE, PLAY_RESUME, PLAY_COMPLETE,
-    SEEK, BUFFER_START, BUFFER_END,
-    CACHE_HIT, CACHE_MISS,
-    QUALITY_CHANGE, ERROR, FIRST_FRAME
+    PLAY_START,
+    PLAY_PAUSE,
+    PLAY_RESUME,
+    PLAY_COMPLETE,
+    SEEK,
+    BUFFER_START,
+    BUFFER_END,
+    CACHE_HIT,
+    CACHE_MISS,
+    QUALITY_CHANGE,
+    ERROR,
+    FIRST_FRAME,
 }
 
 // ============================================================================
@@ -56,22 +64,35 @@ enum class MetricsEvent {
  * Cache engine interface — resolves video URLs via local cache / proxy.
  */
 interface CacheEngine {
-    suspend fun resolveVideoUrl(url: String, videoId: String): String
+    suspend fun resolveVideoUrl(
+        url: String,
+        videoId: String,
+    ): String
+
     suspend fun resolveVideoUrlWithFallback(
         url: String,
         videoId: String,
-        preferredQuality: String? = null
+        preferredQuality: String? = null,
     ): CacheResolveResult
+
     val isUsingCache: Boolean
+
     fun notifyPreloadBuffering(isBuffering: Boolean)
-    fun preloadNextEpisode(videoId: String, url: String)
+
+    fun preloadNextEpisode(
+        videoId: String,
+        url: String,
+    )
+
     fun preloadAdjacentEpisodes(
         indices: List<Int>,
         title: String,
         episodeUrls: List<String>,
-        powerMode: PowerMode
+        powerMode: PowerMode,
     )
+
     fun cancelPreloads()
+
     fun dispose()
 }
 
@@ -84,16 +105,25 @@ interface PlaybackErrorHandler {
         hardwareDecodingEnabled: Boolean,
         hasQualityOptions: Boolean,
         currentQualityIndex: Int,
-        lastPlaybackPositionMs: Long
+        lastPlaybackPositionMs: Long,
     ): ErrorHandleResult
+
     val isWaitingForNetwork: Boolean
+
     fun findNextUntriedQuality(): Int
+
     fun resetRetryCount()
+
     fun clearTriedQualityIndices()
+
     fun addTriedQualityIndex(index: Int)
+
     fun startNetworkRecoveryMonitoring(onNetworkRecovered: () -> Unit)
+
     fun stopNetworkRecoveryMonitoring()
+
     val retryCount: Int
+
     fun dispose()
 }
 
@@ -109,12 +139,24 @@ interface MetricsEngine {
     fun setEnabled(enabled: Boolean)
 
     fun startSession(videoId: String)
+
     fun endSession(): Map<String, Any?>?
-    fun recordEvent(event: MetricsEvent, errorMessage: String? = null, avSyncOffsetMs: Int? = null)
+
+    fun recordEvent(
+        event: MetricsEvent,
+        errorMessage: String? = null,
+        avSyncOffsetMs: Int? = null,
+    )
+
     fun getCurrentMetrics(): Map<String, Any?>?
+
     val hasRecordedFirstFrame: Boolean
+
     fun markFirstFrameRecorded()
+
     val isBuffering: Boolean
+
     fun setBuffering(value: Boolean)
+
     fun dispose()
 }

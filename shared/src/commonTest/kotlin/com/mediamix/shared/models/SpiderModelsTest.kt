@@ -5,7 +5,6 @@ import kotlinx.serialization.json.Json
 import kotlin.test.*
 
 class SpiderModelsTest {
-
     private val json = Json { ignoreUnknownKeys = true }
 
     // SpiderType tests
@@ -44,11 +43,12 @@ class SpiderModelsTest {
     fun test_spiderHomeResult_withData() {
         val cat = SpiderCategory(typeId = "1", typeName = "Movies")
         val item = VideoItem(vodId = "1", vodName = "Test")
-        val result = SpiderHomeResult(
-            categories = listOf(cat),
-            recommend = listOf(item),
-            classList = mapOf("1" to listOf(item))
-        )
+        val result =
+            SpiderHomeResult(
+                categories = listOf(cat),
+                recommend = listOf(item),
+                classList = mapOf("1" to listOf(item)),
+            )
         assertEquals(1, result.categories.size)
         assertEquals(1, result.recommend.size)
         assertNotNull(result.classList)
@@ -57,10 +57,11 @@ class SpiderModelsTest {
 
     @Test
     fun test_spiderHomeResult_serialization() {
-        val result = SpiderHomeResult(
-            categories = listOf(SpiderCategory("1", "Action")),
-            recommend = listOf(VideoItem("1", "V1"))
-        )
+        val result =
+            SpiderHomeResult(
+                categories = listOf(SpiderCategory("1", "Action")),
+                recommend = listOf(VideoItem("1", "V1")),
+            )
         val encoded = json.encodeToString(result)
         val decoded = json.decodeFromString<SpiderHomeResult>(encoded)
         assertEquals(result, decoded)
@@ -79,12 +80,13 @@ class SpiderModelsTest {
 
     @Test
     fun test_spiderListResult_withValues() {
-        val result = SpiderListResult(
-            list = listOf(VideoItem("1", "V")),
-            page = 3,
-            pageCount = 10,
-            total = 100
-        )
+        val result =
+            SpiderListResult(
+                list = listOf(VideoItem("1", "V")),
+                page = 3,
+                pageCount = 10,
+                total = 100,
+            )
         assertEquals(3, result.page)
         assertEquals(10, result.pageCount)
         assertEquals(100, result.total)
@@ -148,11 +150,12 @@ class SpiderModelsTest {
 
     @Test
     fun test_spiderCategory_withFilters() {
-        val filter = SpiderFilter(
-            key = "area",
-            name = "Region",
-            values = listOf(SpiderFilterValue("cn", "China"), SpiderFilterValue("us", "USA"))
-        )
+        val filter =
+            SpiderFilter(
+                key = "area",
+                name = "Region",
+                values = listOf(SpiderFilterValue("cn", "China"), SpiderFilterValue("us", "USA")),
+            )
         val cat = SpiderCategory(typeId = "1", typeName = "Movies", filters = listOf(filter))
         assertNotNull(cat.filters)
         assertEquals(1, cat.filters!!.size)

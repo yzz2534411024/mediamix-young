@@ -8,7 +8,6 @@ import com.mediamix.shared.player.engines.*
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 
 // ============================================================================
@@ -19,6 +18,7 @@ private const val FIRST_FRAME_TIMEOUT_MS = 10_000L
 private const val PRELOAD_TRIGGER_POSITION = 0.8
 private const val AV_SYNC_CHECK_INTERVAL_MS = 2_000L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+
 /** 播放进度上报间隔（驱动进度条 / 时长 / 字幕同步），需远高于持久化频率 */
 private const val PROGRESS_REPORT_INTERVAL_MS = 250L
 private const val BACKGROUND_AV_SYNC_INTERVAL_MS = 10_000L
@@ -37,6 +37,7 @@ private const val SPEED_INDICATOR_DURATION_MS = 3_000L
  */
 interface VideoParser {
     val name: String
+
     fun buildUrl(originalUrl: String): String
 }
 
@@ -49,7 +50,13 @@ interface VideoParser {
  * Replaces Drift AppDatabase dependency.
  */
 interface ProgressSaveCallback {
-    fun saveProgress(videoUrl: String, positionMs: Long, durationMs: Long, lastPlayTimeMs: Long)
+    fun saveProgress(
+        videoUrl: String,
+        positionMs: Long,
+        durationMs: Long,
+        lastPlayTimeMs: Long,
+    )
+
     suspend fun getProgress(videoUrl: String): PlaybackProgress?
 }
 
@@ -57,7 +64,7 @@ data class PlaybackProgress(
     val videoUrl: String,
     val positionMs: Long,
     val durationMs: Long,
-    val lastPlayTimeMs: Long
+    val lastPlayTimeMs: Long,
 )
 
 // ============================================================================
@@ -94,10 +101,10 @@ class PlayerCoreManager(
     private val powerManager: PowerManager,
     private val settings: Settings,
 ) : PlayerEngineListener {
-
     private val logger = Logger.withTag("PlayerCoreManager")
     private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val lifecycleMutex = Mutex()
+
     @Volatile
     private var isDisposed = false
 
@@ -224,44 +231,83 @@ class PlayerCoreManager(
     // ========================================================================
 
     val playerState: PlayerState get() = playerEngine.getPlayerState()
+
     fun getPlaybackSpeed(): Float = playbackSpeed
+
     fun getSpeedOptions(): List<Float> = speedOptions
+
     fun getSkipInterval(): Int = skipInterval
+
     fun getSkipIntervals(): List<Int> = skipIntervals
+
     fun getPlayMode(): PlayMode = playMode
+
     fun getAspectMode(): AspectMode = aspectMode
+
     fun getCurrentEpisodeIndex(): Int = currentEpisodeIndex
+
     fun getCurrentEpisodeName(): String = currentEpisodeName
+
     fun getCurrentQualityIndex(): Int = currentQualityIndex
+
     fun getQualityLabels(): List<String> = qualityLabels
+
     fun getQualityUrls(): List<String> = qualityUrls
+
     fun hasQualityOptions(): Boolean = qualityUrls.size > 1
+
     fun getVolume(): Float = volume
+
     fun getBrightness(): Float = brightness
+
     fun getSubtitleTracks(): List<SubtitleTrack> = subtitleTracks
+
     fun getShowSubtitles(): Boolean = showSubtitles
+
     fun getCurrentSubtitleTrack(): Int = currentSubtitleTrack
+
     fun getSubtitleService(): SubtitleService = subtitleService
+
     fun getHardwareDecodingEnabled(): Boolean = hardwareDecodingEnabled
+
     fun getBufferManager(): BufferManager = bufferManager
+
     fun getAbrController(): ABRController = abrController
+
     fun getIsSeeking(): Boolean = isSeeking
+
     fun getIsBuffering(): Boolean = if (isInitialized) metricsEngine.isBuffering else false
+
     fun getIsLoading(): Boolean = isLoading
+
     fun getLoadingText(): String = loadingText
+
     fun getBufferPercent(): Double = bufferPercent
+
     fun getNetworkSpeedText(): String = networkSpeedText
+
     fun getIsWaitingForNetwork(): Boolean = errorHandler.isWaitingForNetwork
+
     fun getLastError(): String? = lastError
+
     fun getIsUsingCache(): Boolean = if (isInitialized) cacheEngine.isUsingCache else false
+
     fun getFallbackQuality(): String? = fallbackQuality
+
     fun getLastVideoPositionMs(): Long = lastVideoPositionMs
+
     fun getIsInBackground(): Boolean = isInBackground
+
     fun getIsInPipMode(): Boolean = isInPipMode
+
     fun getPowerMode(): PowerMode = powerMode
+
     fun getHasPrevEpisode(): Boolean = episodeUrls != null && currentEpisodeIndex > 0
+
     fun getHasNextEpisode(): Boolean = episodeUrls != null && currentEpisodeIndex < (episodeUrls?.size ?: 0) - 1
+
     fun getIsInitialized(): Boolean = isInitialized
+
     fun getActiveParser(): VideoParser? = activeParser
 
     // ========================================================================
@@ -333,7 +379,7 @@ class PlayerCoreManager(
                 ErrorEvent(
                     message = "播放器初始化失败：${t.message}",
                     hasNextEpisode = false,
-                )
+                ),
             )
             isInitializing = false
             return
@@ -390,20 +436,21 @@ class PlayerCoreManager(
             startProgressReportTimer()
 
             // First frame timeout fallback
-            firstFrameTimeoutJob = scope.launch {
-                delay(FIRST_FRAME_TIMEOUT_MS)
-                if (isDisposed) return@launch
-                if (!metricsEngine.hasRecordedFirstFrame && url.isNotEmpty() && !hasTriedDirectUrl) {
-                    hasTriedDirectUrl = true
-                    logger.w("First frame timeout (10s), retrying with direct CDN url")
-                    // ⚠️ 这里刻意不调 stop()：stop() 会把播放器打回 IDLE，
-                    // 画面与进度一起中断，而且之后 `play()` 在 IDLE 下不会重新装载媒体，
-                    // 用户看到的就是「卡住，点播放也没反应」。setMediaItem 本身就能替换媒体源。
-                    delay(REOPEN_DELAY_MS)
+            firstFrameTimeoutJob =
+                scope.launch {
+                    delay(FIRST_FRAME_TIMEOUT_MS)
                     if (isDisposed) return@launch
-                    playerEngine.setSource(url, requestHeaders)
+                    if (!metricsEngine.hasRecordedFirstFrame && url.isNotEmpty() && !hasTriedDirectUrl) {
+                        hasTriedDirectUrl = true
+                        logger.w("First frame timeout (10s), retrying with direct CDN url")
+                        // ⚠️ 这里刻意不调 stop()：stop() 会把播放器打回 IDLE，
+                        // 画面与进度一起中断，而且之后 `play()` 在 IDLE 下不会重新装载媒体，
+                        // 用户看到的就是「卡住，点播放也没反应」。setMediaItem 本身就能替换媒体源。
+                        delay(REOPEN_DELAY_MS)
+                        if (isDisposed) return@launch
+                        playerEngine.setSource(url, requestHeaders)
+                    }
                 }
-            }
 
             // Load preferences
             loadSkipInterval()
@@ -464,14 +511,18 @@ class PlayerCoreManager(
 
         try {
             throughputProvider?.let { abrController.updateThroughputPrediction(it()) }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         if (isLoading && bufferedPercent > 0) isLoading = false
         bufferPercent = bufferManager.bufferPercent
         notifyIfNotInitializing()
     }
 
-    override fun onError(error: String, code: Int?) {
+    override fun onError(
+        error: String,
+        code: Int?,
+    ) {
         if (isDisposed) return
         logger.e("Playback error: $error")
         metricsEngine.recordEvent(MetricsEvent.ERROR, errorMessage = error)
@@ -562,8 +613,9 @@ class PlayerCoreManager(
      * initialize 传入的地址，直接用它会跳回第一集。
      */
     private fun reloadCurrentSource() {
-        val target = episodeUrls?.getOrNull(currentEpisodeIndex)?.takeIf { it.isNotBlank() }
-            ?: url
+        val target =
+            episodeUrls?.getOrNull(currentEpisodeIndex)?.takeIf { it.isNotBlank() }
+                ?: url
         if (target.isBlank()) return
         // 引擎重建后 Surface 可能已失效，补绑一次再装载
         pendingSurface?.let { playerEngine.setSurface(it) }
@@ -581,11 +633,12 @@ class PlayerCoreManager(
         metricsEngine.recordEvent(MetricsEvent.SEEK)
         playerEngine.seekTo(positionMs)
         seekOverlayJob?.cancel()
-        seekOverlayJob = scope.launch {
-            delay(SEEK_OVERLAY_DURATION_MS)
-            if (isDisposed) return@launch
-            isSeeking = false
-        }
+        seekOverlayJob =
+            scope.launch {
+                delay(SEEK_OVERLAY_DURATION_MS)
+                if (isDisposed) return@launch
+                isSeeking = false
+            }
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -593,10 +646,11 @@ class PlayerCoreManager(
         playbackSpeed = speed
         playerEngine.setPlaybackSpeed(speed)
         speedIndicatorJob?.cancel()
-        speedIndicatorJob = scope.launch {
-            delay(SPEED_INDICATOR_DURATION_MS)
-            if (isDisposed) return@launch
-        }
+        speedIndicatorJob =
+            scope.launch {
+                delay(SPEED_INDICATOR_DURATION_MS)
+                if (isDisposed) return@launch
+            }
     }
 
     fun setSkipInterval(interval: Int) {
@@ -604,8 +658,13 @@ class PlayerCoreManager(
         saveSkipInterval()
     }
 
-    fun setPlayMode(mode: PlayMode) { playMode = mode }
-    fun setAspectMode(mode: AspectMode) { aspectMode = mode }
+    fun setPlayMode(mode: PlayMode) {
+        playMode = mode
+    }
+
+    fun setAspectMode(mode: AspectMode) {
+        aspectMode = mode
+    }
 
     fun setVolume(v: Float) {
         volume = v.coerceIn(0f, 1f)
@@ -700,20 +759,30 @@ class PlayerCoreManager(
     // Subtitle controls
     // ========================================================================
 
-    fun toggleSubtitles() { showSubtitles = !showSubtitles }
-    fun setSubtitleTrack(index: Int) { currentSubtitleTrack = index; showSubtitles = true }
-    fun hideSubtitles() { showSubtitles = false }
+    fun toggleSubtitles() {
+        showSubtitles = !showSubtitles
+    }
+
+    fun setSubtitleTrack(index: Int) {
+        currentSubtitleTrack = index
+        showSubtitles = true
+    }
+
+    fun hideSubtitles() {
+        showSubtitles = false
+    }
 
     // ========================================================================
     // Play mode
     // ========================================================================
 
     fun cyclePlayMode() {
-        playMode = when (playMode) {
-            PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
-            PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
-            PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
-        }
+        playMode =
+            when (playMode) {
+                PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
+                PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
+                PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
+            }
     }
 
     // ========================================================================
@@ -759,10 +828,11 @@ class PlayerCoreManager(
         if (isDisposed) return
         val urls = episodeUrls ?: return
         val depth = preloadDepth.coerceIn(1, 3)
-        val indices = ((-depth)..depth)
-            .map { currentEpisodeIndex + it }
-            .filter { it >= 0 && it < urls.size }
-            .filter { it != currentEpisodeIndex }
+        val indices =
+            ((-depth)..depth)
+                .map { currentEpisodeIndex + it }
+                .filter { it >= 0 && it < urls.size }
+                .filter { it != currentEpisodeIndex }
         cacheEngine.preloadAdjacentEpisodes(indices, title, urls, powerMode)
     }
 
@@ -784,7 +854,9 @@ class PlayerCoreManager(
     // ========================================================================
 
     fun findNextUntriedQuality(): Int = errorHandler.findNextUntriedQuality()
+
     fun clearTriedQualityIndices() = errorHandler.clearTriedQualityIndices()
+
     fun resetRetryCount() = errorHandler.resetRetryCount()
 
     // ========================================================================
@@ -830,13 +902,19 @@ class PlayerCoreManager(
     // Internal: Video opening with cache
     // ========================================================================
 
-    private suspend fun openVideoWithCacheCheck(videoUrl: String, videoId: String) {
+    private suspend fun openVideoWithCacheCheck(
+        videoUrl: String,
+        videoId: String,
+    ) {
         if (isDisposed) return
         val effectiveUrl = applyParser(videoUrl)
         try {
-            val result = cacheEngine.resolveVideoUrlWithFallback(
-                effectiveUrl, videoId, preferredQuality = currentQualityLabel
-            )
+            val result =
+                cacheEngine.resolveVideoUrlWithFallback(
+                    effectiveUrl,
+                    videoId,
+                    preferredQuality = currentQualityLabel,
+                )
             if (isDisposed) return
             fallbackQuality = result.fallbackQuality
             if (result.fallbackQuality != null) {
@@ -844,7 +922,9 @@ class PlayerCoreManager(
                 onQualityAutoSwitch?.invoke(QualityAutoSwitchEvent("${result.fallbackQuality}(cache)"))
             }
             resolvedUrl = result.url
-            logger.i("Video URL resolved: ${if (cacheEngine.isUsingCache) "local cache" else "network"}${if (activeParser != null) ", parser: ${activeParser!!.name}" else ""}")
+            val sourceLabel = if (cacheEngine.isUsingCache) "local cache" else "network"
+            val parserLabel = activeParser?.let { ", parser: ${it.name}" }.orEmpty()
+            logger.i("Video URL resolved: $sourceLabel$parserLabel")
             playerEngine.setSource(resolvedUrl, requestHeaders)
         } catch (e: Exception) {
             logger.w("Video URL resolution failed, using original URL: $e")
@@ -854,8 +934,12 @@ class PlayerCoreManager(
     }
 
     private val currentQualityLabel: String
-        get() = if (qualityLabels.isEmpty() || currentQualityIndex >= qualityLabels.size) "720p"
-        else qualityLabels[currentQualityIndex]
+        get() =
+            if (qualityLabels.isEmpty() || currentQualityIndex >= qualityLabels.size) {
+                "720p"
+            } else {
+                qualityLabels[currentQualityIndex]
+            }
 
     private fun applyParser(originalUrl: String): String {
         val parser = activeParser ?: return originalUrl
@@ -880,13 +964,14 @@ class PlayerCoreManager(
     private fun handlePlaybackError(error: String) {
         if (isDisposed) return
         lastError = error
-        val result = errorHandler.handleError(
-            error = error,
-            hardwareDecodingEnabled = hardwareDecodingEnabled,
-            hasQualityOptions = hasQualityOptions(),
-            currentQualityIndex = currentQualityIndex,
-            lastPlaybackPositionMs = playerEngine.getPosition(),
-        )
+        val result =
+            errorHandler.handleError(
+                error = error,
+                hardwareDecodingEnabled = hardwareDecodingEnabled,
+                hasQualityOptions = hasQualityOptions(),
+                currentQualityIndex = currentQualityIndex,
+                lastPlaybackPositionMs = playerEngine.getPosition(),
+            )
 
         when (result.action) {
             ErrorAction.DOWNGRADE_TO_SOFTWARE_DECODE -> {
@@ -904,7 +989,9 @@ class PlayerCoreManager(
             }
             ErrorAction.SWITCH_TO_NEXT_QUALITY -> {
                 val idx = result.nextQualityIndex ?: return
-                logger.i("Quality downgrade: ${qualityLabels.getOrElse(currentQualityIndex) { "?" }} -> ${qualityLabels.getOrElse(idx) { "?" }}")
+                logger.i(
+                    "Quality downgrade: ${qualityLabels.getOrElse(currentQualityIndex) { "?" }} -> ${qualityLabels.getOrElse(idx) { "?" }}",
+                )
                 onQualityAutoSwitch?.invoke(QualityAutoSwitchEvent(qualityLabels.getOrElse(idx) { "" }))
                 switchQualityInternal(idx)
             }
@@ -943,7 +1030,7 @@ class PlayerCoreManager(
                         hasUntriedQuality = hasQualityOptions() && nq >= 0,
                         untriedQualityLabel = if (nq >= 0) qualityLabels.getOrElse(nq) { null } else null,
                         triedQualityCount = errorHandler.retryCount,
-                    )
+                    ),
                 )
             }
             ErrorAction.RECOVER_FROM_STUCK -> {
@@ -1059,7 +1146,7 @@ class PlayerCoreManager(
             QualitySuggestionEvent(
                 networkQualityDescription = abrController.networkQualityDescription,
                 qualityLabel = level.label,
-            )
+            ),
         )
     }
 
@@ -1069,12 +1156,13 @@ class PlayerCoreManager(
 
     private fun startAvSyncCheckTimer() {
         avSyncCheckJob?.cancel()
-        avSyncCheckJob = scope.launch {
-            while (isActive && !isDisposed) {
-                delay(if (isInBackground) BACKGROUND_AV_SYNC_INTERVAL_MS else AV_SYNC_CHECK_INTERVAL_MS)
-                checkAVSync()
+        avSyncCheckJob =
+            scope.launch {
+                while (isActive && !isDisposed) {
+                    delay(if (isInBackground) BACKGROUND_AV_SYNC_INTERVAL_MS else AV_SYNC_CHECK_INTERVAL_MS)
+                    checkAVSync()
+                }
             }
-        }
     }
 
     internal fun checkAVSync() {
@@ -1139,31 +1227,33 @@ class PlayerCoreManager(
      */
     private fun startProgressReportTimer() {
         progressReportJob?.cancel()
-        progressReportJob = scope.launch {
-            while (isActive && !isDisposed) {
-                try {
-                    val position = playerEngine.getPosition()
-                    val duration = playerEngine.getDuration()
-                    val buffered = playerEngine.getBufferedPercentage()
-                    if (position > 0L) lastVideoPositionMs = position
-                    onProgress?.invoke(position, duration, buffered)
-                    checkPreloadTrigger(position)
-                } catch (e: Exception) {
-                    logger.w("Progress report failed: $e")
+        progressReportJob =
+            scope.launch {
+                while (isActive && !isDisposed) {
+                    try {
+                        val position = playerEngine.getPosition()
+                        val duration = playerEngine.getDuration()
+                        val buffered = playerEngine.getBufferedPercentage()
+                        if (position > 0L) lastVideoPositionMs = position
+                        onProgress?.invoke(position, duration, buffered)
+                        checkPreloadTrigger(position)
+                    } catch (e: Exception) {
+                        logger.w("Progress report failed: $e")
+                    }
+                    delay(PROGRESS_REPORT_INTERVAL_MS)
                 }
-                delay(PROGRESS_REPORT_INTERVAL_MS)
             }
-        }
     }
 
     private fun startProgressSaveTimer() {
         progressSaveJob?.cancel()
-        progressSaveJob = scope.launch {
-            while (isActive && !isDisposed) {
-                delay(if (isInBackground) BACKGROUND_PROGRESS_SAVE_INTERVAL_MS else PROGRESS_SAVE_INTERVAL_MS)
-                savePlaybackProgress()
+        progressSaveJob =
+            scope.launch {
+                while (isActive && !isDisposed) {
+                    delay(if (isInBackground) BACKGROUND_PROGRESS_SAVE_INTERVAL_MS else PROGRESS_SAVE_INTERVAL_MS)
+                    savePlaybackProgress()
+                }
             }
-        }
     }
 
     private fun savePlaybackProgress() {
@@ -1213,13 +1303,14 @@ class PlayerCoreManager(
         if (urls.isEmpty()) return
         scope.launch {
             try {
-                val trackInfos = urls.mapIndexed { index, subtitleUrl ->
-                    TrackInfo(
-                        id = subtitleUrl,
-                        label = "Subtitle ${index + 1}",
-                        language = "zh-CN",
-                    )
-                }
+                val trackInfos =
+                    urls.mapIndexed { index, subtitleUrl ->
+                        TrackInfo(
+                            id = subtitleUrl,
+                            label = "Subtitle ${index + 1}",
+                            language = "zh-CN",
+                        )
+                    }
                 val tracks = subtitleService.loadMultiTrackFromUrl(trackInfos)
                 if (isDisposed) return@launch
                 subtitleTracks = tracks
@@ -1357,11 +1448,12 @@ class PlayerCoreManager(
     // ========================================================================
 
     companion object {
-        fun formatNetworkSpeed(kbps: Double): String = when {
-            kbps <= 0 -> ""
-            kbps < 1000 -> "${"%.0f".format(kbps)} kb/s"
-            else -> "${"%.1f".format(kbps / 1000)} MB/s"
-        }
+        fun formatNetworkSpeed(kbps: Double): String =
+            when {
+                kbps <= 0 -> ""
+                kbps < 1000 -> "${"%.0f".format(kbps)} kb/s"
+                else -> "${"%.1f".format(kbps / 1000)} MB/s"
+            }
 
         fun formatDuration(durationMs: Long): String {
             val totalSeconds = durationMs / 1000
@@ -1375,10 +1467,11 @@ class PlayerCoreManager(
             }
         }
 
-        fun getPowerModeName(mode: PowerMode): String = when (mode) {
-            PowerMode.HIGH_PERFORMANCE -> "High Performance"
-            PowerMode.BALANCED -> "Balanced"
-            PowerMode.POWER_SAVING -> "Power Saving"
-        }
+        fun getPowerModeName(mode: PowerMode): String =
+            when (mode) {
+                PowerMode.HIGH_PERFORMANCE -> "High Performance"
+                PowerMode.BALANCED -> "Balanced"
+                PowerMode.POWER_SAVING -> "Power Saving"
+            }
     }
 }

@@ -6,18 +6,17 @@ import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-/// TVBox 图片伪装配置解码器
-/// 饭太硬等 TVBox 接口使用图片伪装技术隐藏 JSON 配置：
-/// [图片数据] [8字符标识] ** [Base64编码的JSON]
-/// 支持 JPEG (FF D8...FF D9) 和 BMP (BM...) 两种伪装格式
+// / TVBox 图片伪装配置解码器
+// / 饭太硬等 TVBox 接口使用图片伪装技术隐藏 JSON 配置：
+// / [图片数据] [8字符标识] ** [Base64编码的JSON]
+// / 支持 JPEG (FF D8...FF D9) 和 BMP (BM...) 两种伪装格式
 object TvBoxImageDecoder {
-
-    /// 从二进制数据中提取 TVBox JSON 配置
-    /// 支持以下格式：
-    /// 1. JPEG 伪装：FF D8 ... FF D9 [标识]**[Base64 JSON]
-    /// 2. BMP 伪装：BM ... [标识]**[Base64 JSON]
-    /// 3. 纯 Base64 文本
-    /// 4. 纯 JSON 文本
+    // / 从二进制数据中提取 TVBox JSON 配置
+    // / 支持以下格式：
+    // / 1. JPEG 伪装：FF D8 ... FF D9 [标识]**[Base64 JSON]
+    // / 2. BMP 伪装：BM ... [标识]**[Base64 JSON]
+    // / 3. 纯 Base64 文本
+    // / 4. 纯 JSON 文本
     fun decode(bytes: ByteArray): JsonObject? {
         if (bytes.isEmpty()) return null
 
@@ -34,7 +33,8 @@ object TvBoxImageDecoder {
             val text = bytes.toString(Charsets.UTF_8)
             val decoded = decodeText(text)
             if (decoded != null) return decoded
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         // 方式4：尝试 GBK 解码（部分 CMS 站点使用 GBK 编码）
         try {
@@ -43,7 +43,8 @@ object TvBoxImageDecoder {
                 val decoded = decodeText(text)
                 if (decoded != null) return decoded
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         // 方式5：提取所有可打印 ASCII 字符后尝试解码
         val asciiText = bytes.filter { it in 32..126 }.toByteArray().toString(Charsets.UTF_8)
@@ -55,9 +56,9 @@ object TvBoxImageDecoder {
         return null
     }
 
-    /// 从 JPEG 伪装格式中提取 JSON
-    /// JPEG 可能包含嵌入缩略图（也有 FF D9 标记），
-    /// 必须找到最后一个 FF D9 才是真正的主图结束位置
+    // / 从 JPEG 伪装格式中提取 JSON
+    // / JPEG 可能包含嵌入缩略图（也有 FF D9 标记），
+    // / 必须找到最后一个 FF D9 才是真正的主图结束位置
     internal fun decodeFromJpeg(bytes: ByteArray): JsonObject? {
         // 检查是否为 JPEG 文件（FF D8 开头）
         if (bytes.size < 4) return null
@@ -79,22 +80,24 @@ object TvBoxImageDecoder {
         return decodeTrailing(trailing)
     }
 
-    /// 从 BMP 伪装格式中提取 JSON
-    /// BMP 文件头格式：BM [4字节文件大小] [4字节保留] [4字节偏移]
-    /// 附加数据可能在 BMP 数据之后
+    // / 从 BMP 伪装格式中提取 JSON
+    // / BMP 文件头格式：BM [4字节文件大小] [4字节保留] [4字节偏移]
+    // / 附加数据可能在 BMP 数据之后
     internal fun decodeFromBmp(bytes: ByteArray): JsonObject? {
         // 检查是否为 BMP 文件（BM 开头）
         if (bytes.size < 14) return null
         if (bytes[0] != 0x42.toByte() || bytes[1] != 0x4D.toByte()) return null
 
         // 读取 BMP 文件头中的数据偏移量（字节 10-13，小端序）
-        val dataOffset = (bytes[10].toInt() and 0xFF) or
+        val dataOffset =
+            (bytes[10].toInt() and 0xFF) or
                 ((bytes[11].toInt() and 0xFF) shl 8) or
                 ((bytes[12].toInt() and 0xFF) shl 16) or
                 ((bytes[13].toInt() and 0xFF) shl 24)
 
         // 读取 BMP 文件大小（字节 2-5，小端序）
-        val declaredSize = (bytes[2].toInt() and 0xFF) or
+        val declaredSize =
+            (bytes[2].toInt() and 0xFF) or
                 ((bytes[3].toInt() and 0xFF) shl 8) or
                 ((bytes[4].toInt() and 0xFF) shl 16) or
                 ((bytes[5].toInt() and 0xFF) shl 24)
@@ -127,7 +130,7 @@ object TvBoxImageDecoder {
         return decodeText(asciiText)
     }
 
-    /// 解码图片数据之后的附加数据
+    // / 解码图片数据之后的附加数据
     internal fun decodeTrailing(trailing: ByteArray): JsonObject? {
         if (trailing.isEmpty()) return null
 
@@ -136,14 +139,15 @@ object TvBoxImageDecoder {
             val text = trailing.toString(Charsets.UTF_8)
             val result = decodeText(text)
             if (result != null) return result
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         // 兜底：只取可打印 ASCII 字符
         val asciiText = trailing.filter { it in 32..126 }.toByteArray().toString(Charsets.UTF_8)
         return decodeText(asciiText)
     }
 
-    /// 从文本中提取并解码 JSON
+    // / 从文本中提取并解码 JSON
     internal fun decodeText(text: String): JsonObject? {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return null
@@ -167,7 +171,7 @@ object TvBoxImageDecoder {
         return tryBase64Decode(trimmed)
     }
 
-    /// 尝试 Base64 解码并解析为 JSON
+    // / 尝试 Base64 解码并解析为 JSON
     internal fun tryBase64Decode(b64: String): JsonObject? {
         try {
             // 清理 Base64 字符串（移除可能的空白和非法字符）
@@ -182,29 +186,31 @@ object TvBoxImageDecoder {
         }
     }
 
-    /// 解析可能包含 JavaScript 风格注释的 JSON
-    /// TVBox 配置文件常含 // 单行注释和 /* */ 多行注释
+    // / 解析可能包含 JavaScript 风格注释的 JSON
+    // / TVBox 配置文件常含 // 单行注释和 /* */ 多行注释
     internal fun parseJsonWithComments(text: String): JsonObject? {
         // 先尝试直接解析
         try {
             val element = Json.parseToJsonElement(text)
             if (element is JsonObject) return element
             return null
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         // 剥离注释后再解析
         val cleaned = stripJsonComments(text)
         try {
             val element = Json.parseToJsonElement(cleaned)
             if (element is JsonObject) return element
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         return null
     }
 
-    /// 剥离 JSON 中的 JavaScript 风格注释
-    /// 支持 // 单行注释和 /* */ 多行注释
-    /// 注意：不能简单用正则，因为注释标记可能出现在字符串内
+    // / 剥离 JSON 中的 JavaScript 风格注释
+    // / 支持 // 单行注释和 /* */ 多行注释
+    // / 注意：不能简单用正则，因为注释标记可能出现在字符串内
     internal fun stripJsonComments(text: String): String {
         val sb = StringBuilder()
         var i = 0
@@ -258,18 +264,18 @@ object TvBoxImageDecoder {
         return sb.toString()
     }
 
-    /// 检测二进制数据是否为 JPEG 伪装格式
+    // / 检测二进制数据是否为 JPEG 伪装格式
     fun isJpegDisguise(bytes: ByteArray): Boolean {
         if (bytes.size < 4) return false
         return bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()
     }
 
-    /// 检测二进制数据是否为 BMP 伪装格式
+    // / 检测二进制数据是否为 BMP 伪装格式
     fun isBmpDisguise(bytes: ByteArray): Boolean {
         if (bytes.size < 4) return false
         return bytes[0] == 0x42.toByte() && bytes[1] == 0x4D.toByte()
     }
 }
 
-/// GBK 解码 - expect 声明，actual 实现在各平台
+// / GBK 解码 - expect 声明，actual 实现在各平台
 internal expect fun decodeGbkBytes(bytes: ByteArray): String?

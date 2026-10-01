@@ -2,6 +2,7 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.SourceStatus
 import com.mediamix.shared.spider.SpiderService
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.Clock
-import co.touchlab.kermit.Logger
 
 /**
  * 源管理 ViewModel
@@ -29,7 +29,6 @@ class SourceManageViewModel(
     private val spiderService: SpiderService,
     private val sourceRepository: SourceRepository,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("SourceManageViewModel")
 
     val sites: StateFlow<List<CmsApiSite>> = sourceRepository.sites
@@ -75,13 +74,14 @@ class SourceManageViewModel(
             _isChecking.value = true
             try {
                 coroutineScope {
-                    currentSites().map { site ->
-                        async { site.key to probe(site) }
-                    }.forEach { deferred ->
-                        val (key, status) = deferred.await()
-                        _sourceStatuses.value = _sourceStatuses.value + (key to status)
-                        rememberLatency(status)
-                    }
+                    currentSites()
+                        .map { site ->
+                            async { site.key to probe(site) }
+                        }.forEach { deferred ->
+                            val (key, status) = deferred.await()
+                            _sourceStatuses.value = _sourceStatuses.value + (key to status)
+                            rememberLatency(status)
+                        }
                 }
             } catch (e: Exception) {
                 logger.e { "Check all sources failed: ${e.message}" }
@@ -115,8 +115,9 @@ class SourceManageViewModel(
         return try {
             // ⚠️ 必须测真实使用的列表接口（带 ac=detail）。
             // 裸地址返回的是分类列表（约 6KB），比真实请求快得多，测出来的延迟没有参考价值。
-            val url = site.apiUrl +
-                (if (site.apiUrl.contains("?")) "&" else "?") + "ac=detail&pg=1"
+            val url =
+                site.apiUrl +
+                    (if (site.apiUrl.contains("?")) "&" else "?") + "ac=detail&pg=1"
             withTimeout(10_000) {
                 httpClient.get(url)
             }

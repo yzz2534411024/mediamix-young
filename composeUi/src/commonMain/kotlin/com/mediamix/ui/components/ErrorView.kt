@@ -27,23 +27,24 @@ fun ErrorContent(
     retryLabel: String = "重试",
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp, vertical = 24.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(44.dp),
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -51,7 +52,7 @@ fun ErrorContent(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+            lineHeight = MaterialTheme.typography.bodySmall.lineHeight,
         )
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(16.dp))

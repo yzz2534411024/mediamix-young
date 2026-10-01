@@ -26,11 +26,12 @@ actual fun ApplyScreenOrientation(mode: ScreenOrientationMode) {
         val activity = context.findActivity()
         val previous = activity?.requestedOrientation
 
-        activity?.requestedOrientation = when (mode) {
-            ScreenOrientationMode.AUTO -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            ScreenOrientationMode.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            ScreenOrientationMode.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-        }
+        activity?.requestedOrientation =
+            when (mode) {
+                ScreenOrientationMode.AUTO -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                ScreenOrientationMode.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                ScreenOrientationMode.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            }
 
         onDispose {
             // 离开播放页务必还原，否则整个 App 会一直被锁在横屏。

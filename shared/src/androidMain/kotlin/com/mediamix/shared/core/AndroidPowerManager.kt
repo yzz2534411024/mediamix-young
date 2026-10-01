@@ -7,7 +7,6 @@ package com.mediamix.shared.core
  * 需要通过 DI 注入 Context。
  */
 actual class PowerManager actual constructor() {
-
     private var context: android.content.Context? = null
 
     fun init(context: android.content.Context) {
@@ -29,7 +28,7 @@ actual class PowerManager actual constructor() {
         val batteryStatus = ctx.registerReceiver(null, ifilter) ?: return true
         val status = batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
         return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
-               status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            status == android.os.BatteryManager.BATTERY_STATUS_FULL
     }
 
     actual fun getPowerMode(): PowerMode {
@@ -42,11 +41,7 @@ actual class PowerManager actual constructor() {
         }
     }
 
-    actual fun isBatteryLow(): Boolean {
-        return getBatteryLevel() < 20 && !isCharging()
-    }
+    actual fun isBatteryLow(): Boolean = getBatteryLevel() < 20 && !isCharging()
 
-    actual fun shouldReduceQuality(): Boolean {
-        return getPowerMode() == PowerMode.POWER_SAVING || isBatteryLow()
-    }
+    actual fun shouldReduceQuality(): Boolean = getPowerMode() == PowerMode.POWER_SAVING || isBatteryLow()
 }

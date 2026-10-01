@@ -12,13 +12,13 @@ import kotlin.test.assertTrue
  * 测试 CSS 选择器提取、URL 解析等纯逻辑部分
  */
 class XpathSpiderTest {
-
-    private val testSite = TvBoxSite(
-        key = "test_xpath",
-        name = "测试XPath",
-        type = 1,
-        api = "http://test.example.com",
-    )
+    private val testSite =
+        TvBoxSite(
+            key = "test_xpath",
+            name = "测试XPath",
+            type = 1,
+            api = "http://test.example.com",
+        )
 
     // ==================== parseSelector 测试 ====================
 
@@ -165,11 +165,12 @@ class XpathSpiderTest {
     fun testExtractFirstValue_withBaseUrl() {
         val spider = XpathSpider(testSite)
         val doc = Jsoup.parse("""<img class="pic" src="/images/cover.jpg">""")
-        val result = spider.extractFirstValue(
-            doc.body(),
-            ".pic",
-            baseUrl = "http://test.example.com/page"
-        )
+        val result =
+            spider.extractFirstValue(
+                doc.body(),
+                ".pic",
+                baseUrl = "http://test.example.com/page",
+            )
         assertEquals("http://test.example.com/images/cover.jpg", result)
     }
 
@@ -178,7 +179,8 @@ class XpathSpiderTest {
     @Test
     fun testExtractList_basicHtml() {
         val spider = XpathSpider(testSite)
-        val html = """
+        val html =
+            """
             <div class="container">
                 <div class="item">
                     <span class="id">1</span>
@@ -193,18 +195,20 @@ class XpathSpiderTest {
                     <span class="remark">BD</span>
                 </div>
             </div>
-        """.trimIndent()
+            """.trimIndent()
         val doc = Jsoup.parse(html)
 
-        val listConfig = mapOf<String, Any>(
-            "container" to ".item",
-            "fields" to mapOf(
-                "vod_id" to ".id",
-                "vod_name" to ".name",
-                "vod_pic" to ".pic",
-                "vod_remarks" to ".remark",
+        val listConfig =
+            mapOf<String, Any>(
+                "container" to ".item",
+                "fields" to
+                    mapOf(
+                        "vod_id" to ".id",
+                        "vod_name" to ".name",
+                        "vod_pic" to ".pic",
+                        "vod_remarks" to ".remark",
+                    ),
             )
-        )
 
         val items = spider.extractList(doc, listConfig)
         assertEquals(2, items.size)
@@ -235,16 +239,18 @@ class XpathSpiderTest {
     @Test
     fun testExtractList_skipEmptyName() {
         val spider = XpathSpider(testSite)
-        val html = """
+        val html =
+            """
             <div class="item"><span class="name"></span></div>
             <div class="item"><span class="name">有效影片</span></div>
-        """.trimIndent()
+            """.trimIndent()
         val doc = Jsoup.parse(html)
 
-        val listConfig = mapOf<String, Any>(
-            "container" to ".item",
-            "fields" to mapOf("vod_name" to ".name")
-        )
+        val listConfig =
+            mapOf<String, Any>(
+                "container" to ".item",
+                "fields" to mapOf("vod_name" to ".name"),
+            )
 
         val items = spider.extractList(doc, listConfig)
         assertEquals(1, items.size)

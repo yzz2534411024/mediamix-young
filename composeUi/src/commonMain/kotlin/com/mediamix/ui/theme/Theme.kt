@@ -10,56 +10,60 @@ import kotlinx.coroutines.flow.MutableStateFlow
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** 主题模式展示名 */
-fun ThemeMode.label(): String = when (this) {
-    ThemeMode.SYSTEM -> "跟随系统"
-    ThemeMode.LIGHT -> "浅色模式"
-    ThemeMode.DARK -> "深色模式"
-}
+fun ThemeMode.label(): String =
+    when (this) {
+        ThemeMode.SYSTEM -> "跟随系统"
+        ThemeMode.LIGHT -> "浅色模式"
+        ThemeMode.DARK -> "深色模式"
+    }
 
 object ThemeConfig {
     val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
 }
 
-private val LightColorScheme = lightColorScheme(
-    primary = md_theme_light_primary,
-    onPrimary = md_theme_light_onPrimary,
-    primaryContainer = md_theme_light_primaryContainer,
-    onPrimaryContainer = md_theme_light_onPrimaryContainer,
-    secondary = md_theme_light_secondary,
-    onSecondary = md_theme_light_onSecondary,
-    secondaryContainer = md_theme_light_secondaryContainer,
-    background = md_theme_light_background,
-    surface = md_theme_light_surface,
-    error = md_theme_light_error,
-)
+private val LightColorScheme =
+    lightColorScheme(
+        primary = md_theme_light_primary,
+        onPrimary = md_theme_light_onPrimary,
+        primaryContainer = md_theme_light_primaryContainer,
+        onPrimaryContainer = md_theme_light_onPrimaryContainer,
+        secondary = md_theme_light_secondary,
+        onSecondary = md_theme_light_onSecondary,
+        secondaryContainer = md_theme_light_secondaryContainer,
+        background = md_theme_light_background,
+        surface = md_theme_light_surface,
+        error = md_theme_light_error,
+    )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = md_theme_dark_primary,
-    onPrimary = md_theme_dark_onPrimary,
-    primaryContainer = md_theme_dark_primaryContainer,
-    onPrimaryContainer = md_theme_dark_onPrimaryContainer,
-    secondary = md_theme_dark_secondary,
-    onSecondary = md_theme_dark_onSecondary,
-    secondaryContainer = md_theme_dark_secondaryContainer,
-    background = md_theme_dark_background,
-    surface = md_theme_dark_surface,
-    error = md_theme_dark_error,
-)
+private val DarkColorScheme =
+    darkColorScheme(
+        primary = md_theme_dark_primary,
+        onPrimary = md_theme_dark_onPrimary,
+        primaryContainer = md_theme_dark_primaryContainer,
+        onPrimaryContainer = md_theme_dark_onPrimaryContainer,
+        secondary = md_theme_dark_secondary,
+        onSecondary = md_theme_dark_onSecondary,
+        secondaryContainer = md_theme_dark_secondaryContainer,
+        background = md_theme_dark_background,
+        surface = md_theme_dark_surface,
+        error = md_theme_dark_error,
+    )
 
 @Composable
 fun MediaMixTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val isDark = when (themeMode) {
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    }
+    val isDark =
+        when (themeMode) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        }
     val colorScheme = if (isDark) DarkColorScheme else LightColorScheme
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content
+        content = content,
     )
 }

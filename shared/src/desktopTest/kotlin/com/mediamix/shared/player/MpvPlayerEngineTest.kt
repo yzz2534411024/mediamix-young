@@ -11,7 +11,6 @@ import kotlin.test.*
  * - PlayerEngineListener 接口行为
  */
 class MpvPlayerEngineTest {
-
     // ==================== PlayerState 枚举测试 ====================
 
     @Test
@@ -38,13 +37,14 @@ class MpvPlayerEngineTest {
 
     @Test
     fun trackInfo_basicConstruction() {
-        val track = TrackInfo(
-            id = "1",
-            label = "Video Track 1",
-            language = "eng",
-            mimeType = "video",
-            bitrate = 5000000
-        )
+        val track =
+            TrackInfo(
+                id = "1",
+                label = "Video Track 1",
+                language = "eng",
+                mimeType = "video",
+                bitrate = 5000000,
+            )
         assertEquals("1", track.id)
         assertEquals("Video Track 1", track.label)
         assertEquals("eng", track.language)
@@ -55,13 +55,14 @@ class MpvPlayerEngineTest {
 
     @Test
     fun trackInfo_withSelection() {
-        val track = TrackInfo(
-            id = "2",
-            label = "Audio Track 2",
-            language = "chi",
-            mimeType = "audio",
-            isSelected = true
-        )
+        val track =
+            TrackInfo(
+                id = "2",
+                label = "Audio Track 2",
+                language = "chi",
+                mimeType = "audio",
+                isSelected = true,
+            )
         assertTrue(track.isSelected)
         assertEquals("audio", track.mimeType)
     }
@@ -174,14 +175,27 @@ class MpvPlayerEngineTest {
         val stateChanges = mutableListOf<PlayerState>()
         val positions = mutableListOf<Long>()
 
-        val listener = object : PlayerEngineListener {
-            override fun onStateChanged(state: PlayerState) { stateChanges.add(state) }
-            override fun onPositionChanged(positionMs: Long) { positions.add(positionMs) }
-            override fun onBufferChanged(bufferedPercent: Int) {}
-            override fun onError(error: String, code: Int?) {}
-            override fun onFirstFrameRendered() {}
-            override fun onPlaybackEnded() {}
-        }
+        val listener =
+            object : PlayerEngineListener {
+                override fun onStateChanged(state: PlayerState) {
+                    stateChanges.add(state)
+                }
+
+                override fun onPositionChanged(positionMs: Long) {
+                    positions.add(positionMs)
+                }
+
+                override fun onBufferChanged(bufferedPercent: Int) {}
+
+                override fun onError(
+                    error: String,
+                    code: Int?,
+                ) {}
+
+                override fun onFirstFrameRendered() {}
+
+                override fun onPlaybackEnded() {}
+            }
 
         listener.onStateChanged(PlayerState.PLAYING)
         listener.onStateChanged(PlayerState.PAUSED)
@@ -196,12 +210,13 @@ class MpvPlayerEngineTest {
 
     @Test
     fun trackInfo_filterByType() {
-        val tracks = listOf(
-            TrackInfo(id = "1", label = "Video 1", mimeType = "video"),
-            TrackInfo(id = "2", label = "Audio EN", mimeType = "audio", language = "eng"),
-            TrackInfo(id = "3", label = "Audio ZH", mimeType = "audio", language = "chi"),
-            TrackInfo(id = "4", label = "Sub EN", mimeType = "sub", language = "eng"),
-        )
+        val tracks =
+            listOf(
+                TrackInfo(id = "1", label = "Video 1", mimeType = "video"),
+                TrackInfo(id = "2", label = "Audio EN", mimeType = "audio", language = "eng"),
+                TrackInfo(id = "3", label = "Audio ZH", mimeType = "audio", language = "chi"),
+                TrackInfo(id = "4", label = "Sub EN", mimeType = "sub", language = "eng"),
+            )
 
         val videoTracks = tracks.filter { it.mimeType == "video" }
         val audioTracks = tracks.filter { it.mimeType == "audio" }

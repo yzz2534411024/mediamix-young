@@ -1,12 +1,12 @@
 package com.mediamix.android
 
 import android.app.Application
-import org.koin.core.context.startKoin
 import com.mediamix.shared.core.PlatformPaths
-import com.mediamix.shared.di.sharedModule
 import com.mediamix.shared.database.DbHolder
+import com.mediamix.shared.di.sharedModule
 import com.mediamix.shared.player.PlayerEngine
 import com.mediamix.ui.di.uiModule
+import org.koin.core.context.startKoin
 
 class MediaMixApp : Application() {
     override fun onCreate() {

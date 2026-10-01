@@ -15,20 +15,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 data class BottomNavItem(
     val screen: Screen,
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
 )
 
-val bottomNavItems = listOf(
-    BottomNavItem(Screen.Home, "\u89c6\u9891", Icons.Filled.Movie),
-    BottomNavItem(Screen.History, "\u5386\u53f2", Icons.Filled.History),
-    BottomNavItem(Screen.Favorite, "\u6536\u85cf", Icons.Filled.Favorite),
-    BottomNavItem(Screen.Settings, "\u8bbe\u7f6e", Icons.Filled.Settings),
-)
+val bottomNavItems =
+    listOf(
+        BottomNavItem(Screen.Home, "\u89c6\u9891", Icons.Filled.Movie),
+        BottomNavItem(Screen.History, "\u5386\u53f2", Icons.Filled.History),
+        BottomNavItem(Screen.Favorite, "\u6536\u85cf", Icons.Filled.Favorite),
+        BottomNavItem(Screen.Settings, "\u8bbe\u7f6e", Icons.Filled.Settings),
+    )
 
 @Composable
 fun BottomNavBar(
     currentRoute: String?,
-    onNavigate: (Screen) -> Unit
+    onNavigate: (Screen) -> Unit,
 ) {
     NavigationBar {
         bottomNavItems.forEach { item ->
@@ -36,7 +37,7 @@ fun BottomNavBar(
                 icon = { Icon(item.icon, contentDescription = item.label) },
                 label = { Text(item.label) },
                 selected = currentRoute == item.screen.route,
-                onClick = { onNavigate(item.screen) }
+                onClick = { onNavigate(item.screen) },
             )
         }
     }

@@ -17,7 +17,6 @@ import kotlinx.datetime.Clock
  * Migrated from metrics_engine_impl.dart.
  */
 class MetricsEngineImpl : MetricsEngine {
-
     private val logger = Logger.withTag("MetricsEngine")
 
     /**
@@ -89,23 +88,24 @@ class MetricsEngineImpl : MetricsEngine {
             _isBuffering = false
         }
 
-        val summary = mutableMapOf<String, Any?>(
-            "videoId" to sessionVideoId,
-            "sessionDurationMs" to sessionDurationMs,
-            "totalBufferCount" to (eventCounts[MetricsEvent.BUFFER_START] ?: 0),
-            "totalBufferDurationMs" to totalBufferDurationMs,
-            "firstFrameTimeMs" to firstFrameTimeMs,
-            "firstFrameLatencyMs" to firstFrameTimeMs?.let { it - sessionStartTimeMs },
-            "lastErrorMessage" to lastErrorMessage,
-            "lastAvSyncOffsetMs" to lastAvSyncOffsetMs,
-        )
+        val summary =
+            mutableMapOf<String, Any?>(
+                "videoId" to sessionVideoId,
+                "sessionDurationMs" to sessionDurationMs,
+                "totalBufferCount" to (eventCounts[MetricsEvent.BUFFER_START] ?: 0),
+                "totalBufferDurationMs" to totalBufferDurationMs,
+                "firstFrameTimeMs" to firstFrameTimeMs,
+                "firstFrameLatencyMs" to firstFrameTimeMs?.let { it - sessionStartTimeMs },
+                "lastErrorMessage" to lastErrorMessage,
+                "lastAvSyncOffsetMs" to lastAvSyncOffsetMs,
+            )
 
         // Add per-event counts
         for ((event, count) in eventCounts) {
             summary["event_${event.name}"] = count
         }
 
-        logger.i("Metrics session ended: ${sessionVideoId}, duration=${sessionDurationMs}ms")
+        logger.i("Metrics session ended: $sessionVideoId, duration=${sessionDurationMs}ms")
         return summary
     }
 
@@ -113,7 +113,11 @@ class MetricsEngineImpl : MetricsEngine {
     // Event recording
     // ========================================================================
 
-    override fun recordEvent(event: MetricsEvent, errorMessage: String?, avSyncOffsetMs: Int?) {
+    override fun recordEvent(
+        event: MetricsEvent,
+        errorMessage: String?,
+        avSyncOffsetMs: Int?,
+    ) {
         if (!enabled) return
         eventCounts[event] = (eventCounts[event] ?: 0) + 1
 
@@ -150,11 +154,12 @@ class MetricsEngineImpl : MetricsEngine {
         val now = Clock.System.now().toEpochMilliseconds()
         val elapsedMs = now - sessionStartTimeMs
 
-        val currentBufferDurationMs = if (_isBuffering && bufferStartMs != null) {
-            totalBufferDurationMs + (now - bufferStartMs!!)
-        } else {
-            totalBufferDurationMs
-        }
+        val currentBufferDurationMs =
+            if (_isBuffering && bufferStartMs != null) {
+                totalBufferDurationMs + (now - bufferStartMs!!)
+            } else {
+                totalBufferDurationMs
+            }
 
         return mapOf(
             "videoId" to sessionVideoId,

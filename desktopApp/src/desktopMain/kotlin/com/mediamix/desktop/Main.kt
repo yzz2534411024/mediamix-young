@@ -6,16 +6,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import androidx.compose.ui.unit.dp
-import org.koin.core.context.startKoin
 import com.mediamix.shared.di.sharedModule
-import com.mediamix.ui.di.uiModule
 import com.mediamix.ui.App
+import com.mediamix.ui.di.uiModule
 import com.mediamix.ui.theme.MediaMixTheme
 import com.mediamix.ui.theme.ThemeConfig
+import org.koin.core.context.startKoin
 import java.io.File
 
 fun main() {
@@ -30,7 +30,7 @@ fun main() {
             // 窗口 / 任务栏图标。打包进 exe 的图标由 build.gradle.kts 的 windows.iconFile 指定，
             // 这里管的是运行期窗口本身（含任务栏缩略图）。
             icon = appIcon,
-            state = rememberWindowState(width = 1280.dp, height = 800.dp)
+            state = rememberWindowState(width = 1280.dp, height = 800.dp),
         ) {
             val themeMode by ThemeConfig.themeMode.collectAsState()
             MediaMixTheme(themeMode = themeMode) {
@@ -54,12 +54,15 @@ private fun loadAppIcon(): Painter? {
     // 用匿名对象拿 classloader：MainKt 是文件名生成的类，在文件内部无法直接引用。
     // ClassLoader.getResourceAsStream 不接受前导 "/"（那是 Class.getResourceAsStream 的写法）。
     val loader: ClassLoader? = object {}.javaClass.classLoader
-    val stream = loader?.getResourceAsStream("icon.png")
-        ?: System.getProperty("compose.application.resources.dir")
-            ?.let { File(it, "icon.png").takeIf(File::isFile)?.inputStream() }
-        ?: File("desktopApp/src/desktopMain/resources/icon.png")
-            .takeIf(File::isFile)?.inputStream()
-        ?: return null
+    val stream =
+        loader?.getResourceAsStream("icon.png")
+            ?: System
+                .getProperty("compose.application.resources.dir")
+                ?.let { File(it, "icon.png").takeIf(File::isFile)?.inputStream() }
+            ?: File("desktopApp/src/desktopMain/resources/icon.png")
+                .takeIf(File::isFile)
+                ?.inputStream()
+            ?: return null
 
     return runCatching { stream.use { BitmapPainter(loadImageBitmap(it)) } }.getOrNull()
 }

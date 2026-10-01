@@ -49,15 +49,15 @@
 
 | # | 项 | 现状 | 目标 | 状态 |
 |---|----|------|------|------|
-| **P1-1** | 源文件编码 | `PlatformPaths.kt` 为 GBK，别处被迫用 `\uXXXX` 转义写中文 | 转回 UTF-8，并加 `.editorconfig` 锁定 | ⬜ |
+| **P1-1** | 源文件编码 | `PlatformPaths.kt` 为 GBK，别处被迫用 `\uXXXX` 转义写中文 | 转回 UTF-8，并加 `.editorconfig` 锁定 | ✅ |
 | **P1-2** | detekt 空转 | 只扫到 2 个文件 | 为 KMP 各源集显式配置 `source`，去掉 `build.maxIssues` 兜底 | ✅ |
-| **P1-3** | ktlint 缺失 | `phase6-completion.md` 声称已配，实际没有 | 引入 ktlint Gradle 插件并接入 CI | ⬜ |
-| **P1-4** | ProGuard 规则 | 缺少 `com.sun.net.httpserver` 相关规则（P0-4 改造后可彻底不需要） | P0-4 完成后确认 R8 release 构建 | ⬜ |
-| **P1-5** | CI 未构建 release | `build.yml` 只有 `assembleDebug`，`package` 步骤挂着 `continue-on-error` | 补 `assembleRelease`，去掉 `continue-on-error` | ⬜ |
-| **P1-6** | Koin 作用域错配 | ViewModel 用 `factory {}`，而 `PlayerCoreManager` 是 `single {}` → 多 VM 共享播放器 | 改用 `viewModel { }` 作用域 | ⬜ |
-| **P1-7** | 蜘蛛引擎空心化 | `CmsSpider` / `JavaBridgeSpider` 全空返回；`VideoApiService`（452 行，已实现）无人调用；UI 层各自手写 CMS 解析 | `CmsSpider` 接入 `VideoApiService`，删除 UI 层重复解析 | ⬜ |
+| **P1-3** | ktlint 缺失 | `phase6-completion.md` 声称已配，实际没有 | 引入 ktlint Gradle 插件并接入 CI | ✅ |
+| **P1-4** | ProGuard 规则 | 缺少 `com.sun.net.httpserver` 相关规则（P0-4 改造后可彻底不需要） | P0-4 完成后确认 R8 release 构建 | ✅ |
+| **P1-5** | CI 未构建 release | `build.yml` 只有 `assembleDebug`，`package` 步骤挂着 `continue-on-error` | 补 `assembleRelease`，去掉 `continue-on-error` | ✅ |
+| **P1-6** | Koin 作用域错配 | ViewModel 用 `factory {}`，而 `PlayerCoreManager` 是 `single {}` → 多 VM 共享播放器 | 改用 `viewModel { }` 作用域 | ⬜ 挪入阶段八（Koin 4 的 viewModel DSL 在 KMP 下的行为需先验证） |
+| **P1-7** | 蜘蛛引擎空心化 | `CmsSpider` / `JavaBridgeSpider` 全空返回；`VideoApiService`（452 行，已实现）无人调用；UI 层各自手写 CMS 解析 | `CmsSpider` 接入 `VideoApiService`，删除 UI 层重复解析 | ✅ |
 | **P1-8** | UI 假交互 | `ParserSelectorDialog(parsers = emptyList())`；跳过间隔 / 电源模式选择不生效 | 接真实数据或从 UI 移除 | ✅ |
-| **P1-9** | commonMain 仍是「伪 common」 | `DiskCache.kt` / `PreloadService.kt` / `XpathSpider.kt`（shared）与 `PlayerOverlays.kt` / `DownloadViewModel.kt` / `SettingsViewModel.kt`（composeUi）中使用 `java.io.File`、`Dispatchers.IO`、`String.format`、`java.net.URI`。Android 运行时**可用**，但一旦新增 iOS/JS target 立即编译失败 | 按 P0-4 的做法收敛到 expect/actual 或平台源集 | ⬜ |
+| **P1-9** | commonMain 仍是「伪 common」 | `DiskCache.kt` / `PreloadService.kt` / `XpathSpider.kt`（shared）与 `PlayerOverlays.kt` / `DownloadViewModel.kt` / `SettingsViewModel.kt`（composeUi）中使用 `java.io.File`、`Dispatchers.IO`、`String.format`、`java.net.URI`。Android 运行时**可用**，但一旦新增 iOS/JS target 立即编译失败 | 按 P0-4 的做法收敛到 expect/actual 或平台源集 | ⬜ 挪入阶段八 |
 
 ---
 
@@ -102,6 +102,47 @@
 | 2026-10-01 | P1-8 UI 假交互 | 完成（仅"快进/快退间隔"一项属实）。原先 `setSkipInterval()` 全项目无人调用、播放页硬编码 10 秒、设置页无入口 —— 整条链路是死的。现以 `AppPreferences` 为唯一真源，设置页可改，播放页按钮与双击手势都按它跳转。另两项已不存在：`ParserSelectorDialog` 在 UI 重写时移除；电源模式从未出现在 UI 上 |
 | 2026-10-01 | P1-2 detekt 覆盖 | 完成。已能扫到 KMP 各源集（shared 单模块即 89 文件 / 220 条 code smell）。重写 `config/detekt/detekt.yml`：把 `FunctionNaming`（JNA 的 C 风格方法名不可改）、`EmptyFunctionBlock`（expect/actual 空实现）等"设计使然"的规则逐条注明原因后放宽，`detekt` 任务从永远失败变为可通过 |
 | 2026-10-01 | P1-4 R8 release 构建 | 见下方"待验证"一节 |
+| 2026-10-01 | P1-3 ktlint 接入 | ✅ 完成。`ktlint 12.1.1` 插件 + 强制 `version 1.5.0`；首轮暴露 2 类问题并逐一处理：① 插件默认解析器偏旧，对 Kotlin 2.1 代码误报 `failed to parse file`（而代码能正常编译）→ 升级 ktlint 版本解决；② 通配符导入 / Composable 大写命名 / KMP 文件名 / 行尾注释等规则与项目既有约定冲突 → 在 `.editorconfig` 逐条注明原因后配置例外。最终 `ktlintCheck` 通过并接入 CI（detekt 的 `continue-on-error` 兜底同步移除） |
+| 2026-10-01 | 饭太硬接口攻坚 | ✅ 解码与站点分类修复完成，详见 7.5 节 |
+
+---
+
+## 7.5 饭太硬接口攻坚（2026-10-01）
+
+> 用户诉求：「饭太硬接口无法使用，想办法让接口可用起来」。
+
+### 7.5.1 真相链（逐条实测推翻既有结论）
+
+| 此前结论 | 实测真相 |
+|---|---|
+| 「`.net` 域名被抢注，返回的是占位 JPEG」 | **错**。该 JPEG 就是饭太硬的真配置 —— 图片伪装格式：`FF D8 ... 图片 ... FF D9 + 8 字节随机标识 + ** + Base64(JSON)`，Base64 解出 12058 字符的完整配置 |
+| 「47 个站点全部依赖 TVBox 蜘蛛内核，一个都跑不了」 | **不完全对**。47 站点构成：43 × `csp_*`（真 jar 蜘蛛，确实跑不了）、3 × HTTP 直连（虎牙/斗鱼直播 m3u8）、1 × `csp_XPathGuard`（XPath 蜘蛛，**无需 jar 可跑**） |
+| 「配置无法解析」 | 解码器 `TvBoxImageDecoder` 对真实响应**一直能工作**（用真实响应做回归测试验证通过）；真正的问题是解码成功后的**下游处理** |
+
+### 7.5.2 修复的三处代码缺陷
+
+1. **`TvBoxSite.isJavaSpider` 一刀切**（`SpiderModels.kt`）
+   原：`api.startsWith("csp_")` → `csp_XPath` 也被当成 jar 蜘蛛。
+   改：新增 `SiteKind`（CMS / XPATH / JAR）精确分类，`isJavaSpider` 只对真 jar 蜘蛛为 true。
+   同时尊重 TVBox 的 type 约定：`type=3` 即 XPath 蜘蛛（api 是规则地址），不能因 api 以 http 开头就改判 CMS。
+
+2. **`SpiderRegistry.buildSpider` 拒建 XPath 蜘蛛**
+   原：`type==3 -> if (!site.isJavaSpider) XpathSpider else null` —— 而 `csp_XPath` 的 `isJavaSpider` 恒为 true，**永远返回 null**。
+   改：按 `SiteKind` 分发，XPATH → `XpathSpider`，JAR → JavaBridgeSpider（内核就绪时），CMS → 按 type 细分。
+
+3. **`VideoHomeViewModel` 的两处 `filterNot { it.isJavaSpider }`**
+   语义修正后无需改动 —— `csp_XPathGuard` 等站点自动从「全过滤」变为「保留」，首页不再提示全部不可用。
+
+### 7.5.3 诚实的能力边界
+
+- 饭太硬 43/47 的站点是 `csp_*` jar 蜘蛛，**KMP 架构没有 dex/jar 执行环境**，这部分是架构边界而非 bug。UI 会明确提示「需要 TVBox 内核」。
+- 官方域名 `饭太硬.com` / `饭太硬.top` 在部分网络环境不可达（直连超时/代理被 403）；当前实际可达的是 `www.饭太硬.net`（返回伪装格式真配置），已保留为内置地址。后续应做多线路自动切换。
+- 43 个 jar 蜘蛛背后多为标准 CMS 采集站，社区存在「还原直连地址」的聚合配置 —— 后续可通过「用户导入任意 TVBox 配置 + HTTP 直连站点自动注册」扩大可用面。
+
+### 7.5.4 验证
+
+- 新增 `TvBoxImageDecoderRealDataTest`（desktopTest）：用真实线上响应做回归，断言 47 站点 / spider / lives ✅
+- `:shared` / `:composeUi` × desktop / android 四目标编译 ✅，desktopTest 全绿 ✅
 
 ### 执行中的判断修正
 

@@ -1,11 +1,11 @@
 package com.mediamix.shared.spider
 
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.*
 import com.mediamix.shared.network.HttpClientFactory
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import co.touchlab.kermit.Logger
 import kotlinx.serialization.json.*
 
 /**
@@ -15,16 +15,18 @@ import kotlinx.serialization.json.*
  */
 class SpiderService(
     private val registry: SpiderRegistry = SpiderRegistry.instance,
-    private val httpClient: HttpClient = HttpClientFactory.createHttpClient(
-        connectTimeoutSeconds = 5,
-        requestTimeoutSeconds = 15,
-    ),
+    private val httpClient: HttpClient =
+        HttpClientFactory.createHttpClient(
+            connectTimeoutSeconds = 5,
+            requestTimeoutSeconds = 15,
+        ),
 ) {
     private val logger = Logger.withTag("SpiderService")
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     /**
      * 获取 TVBox 配置
@@ -136,37 +138,37 @@ class SpiderService(
     val allSpiders: List<SpiderAdapter> get() = registry.all
 
     /** 通过蜘蛛获取首页内容 */
-    suspend fun fetchHome(spider: SpiderAdapter, page: Int = 1): SpiderHomeResult {
-        return spider.homeContent(page)
-    }
+    suspend fun fetchHome(
+        spider: SpiderAdapter,
+        page: Int = 1,
+    ): SpiderHomeResult = spider.homeContent(page)
 
     /** 通过蜘蛛获取分类内容 */
     suspend fun fetchCategory(
         spider: SpiderAdapter,
         tid: String,
         page: Int = 1,
-    ): SpiderListResult {
-        return spider.categoryContent(tid, page)
-    }
+    ): SpiderListResult = spider.categoryContent(tid, page)
 
     /** 通过蜘蛛获取详情 */
-    suspend fun fetchDetail(spider: SpiderAdapter, id: String): SpiderDetailResult {
-        return spider.detailContent(id)
-    }
+    suspend fun fetchDetail(
+        spider: SpiderAdapter,
+        id: String,
+    ): SpiderDetailResult = spider.detailContent(id)
 
     /** 通过蜘蛛搜索 */
     suspend fun fetchSearch(
         spider: SpiderAdapter,
         keyword: String,
         page: Int = 1,
-    ): SpiderListResult {
-        return spider.searchContent(keyword, page)
-    }
+    ): SpiderListResult = spider.searchContent(keyword, page)
 
     /** 通过蜘蛛解析播放地址 */
-    suspend fun fetchPlay(spider: SpiderAdapter, flag: String, id: String): SpiderPlayResult {
-        return spider.playerContent(flag, id)
-    }
+    suspend fun fetchPlay(
+        spider: SpiderAdapter,
+        flag: String,
+        id: String,
+    ): SpiderPlayResult = spider.playerContent(flag, id)
 
     // ==================== 生命周期 ====================
 
@@ -193,7 +195,8 @@ class SpiderService(
                 val element = json.parseToJsonElement(text)
                 if (element is JsonObject) return element
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
         return null
     }
 }

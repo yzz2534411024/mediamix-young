@@ -3,7 +3,6 @@ package com.mediamix.shared.network
 import kotlin.test.*
 
 class HttpClientFactoryTest {
-
     @Test
     fun test_createHttpClient_returnsNonNull() {
         val client = HttpClientFactory.createHttpClient()
@@ -13,10 +12,11 @@ class HttpClientFactoryTest {
 
     @Test
     fun test_createHttpClient_withCustomTimeout() {
-        val client = HttpClientFactory.createHttpClient(
-            connectTimeoutSeconds = 5,
-            requestTimeoutSeconds = 15
-        )
+        val client =
+            HttpClientFactory.createHttpClient(
+                connectTimeoutSeconds = 5,
+                requestTimeoutSeconds = 15,
+            )
         assertNotNull(client)
         client.close()
     }
@@ -44,10 +44,11 @@ class HttpClientFactoryTest {
 
     @Test
     fun test_createStreamingClient_withCustomParams() {
-        val client = HttpClientFactory.createStreamingClient(
-            connectTimeoutSeconds = 20,
-            userAgent = "StreamAgent/2.0"
-        )
+        val client =
+            HttpClientFactory.createStreamingClient(
+                connectTimeoutSeconds = 20,
+                userAgent = "StreamAgent/2.0",
+            )
         assertNotNull(client)
         client.close()
     }

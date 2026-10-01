@@ -52,39 +52,47 @@ data class PlaybackSession(
  * 详情页和播放页分属两个 NavBackStackEntry，各自的 ViewModel 拿不到对方的实例。
  */
 class PlaybackSessionStore {
-
     private val _session = MutableStateFlow<PlaybackSession?>(null)
     val session: StateFlow<PlaybackSession?> = _session.asStateFlow()
 
     /** 详情页：带上完整剧集列表开始播放 */
-    fun start(detail: VideoDetail, sourceIndex: Int, episodeIndex: Int) {
+    fun start(
+        detail: VideoDetail,
+        sourceIndex: Int,
+        episodeIndex: Int,
+    ) {
         val playSource = detail.playSources.getOrNull(sourceIndex) ?: return
         if (playSource.episodes.isEmpty()) return
         val safeIndex = episodeIndex.coerceIn(0, playSource.episodes.lastIndex)
-        _session.value = PlaybackSession(
-            vodId = detail.vodId,
-            vodName = detail.vodName,
-            sourceKey = detail.sourceKey,
-            sourceIndex = sourceIndex,
-            playSources = detail.playSources,
-            episodes = playSource.episodes,
-            startIndex = safeIndex,
-        )
+        _session.value =
+            PlaybackSession(
+                vodId = detail.vodId,
+                vodName = detail.vodName,
+                sourceKey = detail.sourceKey,
+                sourceIndex = sourceIndex,
+                playSources = detail.playSources,
+                episodes = playSource.episodes,
+                startIndex = safeIndex,
+            )
     }
 
     /** 下载页 / 历史页：播放单个本地或远程文件 */
-    fun startSingle(url: String, title: String) {
+    fun startSingle(
+        url: String,
+        title: String,
+    ) {
         if (url.isBlank()) return
-        _session.value = PlaybackSession(
-            vodId = "",
-            vodName = title.ifBlank { "本地视频" },
-            sourceKey = "",
-            sourceIndex = 0,
-            playSources = emptyList(),
-            episodes = listOf(VideoEpisode(name = title.ifBlank { "本地视频" }, url = url)),
-            startIndex = 0,
-            isLocal = !url.startsWith("http", ignoreCase = true),
-        )
+        _session.value =
+            PlaybackSession(
+                vodId = "",
+                vodName = title.ifBlank { "本地视频" },
+                sourceKey = "",
+                sourceIndex = 0,
+                playSources = emptyList(),
+                episodes = listOf(VideoEpisode(name = title.ifBlank { "本地视频" }, url = url)),
+                startIndex = 0,
+                isLocal = !url.startsWith("http", ignoreCase = true),
+            )
     }
 
     fun clear() {
@@ -92,6 +100,5 @@ class PlaybackSessionStore {
     }
 
     /** 取出与给定播放地址匹配的会话；不匹配返回 null（避免串到上一次的剧集列表） */
-    fun sessionFor(url: String): PlaybackSession? =
-        _session.value?.takeIf { it.startUrl == url }
+    fun sessionFor(url: String): PlaybackSession? = _session.value?.takeIf { it.startUrl == url }
 }

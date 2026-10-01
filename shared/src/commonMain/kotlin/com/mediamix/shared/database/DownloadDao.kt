@@ -12,27 +12,24 @@ import kotlinx.coroutines.flow.map
  * 封装 SQLDelight 生成的 DownloadTasks 查询，
  * 提供 suspend 函数和 Flow 接口。
  */
-class DownloadDao(private val database: MediaMixDatabase) {
-
+class DownloadDao(
+    private val database: MediaMixDatabase,
+) {
     private val queries get() = database.downloadTasksQueries
 
     /** 查询所有下载任务（按创建时间倒序），返回 Flow */
-    fun observeAll(): Flow<List<DownloadTaskEntity>> {
-        return queries.selectAll()
+    fun observeAll(): Flow<List<DownloadTaskEntity>> =
+        queries
+            .selectAll()
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toEntity() } }
-    }
 
     /** 查询所有下载任务（一次性） */
-    fun getAll(): List<DownloadTaskEntity> {
-        return queries.selectAll().executeAsList().map { it.toEntity() }
-    }
+    fun getAll(): List<DownloadTaskEntity> = queries.selectAll().executeAsList().map { it.toEntity() }
 
     /** 根据 ID 查询 */
-    fun getById(id: String): DownloadTaskEntity? {
-        return queries.selectById(id).executeAsOneOrNull()?.toEntity()
-    }
+    fun getById(id: String): DownloadTaskEntity? = queries.selectById(id).executeAsOneOrNull()?.toEntity()
 
     /** 插入或替换下载任务 */
     fun insertOrReplace(
@@ -66,12 +63,22 @@ class DownloadDao(private val database: MediaMixDatabase) {
     }
 
     /** 更新下载进度 */
-    fun updateProgress(id: String, progress: Long, status: Long) {
+    fun updateProgress(
+        id: String,
+        progress: Long,
+        status: Long,
+    ) {
         val existing = queries.selectById(id).executeAsOneOrNull() ?: return
         queries.update(
-            existing.vodId, existing.vodName, existing.episodeName,
-            existing.videoUrl, existing.localPath, status, progress,
-            existing.fileSize, id
+            existing.vodId,
+            existing.vodName,
+            existing.episodeName,
+            existing.videoUrl,
+            existing.localPath,
+            status,
+            progress,
+            existing.fileSize,
+            id,
         )
     }
 
@@ -102,8 +109,8 @@ data class DownloadTaskEntity(
     val createTime: Long,
 )
 
-private fun DownloadTasks.toEntity(): DownloadTaskEntity {
-    return DownloadTaskEntity(
+private fun DownloadTasks.toEntity(): DownloadTaskEntity =
+    DownloadTaskEntity(
         id = id,
         vodId = vodId,
         vodName = vodName,
@@ -115,4 +122,3 @@ private fun DownloadTasks.toEntity(): DownloadTaskEntity {
         fileSize = fileSize,
         createTime = createTime,
     )
-}

@@ -3,18 +3,18 @@ package com.mediamix.shared.network
 import kotlin.test.*
 
 class NetworkModelsTest {
-
     // ThroughputPrediction tests
 
     @Test
     fun test_throughputPrediction_creation() {
-        val prediction = ThroughputPrediction(
-            predictedKbps = 5000.0,
-            confidence = 0.8,
-            trendKbps = 200.0,
-            longTermAverageKbps = 4500.0,
-            stability = 0.9
-        )
+        val prediction =
+            ThroughputPrediction(
+                predictedKbps = 5000.0,
+                confidence = 0.8,
+                trendKbps = 200.0,
+                longTermAverageKbps = 4500.0,
+                stability = 0.9,
+            )
         assertEquals(5000.0, prediction.predictedKbps)
         assertEquals(0.8, prediction.confidence)
         assertEquals(200.0, prediction.trendKbps)

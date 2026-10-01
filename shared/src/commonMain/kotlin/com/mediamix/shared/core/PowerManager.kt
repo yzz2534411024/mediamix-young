@@ -8,7 +8,9 @@ package com.mediamix.shared.core
  */
 expect class PowerManager() {
     fun getBatteryLevel(): Int
+
     fun isCharging(): Boolean
+
     fun getPowerMode(): PowerMode
 
     /** 电量 < 20% 或未充电时返回 true */
@@ -24,5 +26,5 @@ expect class PowerManager() {
 enum class PowerMode {
     HIGH_PERFORMANCE,
     BALANCED,
-    POWER_SAVING
+    POWER_SAVING,
 }

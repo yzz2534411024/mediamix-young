@@ -7,7 +7,6 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.test.*
 
 class TvBoxImageDecoderTest {
-
     // ============================================================
     // JPEG 伪装格式检测
     // ============================================================
@@ -53,11 +52,16 @@ class TvBoxImageDecoderTest {
         val identifier = "ABCD1234" // 8字符标识
 
         // 构造: [JPEG数据] [8字符标识]**[Base64 JSON]
-        val jpegData = byteArrayOf(
-            0xFF.toByte(), 0xD8.toByte(), // JPEG 开始
-            0x00, 0x01, 0x02, // 一些JPEG数据
-            0xFF.toByte(), 0xD9.toByte(), // JPEG 结束
-        )
+        val jpegData =
+            byteArrayOf(
+                0xFF.toByte(),
+                0xD8.toByte(), // JPEG 开始
+                0x00,
+                0x01,
+                0x02, // 一些JPEG数据
+                0xFF.toByte(),
+                0xD9.toByte(), // JPEG 结束
+            )
         val trailing = (identifier + "**" + base64Json).encodeToByteArray()
         val fullData = jpegData + trailing
 
@@ -72,13 +76,20 @@ class TvBoxImageDecoderTest {
         val jsonContent = """{"key":"value"}"""
         val base64Json = Base64.encode(jsonContent.encodeToByteArray())
 
-        val jpegData = byteArrayOf(
-            0xFF.toByte(), 0xD8.toByte(), // JPEG 开始
-            0x00, 0x01, // 缩略图数据
-            0xFF.toByte(), 0xD9.toByte(), // 缩略图结束（不是真正的结束）
-            0x03, 0x04, 0x05, // 主图数据
-            0xFF.toByte(), 0xD9.toByte(), // 真正的主图结束
-        )
+        val jpegData =
+            byteArrayOf(
+                0xFF.toByte(),
+                0xD8.toByte(), // JPEG 开始
+                0x00,
+                0x01, // 缩略图数据
+                0xFF.toByte(),
+                0xD9.toByte(), // 缩略图结束（不是真正的结束）
+                0x03,
+                0x04,
+                0x05, // 主图数据
+                0xFF.toByte(),
+                0xD9.toByte(), // 真正的主图结束
+            )
         val trailing = ("IDENT01*" + "*" + base64Json).encodeToByteArray()
         val fullData = jpegData + trailing
 
@@ -101,18 +112,23 @@ class TvBoxImageDecoderTest {
         val declaredSize = 14 + pixelDataSize
         val dataOffset = 14
 
-        val bmpHeader = byteArrayOf(
-            0x42, 0x4D, // BM
-            (declaredSize and 0xFF).toByte(),
-            ((declaredSize shr 8) and 0xFF).toByte(),
-            ((declaredSize shr 16) and 0xFF).toByte(),
-            ((declaredSize shr 24) and 0xFF).toByte(),
-            0x00, 0x00, 0x00, 0x00, // 保留
-            (dataOffset and 0xFF).toByte(),
-            ((dataOffset shr 8) and 0xFF).toByte(),
-            ((dataOffset shr 16) and 0xFF).toByte(),
-            ((dataOffset shr 24) and 0xFF).toByte(),
-        )
+        val bmpHeader =
+            byteArrayOf(
+                0x42,
+                0x4D, // BM
+                (declaredSize and 0xFF).toByte(),
+                ((declaredSize shr 8) and 0xFF).toByte(),
+                ((declaredSize shr 16) and 0xFF).toByte(),
+                ((declaredSize shr 24) and 0xFF).toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00, // 保留
+                (dataOffset and 0xFF).toByte(),
+                ((dataOffset shr 8) and 0xFF).toByte(),
+                ((dataOffset shr 16) and 0xFF).toByte(),
+                ((dataOffset shr 24) and 0xFF).toByte(),
+            )
 
         // 文件实际大小 > 声明大小，附加数据在声明大小之后
         val pixelData = ByteArray(pixelDataSize)
@@ -155,12 +171,13 @@ class TvBoxImageDecoderTest {
 
     @Test
     fun testStripSingleLineComments() {
-        val jsonWithComments = """
+        val jsonWithComments =
+            """
             {
                 // 这是注释
                 "key": "value" // 行尾注释
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val result = TvBoxImageDecoder.parseJsonWithComments(jsonWithComments)
         assertNotNull(result)
@@ -169,13 +186,14 @@ class TvBoxImageDecoderTest {
 
     @Test
     fun testStripMultiLineComments() {
-        val jsonWithComments = """
+        val jsonWithComments =
+            """
             {
                 /* 多行
                    注释 */
                 "key": "value"
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val result = TvBoxImageDecoder.parseJsonWithComments(jsonWithComments)
         assertNotNull(result)
@@ -184,11 +202,12 @@ class TvBoxImageDecoderTest {
 
     @Test
     fun testCommentsInsideStringsPreserved() {
-        val jsonWithCommentsInStrings = """
+        val jsonWithCommentsInStrings =
+            """
             {
                 "url": "https://example.com/path" // 注释
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val result = TvBoxImageDecoder.parseJsonWithComments(jsonWithCommentsInStrings)
         assertNotNull(result)
@@ -226,7 +245,8 @@ class TvBoxImageDecoderTest {
     @Test
     fun testFanTaiYingJpegDisguise() {
         // 模拟饭太硬接口返回的 JPEG 伪装格式
-        val configJson = """
+        val configJson =
+            """
             {
                 "spider": "https://example.com/fantaiying.jar;md5hash123",
                 "sites": [
@@ -242,7 +262,7 @@ class TvBoxImageDecoderTest {
                 ],
                 "flags": ["qq", "iqiyi"]
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val base64Json = Base64.encode(configJson.encodeToByteArray())
         val identifier = "FTY20260" // 8字符标识

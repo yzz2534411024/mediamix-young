@@ -2,6 +2,7 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.cache.VideoCacheService
 import com.mediamix.shared.core.PlatformPaths
 import com.mediamix.shared.database.FavoriteDao
@@ -21,7 +22,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import co.touchlab.kermit.Logger
 import java.io.File
 
 /**
@@ -44,7 +44,10 @@ data class CacheStatsInfo(
 )
 
 /** 一次性操作结果提示（设置页用 Snackbar 展示） */
-data class SettingsMessage(val text: String, val id: Long)
+data class SettingsMessage(
+    val text: String,
+    val id: Long,
+)
 
 /**
  * 设置 ViewModel
@@ -59,7 +62,6 @@ class SettingsViewModel(
     private val favoriteDao: FavoriteDao,
     private val metricsEngine: MetricsEngine,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("SettingsViewModel")
 
     private val _themeMode = MutableStateFlow(preferences.themeMode)
@@ -126,8 +128,9 @@ class SettingsViewModel(
      * 播放器可能压根没初始化。真正下发发生在打开播放页时（见 PlayerViewModel.openVideo）。
      */
     fun setSkipInterval(seconds: Int) {
-        val valid = seconds.takeIf { it in AppPreferences.SKIP_INTERVAL_OPTIONS }
-            ?: AppPreferences.DEFAULT_SKIP_INTERVAL
+        val valid =
+            seconds.takeIf { it in AppPreferences.SKIP_INTERVAL_OPTIONS }
+                ?: AppPreferences.DEFAULT_SKIP_INTERVAL
         _skipInterval.value = valid
         preferences.skipIntervalSeconds = valid
         notify("快进/快退间隔已设为 $valid 秒")
@@ -163,13 +166,14 @@ class SettingsViewModel(
                 val stats = videoCacheService.getStats()
                 val memUsage = videoCacheService.getMemoryUsage()
                 val memSize = memUsage.l1Bytes + memUsage.l2Bytes
-                _cacheStats.value = CacheStatsInfo(
-                    memoryCacheSize = memSize,
-                    diskCacheSize = stats.totalSize,
-                    totalSize = memSize + stats.totalSize,
-                    entryCount = stats.entryCount,
-                    hitRate = stats.hitRate,
-                )
+                _cacheStats.value =
+                    CacheStatsInfo(
+                        memoryCacheSize = memSize,
+                        diskCacheSize = stats.totalSize,
+                        totalSize = memSize + stats.totalSize,
+                        entryCount = stats.entryCount,
+                        hitRate = stats.hitRate,
+                    )
             } catch (e: Exception) {
                 logger.e { "Refresh cache stats failed: ${e.message}" }
                 _cacheStats.value = CacheStatsInfo()
@@ -191,41 +195,56 @@ class SettingsViewModel(
             try {
                 val json = Json { prettyPrint = true }
 
-                val favoritesJson = buildJsonArray {
-                    favoriteDao.getAll().forEach { fav ->
-                        add(buildJsonObject {
-                            put("vodId", fav.vodId)
-                            put("vodName", fav.vodName)
-                            put("vodPic", fav.vodPic ?: "")
-                            put("sourceKey", fav.sourceKey)
-                            put("typeName", fav.typeName ?: "")
-                            put("lastEpisodeCount", fav.lastEpisodeCount)
-                            put("addTime", fav.addTime)
-                        })
+                val favoritesJson =
+                    buildJsonArray {
+                        favoriteDao.getAll().forEach { fav ->
+                            add(
+                                buildJsonObject {
+                                    put("vodId", fav.vodId)
+                                    put("vodName", fav.vodName)
+                                    put("vodPic", fav.vodPic ?: "")
+                                    put("sourceKey", fav.sourceKey)
+                                    put("typeName", fav.typeName ?: "")
+                                    put("lastEpisodeCount", fav.lastEpisodeCount)
+                                    put("addTime", fav.addTime)
+                                },
+                            )
+                        }
                     }
-                }
 
-                val historyJson = buildJsonArray {
-                    watchHistoryDao.getAll().forEach { hist ->
-                        add(buildJsonObject {
-                            put("vodId", hist.vodId)
-                            put("vodName", hist.vodName)
-                            put("vodPic", hist.vodPic ?: "")
-                            put("sourceKey", hist.sourceKey)
-                            put("episodeName", hist.episodeName ?: "")
-                            put("lastWatchTime", hist.lastWatchTime)
-                        })
+                val historyJson =
+                    buildJsonArray {
+                        watchHistoryDao.getAll().forEach { hist ->
+                            add(
+                                buildJsonObject {
+                                    put("vodId", hist.vodId)
+                                    put("vodName", hist.vodName)
+                                    put("vodPic", hist.vodPic ?: "")
+                                    put("sourceKey", hist.sourceKey)
+                                    put("episodeName", hist.episodeName ?: "")
+                                    put("lastWatchTime", hist.lastWatchTime)
+                                },
+                            )
+                        }
                     }
-                }
 
-                val exportJson = buildJsonObject {
-                    put("exportTime", kotlinx.datetime.Clock.System.now().toEpochMilliseconds())
-                    put("appVersion", "0.2.0")
-                    put("data", buildJsonObject {
-                        put("favorites", favoritesJson)
-                        put("histories", historyJson)
-                    })
-                }
+                val exportJson =
+                    buildJsonObject {
+                        put(
+                            "exportTime",
+                            kotlinx.datetime.Clock.System
+                                .now()
+                                .toEpochMilliseconds(),
+                        )
+                        put("appVersion", "0.2.0")
+                        put(
+                            "data",
+                            buildJsonObject {
+                                put("favorites", favoritesJson)
+                                put("histories", historyJson)
+                            },
+                        )
+                    }
 
                 val result = json.encodeToString(exportJson)
 
@@ -256,8 +275,9 @@ class SettingsViewModel(
 }
 
 /** 提示文案里用的简短名称 */
-private fun DecodeMode.labelForMessage(): String = when (this) {
-    DecodeMode.AUTO -> "自动"
-    DecodeMode.HARDWARE -> "硬件解码优先"
-    DecodeMode.SOFTWARE -> "软件解码优先"
-}
+private fun DecodeMode.labelForMessage(): String =
+    when (this) {
+        DecodeMode.AUTO -> "自动"
+        DecodeMode.HARDWARE -> "硬件解码优先"
+        DecodeMode.SOFTWARE -> "软件解码优先"
+    }

@@ -6,11 +6,10 @@ import com.mediamix.shared.models.VideoItem
 import com.mediamix.shared.models.VideoListResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class VideoHomeViewModelTest {
-
     @Test
     fun cmsApiSite_defaultValues() {
         val site = CmsApiSite(key = "test", name = "Test", apiUrl = "http://test.com")
@@ -65,14 +64,15 @@ class VideoHomeViewModelTest {
 
     @Test
     fun videoItem_creation() {
-        val item = VideoItem(
-            vodId = "123",
-            vodName = "Test Movie",
-            vodPic = "https://example.com/pic.jpg",
-            vodRemarks = "HD",
-            vodYear = "2024",
-            vodArea = "US"
-        )
+        val item =
+            VideoItem(
+                vodId = "123",
+                vodName = "Test Movie",
+                vodPic = "https://example.com/pic.jpg",
+                vodRemarks = "HD",
+                vodYear = "2024",
+                vodArea = "US",
+            )
         assertEquals("123", item.vodId)
         assertEquals("Test Movie", item.vodName)
         assertEquals("https://example.com/pic.jpg", item.vodPic)
@@ -83,10 +83,11 @@ class VideoHomeViewModelTest {
 
     @Test
     fun videoListResponse_creation() {
-        val items = listOf(
-            VideoItem(vodId = "1", vodName = "A"),
-            VideoItem(vodId = "2", vodName = "B")
-        )
+        val items =
+            listOf(
+                VideoItem(vodId = "1", vodName = "A"),
+                VideoItem(vodId = "2", vodName = "B"),
+            )
         val response = VideoListResponse(list = items, page = 1, pageCount = 5, total = 50)
         assertEquals(2, response.list.size)
         assertEquals(1, response.page)

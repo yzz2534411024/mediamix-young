@@ -12,27 +12,24 @@ import kotlinx.coroutines.flow.map
  * 封装 SQLDelight 生成的 WatchHistories 查询，
  * 提供 suspend 函数和 Flow 接口。
  */
-class WatchHistoryDao(private val database: MediaMixDatabase) {
-
+class WatchHistoryDao(
+    private val database: MediaMixDatabase,
+) {
     private val queries get() = database.watchHistoriesQueries
 
     /** 查询所有观看历史（按时间倒序），返回 Flow */
-    fun observeAll(): Flow<List<WatchHistoryItemEntity>> {
-        return queries.selectAll()
+    fun observeAll(): Flow<List<WatchHistoryItemEntity>> =
+        queries
+            .selectAll()
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toEntity() } }
-    }
 
     /** 查询所有观看历史（一次性） */
-    fun getAll(): List<WatchHistoryItemEntity> {
-        return queries.selectAll().executeAsList().map { it.toEntity() }
-    }
+    fun getAll(): List<WatchHistoryItemEntity> = queries.selectAll().executeAsList().map { it.toEntity() }
 
     /** 根据 vodId 查询 */
-    fun getByVodId(vodId: String): WatchHistoryItemEntity? {
-        return queries.selectById(vodId).executeAsOneOrNull()?.toEntity()
-    }
+    fun getByVodId(vodId: String): WatchHistoryItemEntity? = queries.selectById(vodId).executeAsOneOrNull()?.toEntity()
 
     /** 插入或更新观看历史 */
     fun insertOrReplace(
@@ -69,8 +66,8 @@ data class WatchHistoryItemEntity(
     val lastWatchTime: Long,
 )
 
-private fun WatchHistories.toEntity(): WatchHistoryItemEntity {
-    return WatchHistoryItemEntity(
+private fun WatchHistories.toEntity(): WatchHistoryItemEntity =
+    WatchHistoryItemEntity(
         vodId = vodId,
         vodName = vodName,
         vodPic = vodPic,
@@ -78,4 +75,3 @@ private fun WatchHistories.toEntity(): WatchHistoryItemEntity {
         episodeName = episodeName,
         lastWatchTime = lastWatchTime,
     )
-}

@@ -29,7 +29,6 @@ import co.touchlab.kermit.Logger
  */
 @OptIn(UnstableApi::class)
 actual class PlayerEngine actual constructor() {
-
     private val logger = Logger.withTag("ExoPlayerEngine")
     private var exoPlayer: ExoPlayer? = null
     private var currentState: PlayerState = PlayerState.IDLE
@@ -48,65 +47,67 @@ actual class PlayerEngine actual constructor() {
      * ExoPlayer 播放状态监听器
      * 负责将 Media3 的回调映射到 PlayerEngineListener 和 PlayerState
      */
-    private val playerListener = object : Player.Listener {
+    private val playerListener =
+        object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                val newState =
+                    when (state) {
+                        Player.STATE_IDLE -> PlayerState.IDLE
+                        Player.STATE_BUFFERING -> PlayerState.BUFFERING
+                        Player.STATE_READY -> PlayerState.READY
+                        Player.STATE_ENDED -> PlayerState.ENDED
+                        else -> PlayerState.IDLE
+                    }
+                currentState = newState
+                listener?.onStateChanged(newState)
 
-        override fun onPlaybackStateChanged(state: Int) {
-            val newState = when (state) {
-                Player.STATE_IDLE -> PlayerState.IDLE
-                Player.STATE_BUFFERING -> PlayerState.BUFFERING
-                Player.STATE_READY -> PlayerState.READY
-                Player.STATE_ENDED -> PlayerState.ENDED
-                else -> PlayerState.IDLE
+                // READY 状态且首帧尚未上报时，通知首帧渲染完成
+                if (state == Player.STATE_READY && !firstFrameReported) {
+                    firstFrameReported = true
+                    listener?.onFirstFrameRendered()
+                }
+
+                // 播放结束回调
+                if (state == Player.STATE_ENDED) {
+                    listener?.onPlaybackEnded()
+                }
             }
-            currentState = newState
-            listener?.onStateChanged(newState)
 
-            // READY 状态且首帧尚未上报时，通知首帧渲染完成
-            if (state == Player.STATE_READY && !firstFrameReported) {
-                firstFrameReported = true
-                listener?.onFirstFrameRendered()
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                val newState = if (isPlaying) PlayerState.PLAYING else PlayerState.PAUSED
+                currentState = newState
+                listener?.onStateChanged(newState)
             }
 
-            // 播放结束回调
-            if (state == Player.STATE_ENDED) {
-                listener?.onPlaybackEnded()
+            override fun onPlayerError(error: PlaybackException) {
+                currentState = PlayerState.ERROR
+                listener?.onError(
+                    error.message ?: "Unknown playback error",
+                    error.errorCode,
+                )
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int,
+            ) {
+                listener?.onPositionChanged(newPosition.positionMs)
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                // 轨道变化时可在未来扩展通知逻辑
             }
         }
-
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            val newState = if (isPlaying) PlayerState.PLAYING else PlayerState.PAUSED
-            currentState = newState
-            listener?.onStateChanged(newState)
-        }
-
-        override fun onPlayerError(error: PlaybackException) {
-            currentState = PlayerState.ERROR
-            listener?.onError(
-                error.message ?: "Unknown playback error",
-                error.errorCode
-            )
-        }
-
-        override fun onPositionDiscontinuity(
-            oldPosition: Player.PositionInfo,
-            newPosition: Player.PositionInfo,
-            reason: Int
-        ) {
-            listener?.onPositionChanged(newPosition.positionMs)
-        }
-
-        override fun onTracksChanged(tracks: Tracks) {
-            // 轨道变化时可在未来扩展通知逻辑
-        }
-    }
 
     /**
      * 初始化 ExoPlayer 实例
      * 必须先调用 companion object 的 init(context) 注入 Context
      */
     actual fun initialize() {
-        val context = appContext
-            ?: throw IllegalStateException("ExoPlayerEngine.init(context) 必须先调用")
+        val context =
+            appContext
+                ?: throw IllegalStateException("ExoPlayerEngine.init(context) 必须先调用")
 
         // 释放旧实例，避免资源泄漏
         exoPlayer?.let {
@@ -114,21 +115,17 @@ actual class PlayerEngine actual constructor() {
             it.release()
         }
 
-        exoPlayer = ExoPlayer.Builder(context, buildRenderersFactory(context))
-            .setMediaSourceFactory(DefaultMediaSourceFactory(newDataSourceFactory()))
-            .setLoadControl(buildLoadControl())
-            .build()
-            .apply { addListener(playerListener) }
+        exoPlayer =
+            ExoPlayer
+                .Builder(context, buildRenderersFactory(context))
+                .setMediaSourceFactory(DefaultMediaSourceFactory(newDataSourceFactory()))
+                .setLoadControl(buildLoadControl())
+                .build()
+                .apply { addListener(playerListener) }
         currentState = PlayerState.IDLE
         firstFrameReported = false
     }
 
-    /**
-     * 新建数据源工厂。
-     *
-     * 必须带默认 UA：大量 CMS/CDN（尤其带防盗链的）对 ExoPlayer 默认的
-     * `ExoPlayerLib/x.y.z` 直接返回 403，表现为「Source error」。
-     */
     /**
      * 缓冲策略。
      *
@@ -139,21 +136,33 @@ actual class PlayerEngine actual constructor() {
      * - `bufferForPlaybackAfterRebufferMs = 4s`：避免弱网下「缓冲→播放→再缓冲」反复抖动
      */
     private fun buildLoadControl(): DefaultLoadControl =
-        DefaultLoadControl.Builder()
+        DefaultLoadControl
+            .Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 15_000,
-                /* maxBufferMs = */ 90_000,
-                /* bufferForPlaybackMs = */ 1_500,
-                /* bufferForPlaybackAfterRebufferMs = */ 4_000,
-            )
-            .build()
+                // minBufferMs =
+                15_000,
+                // maxBufferMs =
+                90_000,
+                // bufferForPlaybackMs =
+                1_500,
+                // bufferForPlaybackAfterRebufferMs =
+                4_000,
+            ).build()
 
+    /**
+     * 新建数据源工厂。
+     *
+     * 必须带默认 UA：大量 CMS/CDN（尤其带防盗链的）对 ExoPlayer 默认的
+     * `ExoPlayerLib/x.y.z` 直接返回 403，表现为「Source error」。
+     */
     private fun newDataSourceFactory(): DefaultHttpDataSource.Factory {
-        val factory = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(20_000)
-            .setDefaultRequestProperties(DEFAULT_HEADERS)
+        val factory =
+            DefaultHttpDataSource
+                .Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(15_000)
+                .setReadTimeoutMs(20_000)
+                .setDefaultRequestProperties(DEFAULT_HEADERS)
         dataSourceFactory = factory
         return factory
     }
@@ -170,8 +179,9 @@ actual class PlayerEngine actual constructor() {
         val factory = DefaultRenderersFactory(context).setEnableDecoderFallback(true)
         if (preferSoftwareDecoding) {
             factory.setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
-                val all = MediaCodecSelector.DEFAULT
-                    .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
+                val all =
+                    MediaCodecSelector.DEFAULT
+                        .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
                 all.filter { it.softwareOnly }.ifEmpty { all }
             }
         }
@@ -187,7 +197,10 @@ actual class PlayerEngine actual constructor() {
      * 设置播放源
      * 构建 MediaItem 并加载到 ExoPlayer，同时重置首帧标记
      */
-    actual fun setSource(url: String, headers: Map<String, String>?) {
+    actual fun setSource(
+        url: String,
+        headers: Map<String, String>?,
+    ) {
         firstFrameReported = false
         try {
             if (url.isBlank()) {
@@ -196,10 +209,11 @@ actual class PlayerEngine actual constructor() {
             }
             // 合并默认头与调用方传入的头（后者优先），每次切集都要重设，
             // 否则上一集的 Referer 会串到下一集，导致 CDN 鉴权失败。
-            val merged = buildMap {
-                putAll(DEFAULT_HEADERS)
-                headers?.forEach { (k, v) -> if (k.isNotBlank() && v.isNotBlank()) put(k, v) }
-            }
+            val merged =
+                buildMap {
+                    putAll(DEFAULT_HEADERS)
+                    headers?.forEach { (k, v) -> if (k.isNotBlank() && v.isNotBlank()) put(k, v) }
+                }
             (dataSourceFactory ?: newDataSourceFactory()).setDefaultRequestProperties(merged)
 
             val mediaItem = MediaItem.fromUri(url)
@@ -240,9 +254,7 @@ actual class PlayerEngine actual constructor() {
         exoPlayer?.volume = volume.coerceIn(0f, 1f)
     }
 
-    actual fun getPosition(): Long {
-        return exoPlayer?.currentPosition ?: 0L
-    }
+    actual fun getPosition(): Long = exoPlayer?.currentPosition ?: 0L
 
     actual fun getDuration(): Long {
         val duration = exoPlayer?.duration ?: 0L
@@ -250,9 +262,7 @@ actual class PlayerEngine actual constructor() {
         return if (duration == C.TIME_UNSET) 0L else duration
     }
 
-    actual fun isPlaying(): Boolean {
-        return exoPlayer?.isPlaying ?: false
-    }
+    actual fun isPlaying(): Boolean = exoPlayer?.isPlaying ?: false
 
     /**
      * 释放播放器资源
@@ -267,17 +277,13 @@ actual class PlayerEngine actual constructor() {
         currentState = PlayerState.IDLE
     }
 
-    actual fun getPlayerState(): PlayerState {
-        return currentState
-    }
+    actual fun getPlayerState(): PlayerState = currentState
 
     actual fun setListener(listener: PlayerEngineListener?) {
         this.listener = listener
     }
 
-    actual fun getBufferedPercentage(): Int {
-        return exoPlayer?.bufferedPercentage ?: 0
-    }
+    actual fun getBufferedPercentage(): Int = exoPlayer?.bufferedPercentage ?: 0
 
     // ==================== 轨道管理 ====================
 
@@ -286,48 +292,36 @@ actual class PlayerEngine actual constructor() {
      * @param trackId 轨道组索引字符串
      * @return 是否切换成功
      */
-    actual fun setVideoTrack(trackId: String): Boolean {
-        return selectTrackByGroupIndex(trackId, C.TRACK_TYPE_VIDEO)
-    }
+    actual fun setVideoTrack(trackId: String): Boolean = selectTrackByGroupIndex(trackId, C.TRACK_TYPE_VIDEO)
 
     /**
      * 获取所有视频轨道列表
      */
-    actual fun getVideoTracks(): List<TrackInfo> {
-        return extractTracks(C.TRACK_TYPE_VIDEO)
-    }
+    actual fun getVideoTracks(): List<TrackInfo> = extractTracks(C.TRACK_TYPE_VIDEO)
 
     /**
      * 切换音频轨道
      * @param trackId 轨道组索引字符串
      * @return 是否切换成功
      */
-    actual fun setAudioTrack(trackId: String): Boolean {
-        return selectTrackByGroupIndex(trackId, C.TRACK_TYPE_AUDIO)
-    }
+    actual fun setAudioTrack(trackId: String): Boolean = selectTrackByGroupIndex(trackId, C.TRACK_TYPE_AUDIO)
 
     /**
      * 获取所有音频轨道列表
      */
-    actual fun getAudioTracks(): List<TrackInfo> {
-        return extractTracks(C.TRACK_TYPE_AUDIO)
-    }
+    actual fun getAudioTracks(): List<TrackInfo> = extractTracks(C.TRACK_TYPE_AUDIO)
 
     /**
      * 切换字幕轨道
      * @param trackId 轨道组索引字符串
      * @return 是否切换成功
      */
-    actual fun setSubtitleTrack(trackId: String): Boolean {
-        return selectTrackByGroupIndex(trackId, C.TRACK_TYPE_TEXT)
-    }
+    actual fun setSubtitleTrack(trackId: String): Boolean = selectTrackByGroupIndex(trackId, C.TRACK_TYPE_TEXT)
 
     /**
      * 获取所有字幕轨道列表
      */
-    actual fun getSubtitleTracks(): List<TrackInfo> {
-        return extractTracks(C.TRACK_TYPE_TEXT)
-    }
+    actual fun getSubtitleTracks(): List<TrackInfo> = extractTracks(C.TRACK_TYPE_TEXT)
 
     // ==================== Surface 管理 ====================
 
@@ -363,7 +357,10 @@ actual class PlayerEngine actual constructor() {
      * @param trackType C.TRACK_TYPE_VIDEO / AUDIO / TEXT
      * @return 是否切换成功
      */
-    private fun selectTrackByGroupIndex(trackId: String, trackType: Int): Boolean {
+    private fun selectTrackByGroupIndex(
+        trackId: String,
+        trackType: Int,
+    ): Boolean {
         val player = exoPlayer ?: return false
         val groupIndex = trackId.toIntOrNull() ?: return false
         val groups = player.currentTracks.groups
@@ -376,10 +373,11 @@ actual class PlayerEngine actual constructor() {
             // 通过 TrackSelectionParameters 添加轨道覆盖
             val trackGroup = targetGroup.mediaTrackGroup
             val override = TrackSelectionOverride(trackGroup, listOf(0))
-            player.trackSelectionParameters = player.trackSelectionParameters
-                .buildUpon()
-                .addOverride(override)
-                .build()
+            player.trackSelectionParameters =
+                player.trackSelectionParameters
+                    .buildUpon()
+                    .addOverride(override)
+                    .build()
             true
         } catch (_: Exception) {
             false
@@ -415,8 +413,8 @@ actual class PlayerEngine actual constructor() {
                     language = format.language,
                     mimeType = format.sampleMimeType,
                     bitrate = if (format.bitrate != Format.NO_VALUE) format.bitrate else null,
-                    isSelected = group.isSelected
-                )
+                    isSelected = group.isSelected,
+                ),
             )
         }
         return result
@@ -425,14 +423,16 @@ actual class PlayerEngine actual constructor() {
     /**
      * 构建轨道显示标签
      */
-    private fun buildTrackLabel(name: String?, language: String?): String {
-        return when {
+    private fun buildTrackLabel(
+        name: String?,
+        language: String?,
+    ): String =
+        when {
             name != null && language != null -> "$name ($language)"
             name != null -> name
             language != null -> language
             else -> "未知轨道"
         }
-    }
 
     companion object {
         private var appContext: Context? = null
@@ -444,12 +444,13 @@ actual class PlayerEngine actual constructor() {
          * `ExoPlayerLib/1.5.0` 会被直接拒绝（403 → Source error）。
          * 这里伪装成移动端浏览器 UA，并放开 Accept 通配。
          */
-        private val DEFAULT_HEADERS: Map<String, String> = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-            "Accept" to "*/*",
-            "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8",
-        )
+        private val DEFAULT_HEADERS: Map<String, String> =
+            mapOf(
+                "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+                "Accept" to "*/*",
+                "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8",
+            )
 
         /**
          * 初始化 ExoPlayerEngine，注入 Application Context

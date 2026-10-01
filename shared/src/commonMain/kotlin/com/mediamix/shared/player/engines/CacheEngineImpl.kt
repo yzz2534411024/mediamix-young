@@ -3,15 +3,15 @@ package com.mediamix.shared.player.engines
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.cache.LocalProxyServer
 import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.core.PowerMode
+import com.mediamix.shared.services.PreloadPriority
 import com.mediamix.shared.services.PreloadService
 import com.mediamix.shared.services.PreloadTask
-import com.mediamix.shared.services.PreloadPriority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import com.mediamix.shared.core.PowerMode
 
 /**
  * Cache engine implementation — resolves video URLs via local cache / proxy.
@@ -23,7 +23,6 @@ class CacheEngineImpl(
     private val proxyServer: LocalProxyServer,
     private val preloadService: PreloadService,
 ) : CacheEngine {
-
     /**
      * 预加载是挂起操作，而 [CacheEngine] 的接口是非挂起的，这里用自己的作用域桥接。
      *
@@ -44,7 +43,10 @@ class CacheEngineImpl(
     // URL resolution
     // ========================================================================
 
-    override suspend fun resolveVideoUrl(url: String, videoId: String): String {
+    override suspend fun resolveVideoUrl(
+        url: String,
+        videoId: String,
+    ): String {
         return try {
             // Check full cache (L3 disk cache)
             val cachedPath = cacheService.getCachePath(videoId)
@@ -79,7 +81,7 @@ class CacheEngineImpl(
     override suspend fun resolveVideoUrlWithFallback(
         url: String,
         videoId: String,
-        preferredQuality: String?
+        preferredQuality: String?,
     ): CacheResolveResult {
         return try {
             val quality = preferredQuality ?: "720p"
@@ -103,7 +105,7 @@ class CacheEngineImpl(
                 return CacheResolveResult(
                     url = fallbackPath,
                     isUsingCache = true,
-                    fallbackQuality = fallbackQuality
+                    fallbackQuality = fallbackQuality,
                 )
             }
 
@@ -132,7 +134,10 @@ class CacheEngineImpl(
         // Delegated to external preload service via callback if needed
     }
 
-    override fun preloadNextEpisode(videoId: String, url: String) {
+    override fun preloadNextEpisode(
+        videoId: String,
+        url: String,
+    ) {
         preloadedVideoIds.add(videoId)
         if (url.isBlank()) return
         scope.launch {
@@ -148,7 +153,7 @@ class CacheEngineImpl(
         indices: List<Int>,
         title: String,
         episodeUrls: List<String>,
-        powerMode: PowerMode
+        powerMode: PowerMode,
     ) {
         if (powerMode == PowerMode.POWER_SAVING) {
             logger.d("Power saving mode, skipping preload")
@@ -159,12 +164,14 @@ class CacheEngineImpl(
             if (i >= 0 && i < episodeUrls.size) {
                 val id = "${title}_$i"
                 preloadedVideoIds.add(id)
-                tasks.add(PreloadTask(
-                    videoId = id,
-                    videoUrl = episodeUrls[i],
-                    quality = "720p",
-                    priority = PreloadPriority.ADJACENT_ITEM,
-                ))
+                tasks.add(
+                    PreloadTask(
+                        videoId = id,
+                        videoUrl = episodeUrls[i],
+                        quality = "720p",
+                        priority = PreloadPriority.ADJACENT_ITEM,
+                    ),
+                )
             }
         }
         if (tasks.isEmpty()) return

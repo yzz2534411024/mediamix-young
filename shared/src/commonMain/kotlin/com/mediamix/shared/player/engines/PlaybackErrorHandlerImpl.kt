@@ -11,7 +11,12 @@ import kotlinx.coroutines.flow.SharedFlow
 // ============================================================================
 
 internal enum class ErrorCategory {
-    NETWORK, CODEC, SOURCE, TIMEOUT, STUCK, UNKNOWN
+    NETWORK,
+    CODEC,
+    SOURCE,
+    TIMEOUT,
+    STUCK,
+    UNKNOWN,
 }
 
 // ============================================================================
@@ -29,7 +34,6 @@ internal enum class ErrorCategory {
 class PlaybackErrorHandlerImpl(
     private val networkStatusProvider: NetworkStatusProvider? = null,
 ) : PlaybackErrorHandler {
-
     private val logger = Logger.withTag("PlaybackErrorHandler")
 
     // ========== Retry logic ==========
@@ -62,16 +66,23 @@ class PlaybackErrorHandlerImpl(
 
     internal fun categorizeError(error: String): ErrorCategory {
         val lower = error.lowercase()
-        if (lower.contains("stuck") || lower.contains("deadlock") ||
-            lower.contains("no frame") || lower.contains("black screen") ||
-            lower.contains("no video") || lower.contains("no audio") ||
-            lower.contains("silence")) {
+        if (lower.contains("stuck") ||
+            lower.contains("deadlock") ||
+            lower.contains("no frame") ||
+            lower.contains("black screen") ||
+            lower.contains("no video") ||
+            lower.contains("no audio") ||
+            lower.contains("silence")
+        ) {
             return ErrorCategory.STUCK
         }
         if (isCodecError(error)) return ErrorCategory.CODEC
         if (isErrorNetworkRelated(error)) return ErrorCategory.NETWORK
-        if (lower.contains("404") || lower.contains("403") ||
-            lower.contains("not found") || lower.contains("forbidden")) {
+        if (lower.contains("404") ||
+            lower.contains("403") ||
+            lower.contains("not found") ||
+            lower.contains("forbidden")
+        ) {
             return ErrorCategory.SOURCE
         }
         if (lower.contains("timeout") || lower.contains("timed out")) {
@@ -155,7 +166,7 @@ class PlaybackErrorHandlerImpl(
                 if (nextIndex >= 0) {
                     return ErrorHandleResult(
                         action = ErrorAction.SWITCH_TO_NEXT_QUALITY,
-                        nextQualityIndex = nextIndex
+                        nextQualityIndex = nextIndex,
                     )
                 }
             }
@@ -188,7 +199,7 @@ class PlaybackErrorHandlerImpl(
                 _retryCount = 0
                 return ErrorHandleResult(
                     action = ErrorAction.SWITCH_TO_NEXT_QUALITY,
-                    nextQualityIndex = nextIndex
+                    nextQualityIndex = nextIndex,
                 )
             }
         }
@@ -232,17 +243,18 @@ class PlaybackErrorHandlerImpl(
         // Listen for network condition recovery via SharedFlow
         val flow: SharedFlow<NetworkConditionLevel>? = networkStatusProvider?.conditionChangedFlow
         if (flow != null) {
-            networkRecoveryJob = scope.launch {
-                flow.collect { condition ->
-                    if (_isWaitingForNetwork &&
-                        condition != NetworkConditionLevel.OFFLINE &&
-                        condition != NetworkConditionLevel.WEAK
-                    ) {
-                        logger.i("Network recovered (${condition.name}), triggering reconnect callback")
-                        handleNetworkRecovered()
+            networkRecoveryJob =
+                scope.launch {
+                    flow.collect { condition ->
+                        if (_isWaitingForNetwork &&
+                            condition != NetworkConditionLevel.OFFLINE &&
+                            condition != NetworkConditionLevel.WEAK
+                        ) {
+                            logger.i("Network recovered (${condition.name}), triggering reconnect callback")
+                            handleNetworkRecovered()
+                        }
                     }
                 }
-            }
         }
 
         // Also start exponential backoff probe (in case flow events are missed)
@@ -285,23 +297,24 @@ class PlaybackErrorHandlerImpl(
         val delaySeconds = 1L shl reconnectAttempt.coerceIn(0, 5)
 
         reconnectJob?.cancel()
-        reconnectJob = scope.launch {
-            delay(delaySeconds * 1000L)
-            if (!_isWaitingForNetwork) return@launch
+        reconnectJob =
+            scope.launch {
+                delay(delaySeconds * 1000L)
+                if (!_isWaitingForNetwork) return@launch
 
-            val condition = networkStatusProvider?.currentCondition
-            if (condition != null &&
-                condition != NetworkConditionLevel.OFFLINE &&
-                condition != NetworkConditionLevel.WEAK
-            ) {
-                logger.i("Probe detected network recovery, triggering reconnect callback")
-                handleNetworkRecovered()
-            } else {
-                logger.d("Network not recovered, probing again in ${delaySeconds}s")
-                reconnectAttempt++
-                scheduleReconnectProbe()
+                val condition = networkStatusProvider?.currentCondition
+                if (condition != null &&
+                    condition != NetworkConditionLevel.OFFLINE &&
+                    condition != NetworkConditionLevel.WEAK
+                ) {
+                    logger.i("Probe detected network recovery, triggering reconnect callback")
+                    handleNetworkRecovered()
+                } else {
+                    logger.d("Network not recovered, probing again in ${delaySeconds}s")
+                    reconnectAttempt++
+                    scheduleReconnectProbe()
+                }
             }
-        }
     }
 
     // ========================================================================

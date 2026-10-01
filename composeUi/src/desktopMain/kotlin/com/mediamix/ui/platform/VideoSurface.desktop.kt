@@ -27,18 +27,20 @@ actual fun VideoSurface(
             canvas.background = Color.BLACK
 
             // 当 Canvas 被添加到可显示的窗口层级时，获取 HWND 并回调
-            canvas.addHierarchyListener(HierarchyListener { event ->
-                if (event.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L) {
-                    if (canvas.isDisplayable) {
-                        val hwnd: Long = Native.getComponentID(canvas)
-                        if (hwnd != 0L) {
-                            onSurfaceCreated(hwnd)
+            canvas.addHierarchyListener(
+                HierarchyListener { event ->
+                    if (event.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L) {
+                        if (canvas.isDisplayable) {
+                            val hwnd: Long = Native.getComponentID(canvas)
+                            if (hwnd != 0L) {
+                                onSurfaceCreated(hwnd)
+                            }
+                        } else {
+                            onSurfaceDestroyed()
                         }
-                    } else {
-                        onSurfaceDestroyed()
                     }
-                }
-            })
+                },
+            )
 
             canvas
         },

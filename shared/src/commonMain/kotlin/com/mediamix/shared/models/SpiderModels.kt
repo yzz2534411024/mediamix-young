@@ -10,11 +10,20 @@ import kotlinx.serialization.Serializable
 /** 蜘蛛类型 */
 @Serializable
 enum class SpiderType {
-    @SerialName("cms") CMS,
-    @SerialName("xpath") XPATH,
-    @SerialName("json") JSON,
-    @SerialName("site") SITE,
-    @SerialName("javaBridge") JAVA_BRIDGE,
+    @SerialName("cms")
+    CMS,
+
+    @SerialName("xpath")
+    XPATH,
+
+    @SerialName("json")
+    JSON,
+
+    @SerialName("site")
+    SITE,
+
+    @SerialName("javaBridge")
+    JAVA_BRIDGE,
 }
 
 // ============================================================
@@ -130,8 +139,46 @@ data class TvBoxSite(
     val quickSearch: Boolean = false,
     val changeable: Boolean = false,
 ) {
-    /** 是否为 Java 蜘蛛（csp_* 格式） */
-    val isJavaSpider: Boolean get() = api.startsWith("csp_")
+    /**
+     * 站点的解析方式分类。
+     *
+     * ⚠️ 不能用「api 以 csp_ 开头」一刀切判定为 jar 蜘蛛：
+     * `csp_XPath` / `csp_XPathFilter` / `csp_XPathMac` 的解析规则就写在 [ext] 字段里
+     * （XPath JSON 或其 URL），**不需要加载任何 jar**，本项目的 [XpathSpider] 可直接执行。
+     * 真正需要 TVBox 内核（dex/jar + JavaBridge）的只是其余的 csp_* 蜘蛛。
+     *
+     * 同时尊重 TVBox 的 type 约定：`type=3` 即 XPath 蜘蛛（此时 api 是规则地址，
+     * 经 ext 通道下发给 XpathSpider），不能因为 api 恰好以 http 开头就改判成 CMS。
+     */
+    val kind: SiteKind
+        get() =
+            when {
+                api.startsWith("csp_XPath") -> SiteKind.XPATH
+                api.startsWith("csp_") -> SiteKind.JAR
+                type == 3 -> SiteKind.XPATH
+                else -> SiteKind.CMS // type=0/1 或未标注 → CmsSpider / JsonSpider
+            }
+
+    /**
+     * 是否为需要 TVBox 内核（jar/dex）的蜘蛛。
+     *
+     * 语义已修正：只对真 jar 蜘蛛返回 true。此前对 csp_ 前缀一刀切，
+     * 导致 csp_XPath 类站点（无需内核）也被过滤/拒绝建蜘蛛 —— 这正是
+     * 「饭太硬 47 个站点全部不可用」的原因之一。
+     */
+    val isJavaSpider: Boolean get() = kind == SiteKind.JAR
+}
+
+/** TVBox 站点的解析方式 */
+enum class SiteKind {
+    /** HTTP 直连的 CMS 接口，走 CmsSpider */
+    CMS,
+
+    /** XPath 规则蜘蛛（csp_XPath*），规则在 ext 字段，走 XpathSpider */
+    XPATH,
+
+    /** 需要 TVBox 内核（dex/jar）的 Java 蜘蛛，本项目无法执行 */
+    JAR,
 }
 
 /** TVBox 直播源 */

@@ -1,17 +1,15 @@
 ﻿package com.mediamix.ui.viewmodel
 
-import com.mediamix.shared.player.PlayerState
-import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.AspectMode
+import com.mediamix.shared.player.PlayMode
+import com.mediamix.shared.player.PlayerState
 import com.mediamix.shared.player.SubtitleTrack
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class PlayerViewModelTest {
-
     @Test
     fun playerState_hasAllExpectedValues() {
         val states = PlayerState.entries
@@ -47,11 +45,12 @@ class PlayerViewModelTest {
 
     @Test
     fun subtitleTrack_creation() {
-        val track = SubtitleTrack(
-            label = "English",
-            language = "en",
-            entries = emptyList()
-        )
+        val track =
+            SubtitleTrack(
+                label = "English",
+                language = "en",
+                entries = emptyList(),
+            )
         assertEquals("English", track.label)
         assertEquals("en", track.language)
         assertTrue(track.entries.isEmpty())

@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 fun LoadingScreen(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
@@ -26,33 +26,37 @@ fun LoadingScreen(modifier: Modifier = Modifier) {
 fun SkeletonCard(modifier: Modifier = Modifier) {
     val alpha by animateFloatAsState(
         targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "skeleton"
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1000),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "skeleton",
     )
     val shimmerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
     Column(modifier = modifier) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.75f)
-                .background(shimmerColor, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.75f)
+                    .background(shimmerColor, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
         )
         Spacer(modifier = Modifier.height(8.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth(0.7f)
-                .height(14.dp)
-                .background(shimmerColor, RoundedCornerShape(4.dp))
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(14.dp)
+                    .background(shimmerColor, RoundedCornerShape(4.dp)),
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth(0.5f)
-                .height(12.dp)
-                .background(shimmerColor, RoundedCornerShape(4.dp))
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(12.dp)
+                    .background(shimmerColor, RoundedCornerShape(4.dp)),
         )
     }
 }

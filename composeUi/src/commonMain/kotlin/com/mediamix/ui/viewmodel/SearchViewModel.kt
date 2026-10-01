@@ -2,9 +2,9 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.VideoItem
-import com.mediamix.shared.models.VideoListResponse
 import com.mediamix.shared.spider.SpiderService
 import com.mediamix.ui.util.encodeUrlComponent
 import io.ktor.client.HttpClient
@@ -17,10 +17,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import co.touchlab.kermit.Logger
 
 /**
  * 搜索 ViewModel
@@ -31,9 +30,12 @@ class SearchViewModel(
     private val httpClient: HttpClient,
     private val spiderService: SpiderService,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("SearchViewModel")
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -49,18 +51,22 @@ class SearchViewModel(
     fun onQueryChange(newQuery: String) {
         _query.value = newQuery
         debounceJob?.cancel()
-        debounceJob = viewModelScope.launch {
-            delay(500)
-            if (newQuery.isNotBlank()) {
-                search(newQuery)
-            } else {
-                clearResults()
+        debounceJob =
+            viewModelScope.launch {
+                delay(500)
+                if (newQuery.isNotBlank()) {
+                    search(newQuery)
+                } else {
+                    clearResults()
+                }
             }
-        }
     }
 
     fun search(queryText: String = _query.value) {
-        if (queryText.isBlank()) { clearResults(); return }
+        if (queryText.isBlank()) {
+            clearResults()
+            return
+        }
         viewModelScope.launch {
             _isSearching.value = true
             try {
@@ -94,33 +100,35 @@ class SearchViewModel(
         logger.d { "Searching ${sites.size} CMS sites for: $queryText" }
 
         val allResults = mutableListOf<VideoItem>()
-        val jobs = sites.map { site ->
-            viewModelScope.launch {
-                try {
-                    // 正确拼接 URL（处理已有查询参数的情况）
-                    val separator = if (site.apiUrl.contains("?")) "&" else "?"
-                    val url = "${site.apiUrl}${separator}ac=detail&wd=$encodedQuery"
-                    val response = httpClient.get(url)
-                    val text = response.bodyAsText()
-                    val jsonObj = json.parseToJsonElement(text).jsonObject
-                    val listArr = jsonObj["list"]?.jsonArray ?: emptyList()
-                    val items = listArr.map { elem ->
-                        val obj = elem.jsonObject
-                        VideoItem(
-                            vodId = obj["vod_id"]?.jsonPrimitive?.content ?: "",
-                            vodName = obj["vod_name"]?.jsonPrimitive?.content ?: "",
-                            vodPic = obj["vod_pic"]?.jsonPrimitive?.content,
-                            vodRemarks = obj["vod_remarks"]?.jsonPrimitive?.content,
-                            sourceKey = site.key,
-                        )
+        val jobs =
+            sites.map { site ->
+                viewModelScope.launch {
+                    try {
+                        // 正确拼接 URL（处理已有查询参数的情况）
+                        val separator = if (site.apiUrl.contains("?")) "&" else "?"
+                        val url = "${site.apiUrl}${separator}ac=detail&wd=$encodedQuery"
+                        val response = httpClient.get(url)
+                        val text = response.bodyAsText()
+                        val jsonObj = json.parseToJsonElement(text).jsonObject
+                        val listArr = jsonObj["list"]?.jsonArray ?: emptyList()
+                        val items =
+                            listArr.map { elem ->
+                                val obj = elem.jsonObject
+                                VideoItem(
+                                    vodId = obj["vod_id"]?.jsonPrimitive?.content ?: "",
+                                    vodName = obj["vod_name"]?.jsonPrimitive?.content ?: "",
+                                    vodPic = obj["vod_pic"]?.jsonPrimitive?.content,
+                                    vodRemarks = obj["vod_remarks"]?.jsonPrimitive?.content,
+                                    sourceKey = site.key,
+                                )
+                            }
+                        logger.d { "Site ${site.name}: found ${items.size} results" }
+                        synchronized(allResults) { allResults.addAll(items) }
+                    } catch (e: Exception) {
+                        logger.w { "Site ${site.name} search failed: ${e.message}" }
                     }
-                    logger.d { "Site ${site.name}: found ${items.size} results" }
-                    synchronized(allResults) { allResults.addAll(items) }
-                } catch (e: Exception) {
-                    logger.w { "Site ${site.name} search failed: ${e.message}" }
                 }
             }
-        }
         jobs.forEach { it.join() }
         logger.d { "Total search results: ${allResults.size}" }
         return allResults

@@ -3,22 +3,22 @@ package com.mediamix.shared.player
 import kotlin.test.*
 
 class SubtitleServiceTest {
-
     private val service = SubtitleService(httpClient = null)
 
     // ==================== SRT 解析测试 ====================
 
     @Test
     fun parseSrt_standardFormat() {
-        val srt = """
-1
-00:00:01,000 --> 00:00:04,000
-Hello World
+        val srt =
+            """
+            1
+            00:00:01,000 --> 00:00:04,000
+            Hello World
 
-2
-00:00:05,500 --> 00:00:08,000
-Second subtitle
-""".trimIndent()
+            2
+            00:00:05,500 --> 00:00:08,000
+            Second subtitle
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(2, entries.size)
@@ -32,11 +32,12 @@ Second subtitle
 
     @Test
     fun parseSrt_dotMillisecondSeparator() {
-        val srt = """
-1
-00:00:01.500 --> 00:00:04.000
-Dot separator test
-""".trimIndent()
+        val srt =
+            """
+            1
+            00:00:01.500 --> 00:00:04.000
+            Dot separator test
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(1, entries.size)
@@ -46,13 +47,14 @@ Dot separator test
 
     @Test
     fun parseSrt_multiLineText() {
-        val srt = """
-1
-00:00:01,000 --> 00:00:04,000
-Line one
-Line two
-Line three
-""".trimIndent()
+        val srt =
+            """
+            1
+            00:00:01,000 --> 00:00:04,000
+            Line one
+            Line two
+            Line three
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(1, entries.size)
@@ -67,10 +69,11 @@ Line three
 
     @Test
     fun parseSrt_invalidFormat() {
-        val srt = """
-This is just random text
-without any proper SRT format
-""".trimIndent()
+        val srt =
+            """
+            This is just random text
+            without any proper SRT format
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertTrue(entries.isEmpty())
@@ -78,15 +81,16 @@ without any proper SRT format
 
     @Test
     fun parseSrt_sortedByStartTime() {
-        val srt = """
-1
-00:00:10,000 --> 00:00:12,000
-Later subtitle
+        val srt =
+            """
+            1
+            00:00:10,000 --> 00:00:12,000
+            Later subtitle
 
-2
-00:00:01,000 --> 00:00:04,000
-Earlier subtitle
-""".trimIndent()
+            2
+            00:00:01,000 --> 00:00:04,000
+            Earlier subtitle
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(2, entries.size)
@@ -96,11 +100,12 @@ Earlier subtitle
 
     @Test
     fun parseSrt_hoursMinutesSeconds() {
-        val srt = """
-1
-01:30:45,123 --> 01:30:50,456
-Time test
-""".trimIndent()
+        val srt =
+            """
+            1
+            01:30:45,123 --> 01:30:50,456
+            Time test
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(1, entries.size)
@@ -110,15 +115,16 @@ Time test
 
     @Test
     fun parseSrt_skipEmptyText() {
-        val srt = """
-1
-00:00:01,000 --> 00:00:04,000
+        val srt =
+            """
+            1
+            00:00:01,000 --> 00:00:04,000
 
 
-2
-00:00:05,000 --> 00:00:08,000
-Valid text
-""".trimIndent()
+            2
+            00:00:05,000 --> 00:00:08,000
+            Valid text
+            """.trimIndent()
 
         val entries = service.parseSrt(srt)
         assertEquals(1, entries.size)
@@ -146,12 +152,13 @@ Valid text
 
     // ==================== 二分查找测试 ====================
 
-    private val testEntries = listOf(
-        SubtitleEntry(0L, 2000L, "First"),
-        SubtitleEntry(3000L, 5000L, "Second"),
-        SubtitleEntry(6000L, 8000L, "Third"),
-        SubtitleEntry(10000L, 12000L, "Fourth"),
-    )
+    private val testEntries =
+        listOf(
+            SubtitleEntry(0L, 2000L, "First"),
+            SubtitleEntry(3000L, 5000L, "Second"),
+            SubtitleEntry(6000L, 8000L, "Third"),
+            SubtitleEntry(10000L, 12000L, "Fourth"),
+        )
 
     @Test
     fun getSubtitleAt_normalPosition() {
@@ -214,11 +221,12 @@ Valid text
 
     @Test
     fun autoSyncOffset_normalCalculation() {
-        val entries = listOf(
-            SubtitleEntry(1000L, 2000L, "A"),
-            SubtitleEntry(3000L, 4000L, "B"),
-            SubtitleEntry(5000L, 6000L, "C"),
-        )
+        val entries =
+            listOf(
+                SubtitleEntry(1000L, 2000L, "A"),
+                SubtitleEntry(3000L, 4000L, "B"),
+                SubtitleEntry(5000L, 6000L, "C"),
+            )
         // Audio timestamps: all 100ms behind subtitle start times
         // offsets: [1000-900=100, 3000-2900=100, 5000-4900=100]
         val audioTimestamps = listOf(900L, 2900L, 4900L)
@@ -237,20 +245,22 @@ Valid text
     @Test
     fun autoSyncOffset_emptyAudioTimestamps() {
         service.setSyncOffset(42L)
-        val offset = service.autoSyncOffset(
-            listOf(SubtitleEntry(1000L, 2000L, "A")),
-            emptyList()
-        )
+        val offset =
+            service.autoSyncOffset(
+                listOf(SubtitleEntry(1000L, 2000L, "A")),
+                emptyList(),
+            )
         assertEquals(42L, offset)
     }
 
     @Test
     fun autoSyncOffset_medianResistantToOutliers() {
-        val entries = listOf(
-            SubtitleEntry(1000L, 2000L, "A"),
-            SubtitleEntry(3000L, 4000L, "B"),
-            SubtitleEntry(5000L, 6000L, "C"),
-        )
+        val entries =
+            listOf(
+                SubtitleEntry(1000L, 2000L, "A"),
+                SubtitleEntry(3000L, 4000L, "B"),
+                SubtitleEntry(5000L, 6000L, "C"),
+            )
         // offsets: [0, 0, 5000] — median should be 0 (the middle value after sorting)
         val audioTimestamps = listOf(1000L, 3000L, 0L)
         val offset = service.autoSyncOffset(entries, audioTimestamps)

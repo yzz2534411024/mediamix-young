@@ -1,7 +1,8 @@
 package com.mediamix.shared.spider
 
-import com.mediamix.shared.models.TvBoxSite
 import co.touchlab.kermit.Logger
+import com.mediamix.shared.models.SiteKind
+import com.mediamix.shared.models.TvBoxSite
 import kotlinx.serialization.json.*
 
 /**
@@ -20,7 +21,6 @@ typealias SpiderFactory = (TvBoxSite) -> SpiderAdapter
  * 迁移自：lib/features/video/services/spider/spider_registry.dart
  */
 class SpiderRegistry private constructor() {
-
     private val logger = Logger.withTag("SpiderRegistry")
     private val factories = mutableMapOf<String, SpiderFactory>()
     private val instances = mutableMapOf<String, SpiderAdapter>()
@@ -33,7 +33,10 @@ class SpiderRegistry private constructor() {
      *
      * [key] 为站点 key，当 [createFromSite] 遇到该 key 的站点时会优先使用此工厂。
      */
-    fun register(key: String, factory: SpiderFactory) {
+    fun register(
+        key: String,
+        factory: SpiderFactory,
+    ) {
         factories[key] = factory
     }
 
@@ -53,9 +56,7 @@ class SpiderRegistry private constructor() {
     }
 
     /** 批量根据站点配置创建蜘蛛实例 */
-    suspend fun createFromSites(sites: List<TvBoxSite>): List<SpiderAdapter> {
-        return sites.mapNotNull { createFromSite(it) }
-    }
+    suspend fun createFromSites(sites: List<TvBoxSite>): List<SpiderAdapter> = sites.mapNotNull { createFromSite(it) }
 
     /** 获取指定 key 的蜘蛛实例 */
     fun get(key: String): SpiderAdapter? = instances[key]
@@ -77,23 +78,30 @@ class SpiderRegistry private constructor() {
     /**
      * 构建蜘蛛实例（不缓存、不初始化）
      *
-     * 查找顺序：自定义工厂 -> Java 蜘蛛 -> 内置类型映射
+     * 查找顺序：自定义工厂 -> 按站点类型分发。
+     *
+     * ⚠️ 分发依据是 [SiteKind] 而不是 type 数字：TVBox 配置里 XPath 蜘蛛
+     * 通常写作 `type:3, api:"csp_XPath"` —— 若按 csp_ 前缀判定为 jar 蜘蛛，
+     * 会在没有 JavaBridge 时直接返回 null，把能跑的站点全杀掉。
      */
     internal fun buildSpider(site: TvBoxSite): SpiderAdapter? {
         // 1. 检查自定义工厂
         factories[site.key]?.let { return it(site) }
 
-        // 2. Java 蜘蛛桥接：csp_* 格式
-        if (site.isJavaSpider && javaBridgeManager != null) {
-            return JavaBridgeSpider(site = site)
-        }
+        // 2. 按解析方式分发
+        return when (site.kind) {
+            SiteKind.JAR ->
+                // 真 jar 蜘蛛：需要 TVBox 内核（JavaBridge）；内核未就绪则建不出来
+                if (javaBridgeManager != null) JavaBridgeSpider(site = site) else null
 
-        // 3. 内置类型映射
-        return when (site.type) {
-            0 -> CmsSpider(site = site)
-            1 -> JsonSpider()
-            3 -> if (!site.isJavaSpider) XpathSpider(site = site) else null
-            else -> null
+            SiteKind.XPATH -> XpathSpider(site = site)
+
+            SiteKind.CMS ->
+                when (site.type) {
+                    0 -> CmsSpider(site = site)
+                    1 -> JsonSpider()
+                    else -> null
+                }
         }
     }
 
@@ -129,20 +137,20 @@ class SpiderRegistry private constructor() {
         val instance = SpiderRegistry()
 
         /** 将 [JsonObject] 递归转换为 [Map]<String, Any> */
-        internal fun jsonObjectToMap(obj: JsonObject): Map<String, Any> {
-            return obj.entries.associate { (k, v) -> k to jsonElementToAny(v) }
-        }
+        internal fun jsonObjectToMap(obj: JsonObject): Map<String, Any> = obj.entries.associate { (k, v) -> k to jsonElementToAny(v) }
 
         /** 将 [JsonElement] 转换为对应的 Kotlin 值 */
-        internal fun jsonElementToAny(element: JsonElement): Any {
-            return when (element) {
+        internal fun jsonElementToAny(element: JsonElement): Any =
+            when (element) {
                 is JsonPrimitive -> {
-                    if (element.isString) element.content
-                    else element.content // 数字/布尔也作为字符串保留
+                    if (element.isString) {
+                        element.content
+                    } else {
+                        element.content // 数字/布尔也作为字符串保留
+                    }
                 }
                 is JsonObject -> jsonObjectToMap(element)
                 is JsonArray -> element.map { jsonElementToAny(it) }
             }
-        }
     }
 }

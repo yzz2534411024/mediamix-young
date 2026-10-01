@@ -25,7 +25,7 @@ class ABRController(
     private val settings: Settings = Settings(),
     private val upgradeDelayMs: Long = 5_000L,
     private val minSwitchIntervalMs: Long = 10_000L,
-    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     companion object {
         // 决策权重
@@ -133,7 +133,10 @@ class ABRController(
     }
 
     /** 应用切换防抖逻辑 */
-    internal fun applyDebounce(target: QualityLevel, now: Long) {
+    internal fun applyDebounce(
+        target: QualityLevel,
+        now: Long,
+    ) {
         if (target == pendingQuality) {
             pendingCount++
         } else {
@@ -177,20 +180,22 @@ class ABRController(
         val bufferScore = computeBufferScore()
         val stabilityScore = computeStabilityScore()
 
-        val weightedScore = throughputScore * THROUGHPUT_WEIGHT +
-            bufferScore * BUFFER_WEIGHT +
-            stabilityScore * STABILITY_WEIGHT
+        val weightedScore =
+            throughputScore * THROUGHPUT_WEIGHT +
+                bufferScore * BUFFER_WEIGHT +
+                stabilityScore * STABILITY_WEIGHT
 
         return scoreToQuality(weightedScore)
     }
 
     /** 吞吐量评分 (0.0 - 1.0)：10000kbps 满分，使用安全余量 */
     internal fun computeThroughputScore(): Double {
-        val effectiveKbps = if (latestPrediction != null) {
-            latestPrediction!!.predictedKbps * SAFETY_MARGIN
-        } else {
-            currentBandwidthKbps * SAFETY_MARGIN
-        }
+        val effectiveKbps =
+            if (latestPrediction != null) {
+                latestPrediction!!.predictedKbps * SAFETY_MARGIN
+            } else {
+                currentBandwidthKbps * SAFETY_MARGIN
+            }
         if (effectiveKbps <= 0) return 0.0
         return (effectiveKbps / FULL_THROUGHPUT_KBPS).coerceIn(0.0, 1.0)
     }
@@ -204,21 +209,21 @@ class ABRController(
     }
 
     /** 稳定性评分 (0.0 - 1.0)：基于预测的 stability 字段 */
-    internal fun computeStabilityScore(): Double {
-        return latestPrediction?.stability ?: 0.5
-    }
+    internal fun computeStabilityScore(): Double = latestPrediction?.stability ?: 0.5
 
     /** 将综合评分映射到画质等级 */
-    internal fun scoreToQuality(score: Double): QualityLevel {
-        return when {
+    internal fun scoreToQuality(score: Double): QualityLevel =
+        when {
             score < SCORE_LOW_THRESHOLD -> QualityLevel.LOW
             score < SCORE_MEDIUM_THRESHOLD -> QualityLevel.MEDIUM
             score < SCORE_HIGH_THRESHOLD -> QualityLevel.HIGH
             else -> QualityLevel.ULTRA
         }
-    }
 
-    private fun switchQuality(newQuality: QualityLevel, reason: String) {
+    private fun switchQuality(
+        newQuality: QualityLevel,
+        reason: String,
+    ) {
         if (newQuality == _currentQuality.value) return
         _currentQuality.value = newQuality
         lastSwitchTimeMs = clock()
@@ -240,11 +245,12 @@ class ABRController(
     // ---- 网络质量描述 ----
 
     val networkQualityDescription: String
-        get() = when {
-            currentBandwidthKbps <= 0 -> "未知"
-            currentBandwidthKbps < 800 -> "弱网"
-            currentBandwidthKbps < 2500 -> "一般"
-            currentBandwidthKbps < 5000 -> "良好"
-            else -> "优秀"
-        }
+        get() =
+            when {
+                currentBandwidthKbps <= 0 -> "未知"
+                currentBandwidthKbps < 800 -> "弱网"
+                currentBandwidthKbps < 2500 -> "一般"
+                currentBandwidthKbps < 5000 -> "良好"
+                else -> "优秀"
+            }
 }

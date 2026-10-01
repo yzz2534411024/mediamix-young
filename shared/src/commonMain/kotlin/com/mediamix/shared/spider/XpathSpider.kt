@@ -21,12 +21,12 @@ import org.jsoup.nodes.Element
 class XpathSpider(
     private val site: TvBoxSite,
 ) : SpiderAdapter {
-
     private val httpClient: HttpClient = HttpClientFactory.createHttpClient()
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
     private var config: Map<String, Any> = emptyMap()
 
     override val key: String get() = site.key
@@ -59,6 +59,7 @@ class XpathSpider(
         val url = buildUrl(config["homeUrl"]?.toString() ?: site.api)
         val doc = fetchHtml(url)
         val categories = parseCategories()
+
         @Suppress("UNCHECKED_CAST")
         val items = extractList(doc, config["list"] as? Map<String, Any>)
         return SpiderHomeResult(categories = categories, recommend = items)
@@ -69,12 +70,14 @@ class XpathSpider(
         page: Int,
         filter: Map<String, String>?,
     ): SpiderListResult {
-        var url = (config["cateUrl"]?.toString() ?: "")
-            .replace("{tid}", tid)
-            .replace("{pg}", page.toString())
+        var url =
+            (config["cateUrl"]?.toString() ?: "")
+                .replace("{tid}", tid)
+                .replace("{pg}", page.toString())
         if (url.isEmpty()) url = site.api
 
         val doc = fetchHtml(buildUrl(url))
+
         @Suppress("UNCHECKED_CAST")
         val items = extractList(doc, config["list"] as? Map<String, Any>)
         return SpiderListResult(
@@ -94,15 +97,20 @@ class XpathSpider(
         return SpiderDetailResult(detail = detail)
     }
 
-    override suspend fun searchContent(keyword: String, page: Int): SpiderListResult {
-        var url = (config["searchUrl"]?.toString() ?: "")
-            .replace("{wd}", JsonSpider.encodeUrlComponent(keyword))
-            .replace("{pg}", page.toString())
+    override suspend fun searchContent(
+        keyword: String,
+        page: Int,
+    ): SpiderListResult {
+        var url =
+            (config["searchUrl"]?.toString() ?: "")
+                .replace("{wd}", JsonSpider.encodeUrlComponent(keyword))
+                .replace("{pg}", page.toString())
         if (url.isEmpty()) {
             return SpiderListResult(list = emptyList(), page = 1, pageCount = 1, total = 0)
         }
 
         val doc = fetchHtml(buildUrl(url))
+
         @Suppress("UNCHECKED_CAST")
         val items = extractList(doc, config["list"] as? Map<String, Any>)
         return SpiderListResult(
@@ -113,13 +121,17 @@ class XpathSpider(
         )
     }
 
-    override suspend fun playerContent(flag: String, id: String): SpiderPlayResult {
+    override suspend fun playerContent(
+        flag: String,
+        id: String,
+    ): SpiderPlayResult {
         @Suppress("UNCHECKED_CAST")
         val playConfig = config["playUrl"] as? Map<String, Any> ?: emptyMap<String, Any>()
         val parseFlag = playConfig["parse"]?.toString() ?: "0"
-        val selector = playConfig["selector"]?.toString()
-            ?: playConfig["url"]?.toString()
-            ?: ""
+        val selector =
+            playConfig["selector"]?.toString()
+                ?: playConfig["url"]?.toString()
+                ?: ""
 
         if (selector.isEmpty()) {
             return SpiderPlayResult(url = id, parse = parseFlag)
@@ -127,11 +139,12 @@ class XpathSpider(
 
         val requestUrl = buildUrl(id)
         val doc = fetchHtml(requestUrl)
-        val playUrl = extractFirstValue(
-            doc.body() ?: doc,
-            selector,
-            baseUrl = requestUrl,
-        )
+        val playUrl =
+            extractFirstValue(
+                doc.body() ?: doc,
+                selector,
+                baseUrl = requestUrl,
+            )
 
         return SpiderPlayResult(
             url = playUrl,
@@ -173,7 +186,10 @@ class XpathSpider(
      * 对应 Dart 的 _extractList()：
      * - doc.querySelectorAll(selector) → doc.select(selector)
      */
-    fun extractList(doc: Document, listConfig: Map<String, Any>?): List<VideoItem> {
+    fun extractList(
+        doc: Document,
+        listConfig: Map<String, Any>?,
+    ): List<VideoItem> {
         if (listConfig == null) return emptyList()
 
         val containerSelector = listConfig["container"]?.toString() ?: ""
@@ -196,16 +212,20 @@ class XpathSpider(
                     vodPic = extractField(node, fields["vod_pic"]?.toString() ?: ""),
                     vodRemarks = extractField(node, fields["vod_remarks"]?.toString() ?: ""),
                     sourceKey = key,
-                )
+                ),
             )
         }
         return result
     }
 
     /** 从文档中提取详情 */
-    private fun extractDetail(doc: Document, id: String): VideoDetail {
+    private fun extractDetail(
+        doc: Document,
+        id: String,
+    ): VideoDetail {
         @Suppress("UNCHECKED_CAST")
         val detailConfig = config["detail"] as? Map<String, Any>
+
         @Suppress("UNCHECKED_CAST")
         val fields = (detailConfig?.get("fields") as? Map<String, Any>) ?: emptyMap<String, Any>()
 
@@ -267,7 +287,7 @@ class XpathSpider(
                     PlaySource(
                         name = if (sourceName.isEmpty()) "默认源" else sourceName,
                         episodes = episodes,
-                    )
+                    ),
                 )
             }
         }
@@ -280,7 +300,10 @@ class XpathSpider(
      *
      * 对应 Dart 的 _extractField()
      */
-    fun extractField(root: Element, rawSelector: String): String {
+    fun extractField(
+        root: Element,
+        rawSelector: String,
+    ): String {
         if (rawSelector.isEmpty()) return ""
         return extractFirstValue(root, rawSelector)
     }
@@ -295,7 +318,11 @@ class XpathSpider(
      * - root.querySelector(selector) → root.selectFirst(selector)
      * - element.attributes[attr] → element.attr(attr)
      */
-    fun extractFirstValue(root: Element?, rawSelector: String, baseUrl: String? = null): String {
+    fun extractFirstValue(
+        root: Element?,
+        rawSelector: String,
+        baseUrl: String? = null,
+    ): String {
         if (root == null || rawSelector.isEmpty()) return ""
 
         val (selector, attr) = parseSelector(rawSelector)
@@ -303,17 +330,18 @@ class XpathSpider(
 
         val element = root.selectFirst(selector) ?: return ""
 
-        val value: String = if (attr != null) {
-            element.attr(attr)
-        } else {
-            val src = element.attr("src")
-            val href = element.attr("href")
-            when {
-                src.isNotEmpty() -> src
-                href.isNotEmpty() -> href
-                else -> element.text().trim()
+        val value: String =
+            if (attr != null) {
+                element.attr(attr)
+            } else {
+                val src = element.attr("src")
+                val href = element.attr("href")
+                when {
+                    src.isNotEmpty() -> src
+                    href.isNotEmpty() -> href
+                    else -> element.text().trim()
+                }
             }
-        }
 
         return if (baseUrl != null && value.isNotEmpty()) {
             resolveUrl(value, baseUrl)
@@ -356,7 +384,10 @@ class XpathSpider(
      *
      * 对应 Dart 的 _resolveUrl()
      */
-    fun resolveUrl(url: String, baseUrl: String): String {
+    fun resolveUrl(
+        url: String,
+        baseUrl: String,
+    ): String {
         if (url.startsWith("http://") || url.startsWith("https://")) return url
         return try {
             val base = java.net.URI(baseUrl)
@@ -369,5 +400,6 @@ class XpathSpider(
     // ==================== 扩展函数 ====================
 
     private fun String.ifEmpty(fallback: String): String = if (isEmpty()) fallback else this
+
     private fun String.nullIfEmpty(): String? = if (isEmpty()) null else this
 }

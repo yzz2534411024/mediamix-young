@@ -2,9 +2,9 @@ package com.mediamix.shared.di
 
 import com.mediamix.shared.cache.CacheStrategyManager
 import com.mediamix.shared.cache.DiskCache
-import com.mediamix.shared.cache.createLocalProxyServer
 import com.mediamix.shared.cache.MemoryCache
 import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.cache.createLocalProxyServer
 import com.mediamix.shared.core.DeviceCapability
 import com.mediamix.shared.core.PlatformPaths
 import com.mediamix.shared.core.PowerManager
@@ -47,81 +47,82 @@ import org.koin.dsl.module
  * - 播放核心（PlayerEngine、PlayerCoreManager、CacheEngine、PlaybackErrorHandler、
  *   MetricsEngine、ABRController、BufferManager、SubtitleService、PowerManager、DeviceCapability）
  */
-val sharedModule: Module = module {
-    // ==================== 网络层 ====================
+val sharedModule: Module =
+    module {
+        // ==================== 网络层 ====================
 
-    // Ktor HttpClient 单例
-    single<HttpClient> { HttpClientFactory.createHttpClient() }
+        // Ktor HttpClient 单例
+        single<HttpClient> { HttpClientFactory.createHttpClient() }
 
-    // ==================== 蜘蛛引擎 ====================
+        // ==================== 蜘蛛引擎 ====================
 
-    single { SpiderRegistry.instance }
-    single { SpiderService(registry = get(), httpClient = get()) }
+        single { SpiderRegistry.instance }
+        single { SpiderService(registry = get(), httpClient = get()) }
 
-    // CMS 接口服务：带 DNS 预解析（5min）与列表结果缓存（5min）。
-    // 用 shared 单例，保证 CmsSpider 与首页读到的是同一份缓存。
-    single { VideoApiService.shared }
+        // CMS 接口服务：带 DNS 预解析（5min）与列表结果缓存（5min）。
+        // 用 shared 单例，保证 CmsSpider 与首页读到的是同一份缓存。
+        single { VideoApiService.shared }
 
-    // ==================== 缓存系统 ====================
+        // ==================== 缓存系统 ====================
 
-    single { Settings() }
-    single { MemoryCache() }
-    single { DiskCache(cacheDir = PlatformPaths.cacheDir) }
-    single { CacheStrategyManager(settings = get()) }
-    single {
-        VideoCacheService(
-            memoryCache = get(),
-            diskCache = get(),
-            cacheStrategyManager = get(),
-        )
+        single { Settings() }
+        single { MemoryCache() }
+        single { DiskCache(cacheDir = PlatformPaths.cacheDir) }
+        single { CacheStrategyManager(settings = get()) }
+        single {
+            VideoCacheService(
+                memoryCache = get(),
+                diskCache = get(),
+                cacheStrategyManager = get(),
+            )
+        }
+        // 平台相关的本地代理：Desktop 走 JDK HttpServer，Android 走降级实现
+        single { createLocalProxyServer(get()) }
+
+        // ==================== 数据库 ====================
+
+        single<MediaMixDatabase> { createDatabase() }
+        single { WatchHistoryDao(get()) }
+        single { FavoriteDao(get()) }
+        single { PlaybackProgressDao(get()) }
+        single { DownloadDao(get()) }
+
+        // ==================== 预加载 ====================
+
+        single { PreloadService(cacheService = get()) }
+
+        // ==================== 播放核心 — 平台相关 ====================
+
+        // expect/actual 类：无参构造，各平台提供 actual 实现
+        single { PlayerEngine() }
+        single { PowerManager() }
+        single { DeviceCapability() }
+
+        // ==================== 播放核心 — 子模块 ====================
+
+        single { ABRController(settings = get()) }
+        single { BufferManager() }
+        single { SubtitleService(httpClient = get()) }
+
+        // ==================== 播放核心 — 引擎（接口 → 实现） ====================
+
+        single<CacheEngine> { CacheEngineImpl(cacheService = get(), proxyServer = get(), preloadService = get()) }
+        single<PlaybackErrorHandler> { PlaybackErrorHandlerImpl() }
+        single<MetricsEngine> { MetricsEngineImpl() }
+
+        // ==================== 播放核心 — 编排器 ====================
+
+        single {
+            PlayerCoreManager(
+                playerEngine = get(),
+                cacheEngine = get(),
+                errorHandler = get(),
+                metricsEngine = get(),
+                abrController = get(),
+                bufferManager = get(),
+                subtitleService = get(),
+                powerManager = get(),
+                settings = get(),
+            )
+        }
     }
-    // 平台相关的本地代理：Desktop 走 JDK HttpServer，Android 走降级实现
-    single { createLocalProxyServer(get()) }
-
-    // ==================== 数据库 ====================
-
-    single<MediaMixDatabase> { createDatabase() }
-    single { WatchHistoryDao(get()) }
-    single { FavoriteDao(get()) }
-    single { PlaybackProgressDao(get()) }
-    single { DownloadDao(get()) }
-
-    // ==================== 预加载 ====================
-
-    single { PreloadService(cacheService = get()) }
-
-    // ==================== 播放核心 — 平台相关 ====================
-
-    // expect/actual 类：无参构造，各平台提供 actual 实现
-    single { PlayerEngine() }
-    single { PowerManager() }
-    single { DeviceCapability() }
-
-    // ==================== 播放核心 — 子模块 ====================
-
-    single { ABRController(settings = get()) }
-    single { BufferManager() }
-    single { SubtitleService(httpClient = get()) }
-
-    // ==================== 播放核心 — 引擎（接口 → 实现） ====================
-
-    single<CacheEngine> { CacheEngineImpl(cacheService = get(), proxyServer = get(), preloadService = get()) }
-    single<PlaybackErrorHandler> { PlaybackErrorHandlerImpl() }
-    single<MetricsEngine> { MetricsEngineImpl() }
-
-    // ==================== 播放核心 — 编排器 ====================
-
-    single {
-        PlayerCoreManager(
-            playerEngine = get(),
-            cacheEngine = get(),
-            errorHandler = get(),
-            metricsEngine = get(),
-            abrController = get(),
-            bufferManager = get(),
-            subtitleService = get(),
-            powerManager = get(),
-            settings = get(),
-        )
-    }
-}

@@ -6,7 +6,6 @@ import com.russhwolf.settings.MapSettings
 import kotlin.test.*
 
 class BufferManagerTest {
-
     @Test
     fun initialState_isLowBuffer() {
         val manager = BufferManager()
@@ -97,9 +96,10 @@ class BufferManagerTest {
 }
 
 class ABRControllerTest {
-
-    private fun prediction(kbps: Double, stability: Double = 0.5) =
-        ThroughputPrediction(kbps, 0.8, 0.0, kbps, stability)
+    private fun prediction(
+        kbps: Double,
+        stability: Double = 0.5,
+    ) = ThroughputPrediction(kbps, 0.8, 0.0, kbps, stability)
 
     // ---- scoreToQuality boundary tests ----
 
@@ -195,11 +195,12 @@ class ABRControllerTest {
     fun debounce_firstPredictionNoSwitch() {
         var currentTime = 1000L
         var switchedQuality: QualityLevel? = null
-        val controller = ABRController(
-            settings = MapSettings(),
-            upgradeDelayMs = 5000,
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                upgradeDelayMs = 5000,
+                clock = { currentTime },
+            )
         controller.onQualityChanged = { switchedQuality = it }
         controller.updateBuffer(40000)
         controller.updateThroughputPrediction(prediction(9000.0, stability = 0.9))
@@ -211,11 +212,12 @@ class ABRControllerTest {
     fun debounce_eventuallySwitchesAfterDelay() {
         var currentTime = 1000L
         var switchedQuality: QualityLevel? = null
-        val controller = ABRController(
-            settings = MapSettings(),
-            upgradeDelayMs = 5000,
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                upgradeDelayMs = 5000,
+                clock = { currentTime },
+            )
         controller.onQualityChanged = { switchedQuality = it }
         // eval #1 (updateBuffer): target=MEDIUM=current → reset
         controller.updateBuffer(40000)
@@ -234,11 +236,12 @@ class ABRControllerTest {
     @Test
     fun debounce_targetChangeResetsCounter() {
         var switchedQuality: QualityLevel? = null
-        val controller = ABRController(
-            settings = MapSettings(),
-            upgradeDelayMs = 0,
-            clock = { 1000L }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                upgradeDelayMs = 0,
+                clock = { 1000L },
+            )
         controller.onQualityChanged = { switchedQuality = it }
         controller.updateBuffer(40000)
         controller.updateThroughputPrediction(prediction(9000.0, stability = 0.9))
@@ -253,11 +256,12 @@ class ABRControllerTest {
     fun emergencyDowngrade_bufferBelow5s_immediateSwitch() {
         var currentTime = 1000L
         var switchedQuality: QualityLevel? = null
-        val controller = ABRController(
-            settings = MapSettings(),
-            upgradeDelayMs = 5000,
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                upgradeDelayMs = 5000,
+                clock = { currentTime },
+            )
         controller.onQualityChanged = { switchedQuality = it }
         controller.updateBuffer(40000)
         controller.updateThroughputPrediction(prediction(9000.0, stability = 0.9))
@@ -276,10 +280,11 @@ class ABRControllerTest {
     fun emergencyDowngrade_alreadyLow_noSwitch() {
         var currentTime = 1000L
         var switchCount = 0
-        val controller = ABRController(
-            settings = MapSettings(),
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                clock = { currentTime },
+            )
         controller.onQualityChanged = { switchCount++ }
         // Trigger emergency downgrade MEDIUM → LOW
         controller.updateBuffer(2000)
@@ -298,10 +303,11 @@ class ABRControllerTest {
     fun cooldown_preventsSwitchWithin10s() {
         var currentTime = 1000L
         var switchedQuality: QualityLevel? = null
-        val controller = ABRController(
-            settings = MapSettings(),
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                clock = { currentTime },
+            )
         controller.onQualityChanged = { switchedQuality = it }
 
         // Emergency downgrade at t=1000
@@ -319,11 +325,12 @@ class ABRControllerTest {
     @Test
     fun cooldown_allowsSwitchAfter10s() {
         var currentTime = 1000L
-        val controller = ABRController(
-            settings = MapSettings(),
-            upgradeDelayMs = 0,
-            clock = { currentTime }
-        )
+        val controller =
+            ABRController(
+                settings = MapSettings(),
+                upgradeDelayMs = 0,
+                clock = { currentTime },
+            )
         // Emergency downgrade at t=1000
         controller.updateBuffer(3000)
         assertEquals(QualityLevel.LOW, controller.currentQuality.value)

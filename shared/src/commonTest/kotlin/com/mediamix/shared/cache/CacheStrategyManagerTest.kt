@@ -2,14 +2,13 @@ package com.mediamix.shared.cache
 
 import com.mediamix.shared.models.CachePriority
 import com.russhwolf.settings.MapSettings
-import kotlin.test.Test
 import kotlin.test.BeforeTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CacheStrategyManagerTest {
-
     private lateinit var settings: MapSettings
     private lateinit var manager: CacheStrategyManager
 

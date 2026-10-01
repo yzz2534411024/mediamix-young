@@ -38,10 +38,16 @@ interface SpiderAdapter {
     suspend fun detailContent(id: String): SpiderDetailResult
 
     /** 搜索内容 */
-    suspend fun searchContent(keyword: String, page: Int = 1): SpiderListResult
+    suspend fun searchContent(
+        keyword: String,
+        page: Int = 1,
+    ): SpiderListResult
 
     /** 播放内容 */
-    suspend fun playerContent(flag: String, id: String): SpiderPlayResult
+    suspend fun playerContent(
+        flag: String,
+        id: String,
+    ): SpiderPlayResult
 
     /** 释放资源，默认空实现 */
     fun dispose() {}

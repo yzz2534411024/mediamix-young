@@ -5,10 +5,9 @@ import com.mediamix.shared.models.TvBoxLive
 import com.mediamix.shared.models.TvBoxSite
 import kotlinx.serialization.json.*
 
-/// TVBox 配置解析器
+// / TVBox 配置解析器
 class TvBoxConfigParser {
-
-    /// 解析 TVBox 配置 JSON（从 Map<String, Any>）
+    // / 解析 TVBox 配置 JSON（从 Map<String, Any>）
     fun parse(json: Map<String, Any>): TvBoxConfig {
         val spiderUrl = parseSpiderUrl(json["spider"])
         val sites = parseSites(json["sites"])
@@ -23,7 +22,7 @@ class TvBoxConfigParser {
         )
     }
 
-    /// 从 kotlinx.serialization JsonObject 解析
+    // / 从 kotlinx.serialization JsonObject 解析
     fun parseFromJsonObject(json: JsonObject): TvBoxConfig {
         val spiderUrl = parseSpiderUrl(json["spider"]?.toAnyValue())
         val sites = parseSites(json["sites"]?.toAnyValue())
@@ -38,7 +37,7 @@ class TvBoxConfigParser {
         )
     }
 
-    /// spider 字段支持 "jar_url;md5" 格式，只取 jar_url
+    // / spider 字段支持 "jar_url;md5" 格式，只取 jar_url
     internal fun parseSpiderUrl(raw: Any?): String? {
         if (raw !is String) return null
         val trimmed = raw.trim()
@@ -47,7 +46,7 @@ class TvBoxConfigParser {
         return if (semicolonIndex == -1) trimmed else trimmed.substring(0, semicolonIndex).trim()
     }
 
-    /// 解析 sites 数组
+    // / 解析 sites 数组
     internal fun parseSites(raw: Any?): List<TvBoxSite> {
         if (raw !is List<*>) return emptyList()
 
@@ -71,7 +70,7 @@ class TvBoxConfigParser {
         }
     }
 
-    /// 解析 lives 数组
+    // / 解析 lives 数组
     internal fun parseLives(raw: Any?): List<TvBoxLive> {
         if (raw !is List<*>) return emptyList()
 
@@ -89,7 +88,7 @@ class TvBoxConfigParser {
         }
     }
 
-    /// 解析 flags 数组
+    // / 解析 flags 数组
     internal fun parseFlags(raw: Any?): List<String> {
         if (raw !is List<*>) return emptyList()
         return raw.filterIsInstance<String>()
@@ -148,9 +147,10 @@ class TvBoxConfigParser {
     }
 }
 
-/// 将 JsonElement 转为普通 Kotlin 对象
-private fun JsonElement.toAnyValue(): Any? = when (this) {
-    is JsonPrimitive -> if (isString) content else content
-    is JsonObject -> entries.associate { (k, v) -> k to v.toAnyValue() }
-    is JsonArray -> map { it.toAnyValue() }
-}
+// / 将 JsonElement 转为普通 Kotlin 对象
+private fun JsonElement.toAnyValue(): Any? =
+    when (this) {
+        is JsonPrimitive -> if (isString) content else content
+        is JsonObject -> entries.associate { (k, v) -> k to v.toAnyValue() }
+        is JsonArray -> map { it.toAnyValue() }
+    }

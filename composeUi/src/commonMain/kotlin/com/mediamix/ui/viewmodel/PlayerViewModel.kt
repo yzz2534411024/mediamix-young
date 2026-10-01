@@ -2,11 +2,12 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.database.PlaybackProgressDao
 import com.mediamix.shared.player.AspectMode
+import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.PlayerCoreManager
 import com.mediamix.shared.player.PlayerState
-import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.SubtitleService
 import com.mediamix.shared.player.SubtitleTrack
 import com.mediamix.ui.prefs.AppPreferences
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import co.touchlab.kermit.Logger
 
 /**
  * 播放器 ViewModel
@@ -33,7 +33,6 @@ class PlayerViewModel(
     private val subtitleService: SubtitleService,
     private val appPreferences: AppPreferences,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("PlayerViewModel")
 
     // ===== Playback State =====
@@ -110,9 +109,10 @@ class PlayerViewModel(
     private val _showSubtitles = MutableStateFlow(true)
     val showSubtitles: StateFlow<Boolean> = _showSubtitles.asStateFlow()
 
-    private val _speedOptions = MutableStateFlow(
-        listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 2.75f, 3.0f)
-    )
+    private val _speedOptions =
+        MutableStateFlow(
+            listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 2.75f, 3.0f),
+        )
     val speedOptions: StateFlow<List<Float>> = _speedOptions.asStateFlow()
 
     // ===== Subtitle Text (实时字幕文本) =====
@@ -210,15 +210,17 @@ class PlayerViewModel(
         localEpisodeUrls = episodeUrls ?: emptyList()
 
         // 恢复播放进度
-        val savedProgress = try {
-            playbackProgressDao.getByVideoUrl(url)
-        } catch (e: Exception) {
-            logger.w { "Failed to load playback progress: ${e.message}" }
-            null
-        }
+        val savedProgress =
+            try {
+                playbackProgressDao.getByVideoUrl(url)
+            } catch (e: Exception) {
+                logger.w { "Failed to load playback progress: ${e.message}" }
+                null
+            }
 
         playerCoreManager.initialize(
-            url = url, title = title,
+            url = url,
+            title = title,
             episodeIndex = episodeIndex,
             episodeNames = episodeNames,
             episodeUrls = episodeUrls,
@@ -265,22 +267,43 @@ class PlayerViewModel(
         playerCoreManager.dispose()
     }
 
-    fun togglePlayPause() { playerCoreManager.togglePlayPause() }
-    fun seekTo(positionMs: Long) { playerCoreManager.seekTo(positionMs) }
-    fun fastSeek(positionMs: Long) { playerCoreManager.fastSeek(positionMs) }
+    fun togglePlayPause() {
+        playerCoreManager.togglePlayPause()
+    }
+
+    fun seekTo(positionMs: Long) {
+        playerCoreManager.seekTo(positionMs)
+    }
+
+    fun fastSeek(positionMs: Long) {
+        playerCoreManager.fastSeek(positionMs)
+    }
 
     fun setPlaybackSpeed(speed: Float) {
         playerCoreManager.setPlaybackSpeed(speed)
         _playbackSpeed.value = speed
     }
 
-    fun setPlayMode(mode: PlayMode) { playerCoreManager.setPlayMode(mode); _playMode.value = mode }
-    fun setAspectMode(mode: AspectMode) { playerCoreManager.setAspectMode(mode); _aspectMode.value = mode }
-    fun switchQuality(index: Int) { playerCoreManager.switchQuality(index); _currentQualityIndex.value = index }
+    fun setPlayMode(mode: PlayMode) {
+        playerCoreManager.setPlayMode(mode)
+        _playMode.value = mode
+    }
+
+    fun setAspectMode(mode: AspectMode) {
+        playerCoreManager.setAspectMode(mode)
+        _aspectMode.value = mode
+    }
+
+    fun switchQuality(index: Int) {
+        playerCoreManager.switchQuality(index)
+        _currentQualityIndex.value = index
+    }
+
     fun playPrevEpisode() {
         playerCoreManager.playPrevEpisode()
         syncEpisodeState()
     }
+
     fun playNextEpisode() {
         playerCoreManager.playNextEpisode()
         syncEpisodeState()
@@ -293,9 +316,19 @@ class PlayerViewModel(
         syncEpisodeState()
     }
 
-    fun setVolume(vol: Float) { playerCoreManager.setVolume(vol); _volume.value = vol }
-    fun setBrightness(bright: Float) { playerCoreManager.setBrightness(bright); _brightness.value = bright }
-    fun setSurface(surface: Any?) { playerCoreManager.setSurface(surface) }
+    fun setVolume(vol: Float) {
+        playerCoreManager.setVolume(vol)
+        _volume.value = vol
+    }
+
+    fun setBrightness(bright: Float) {
+        playerCoreManager.setBrightness(bright)
+        _brightness.value = bright
+    }
+
+    fun setSurface(surface: Any?) {
+        playerCoreManager.setSurface(surface)
+    }
 
     fun toggleSubtitles() {
         playerCoreManager.toggleSubtitles()
@@ -321,8 +354,13 @@ class PlayerViewModel(
         subtitleService.setSyncOffset(0L)
     }
 
-    fun lockScreen() { _isLocked.value = true }
-    fun unlockScreen() { _isLocked.value = false }
+    fun lockScreen() {
+        _isLocked.value = true
+    }
+
+    fun unlockScreen() {
+        _isLocked.value = false
+    }
 
     fun retryPlayback() {
         _lastError.value = null
@@ -351,12 +389,13 @@ class PlayerViewModel(
 
     private fun startProgressSaving() {
         stopProgressSaving()
-        progressSaveJob = viewModelScope.launch {
-            while (isActive) {
-                delay(5000) // 每 5 秒保存一次
-                saveCurrentProgress()
+        progressSaveJob =
+            viewModelScope.launch {
+                while (isActive) {
+                    delay(5000) // 每 5 秒保存一次
+                    saveCurrentProgress()
+                }
             }
-        }
     }
 
     private fun stopProgressSaving() {
@@ -385,12 +424,13 @@ class PlayerViewModel(
 
     private fun startSubtitleUpdates() {
         stopSubtitleUpdates()
-        subtitleUpdateJob = viewModelScope.launch {
-            while (isActive) {
-                delay(100) // 每 100ms 更新一次字幕（±50ms 容差内）
-                updateSubtitleText()
+        subtitleUpdateJob =
+            viewModelScope.launch {
+                while (isActive) {
+                    delay(100) // 每 100ms 更新一次字幕（±50ms 容差内）
+                    updateSubtitleText()
+                }
             }
-        }
     }
 
     private fun stopSubtitleUpdates() {
@@ -434,12 +474,13 @@ class PlayerViewModel(
         stopEpisodePolling()
         _episodeList.value = localEpisodeNames
         syncEpisodeState()
-        episodePollJob = viewModelScope.launch {
-            while (isActive) {
-                delay(500)
-                syncEpisodeState()
+        episodePollJob =
+            viewModelScope.launch {
+                while (isActive) {
+                    delay(500)
+                    syncEpisodeState()
+                }
             }
-        }
     }
 
     private fun stopEpisodePolling() {

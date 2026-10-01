@@ -7,10 +7,10 @@ import kotlinx.coroutines.flow.SharedFlow
  */
 data class ThroughputPrediction(
     val predictedKbps: Double,
-    val confidence: Double,      // 0.0 - 1.0
-    val trendKbps: Double,       // short-term trend
+    val confidence: Double, // 0.0 - 1.0
+    val trendKbps: Double, // short-term trend
     val longTermAverageKbps: Double,
-    val stability: Double        // 0.0 - 1.0
+    val stability: Double, // 0.0 - 1.0
 ) {
     companion object {
         val EMPTY = ThroughputPrediction(0.0, 0.0, 0.0, 0.0, 0.0)
@@ -21,9 +21,9 @@ data class ThroughputPrediction(
  * Network condition levels (aligned with PreloadService.NetworkCondition).
  */
 enum class NetworkConditionLevel {
-    ONLINE,     // good connection
-    WEAK,       // poor / weak signal
-    OFFLINE     // no connectivity
+    ONLINE, // good connection
+    WEAK, // poor / weak signal
+    OFFLINE, // no connectivity
 }
 
 /**

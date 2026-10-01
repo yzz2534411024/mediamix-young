@@ -8,7 +8,6 @@ import java.io.File
  * 使用 System.getProperty("user.home") 获取平台文件路径。
  */
 actual object PlatformPaths {
-
     private val homeDir = System.getProperty("user.home") ?: "."
 
     actual val dataDir: String = File(homeDir, ".mediamix/data").absolutePath

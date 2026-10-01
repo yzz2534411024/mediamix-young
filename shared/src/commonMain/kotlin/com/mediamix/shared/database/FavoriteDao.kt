@@ -12,32 +12,27 @@ import kotlinx.coroutines.flow.map
  * 封装 SQLDelight 生成的 Favorites 查询，
  * 提供 suspend 函数和 Flow 接口。
  */
-class FavoriteDao(private val database: MediaMixDatabase) {
-
+class FavoriteDao(
+    private val database: MediaMixDatabase,
+) {
     private val queries get() = database.favoritesQueries
 
     /** 查询所有收藏（按收藏时间倒序），返回 Flow */
-    fun observeAll(): Flow<List<FavoriteItemEntity>> {
-        return queries.selectAll()
+    fun observeAll(): Flow<List<FavoriteItemEntity>> =
+        queries
+            .selectAll()
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toEntity() } }
-    }
 
     /** 查询所有收藏（一次性） */
-    fun getAll(): List<FavoriteItemEntity> {
-        return queries.selectAll().executeAsList().map { it.toEntity() }
-    }
+    fun getAll(): List<FavoriteItemEntity> = queries.selectAll().executeAsList().map { it.toEntity() }
 
     /** 根据 vodId 查询 */
-    fun getByVodId(vodId: String): FavoriteItemEntity? {
-        return queries.selectById(vodId).executeAsOneOrNull()?.toEntity()
-    }
+    fun getByVodId(vodId: String): FavoriteItemEntity? = queries.selectById(vodId).executeAsOneOrNull()?.toEntity()
 
     /** 查询是否已收藏 */
-    fun isFavorite(vodId: String): Boolean {
-        return queries.isFavorite(vodId).executeAsOne()
-    }
+    fun isFavorite(vodId: String): Boolean = queries.isFavorite(vodId).executeAsOne()
 
     /** 插入或更新收藏 */
     fun insertOrReplace(
@@ -53,7 +48,10 @@ class FavoriteDao(private val database: MediaMixDatabase) {
     }
 
     /** 更新追番集数 */
-    fun updateEpisodeCount(vodId: String, episodeCount: Long) {
+    fun updateEpisodeCount(
+        vodId: String,
+        episodeCount: Long,
+    ) {
         queries.updateEpisodeCount(episodeCount, vodId)
     }
 
@@ -76,8 +74,8 @@ data class FavoriteItemEntity(
     val addTime: Long,
 )
 
-private fun Favorites.toEntity(): FavoriteItemEntity {
-    return FavoriteItemEntity(
+private fun Favorites.toEntity(): FavoriteItemEntity =
+    FavoriteItemEntity(
         vodId = vodId,
         vodName = vodName,
         vodPic = vodPic,
@@ -86,4 +84,3 @@ private fun Favorites.toEntity(): FavoriteItemEntity {
         lastEpisodeCount = lastEpisodeCount,
         addTime = addTime,
     )
-}

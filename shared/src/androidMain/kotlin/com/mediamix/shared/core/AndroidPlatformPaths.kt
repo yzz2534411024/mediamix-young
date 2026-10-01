@@ -9,7 +9,6 @@ import java.io.File
  * 需要在应用启动时调用 init(context) 完成初始化。
  */
 actual object PlatformPaths {
-
     private var appDataDir: String = ""
     private var appCacheDir: String = ""
     private var appDownloadDir: String = ""

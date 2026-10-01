@@ -9,7 +9,6 @@ import android.os.Build
  * 使用 MediaCodecList 探测硬件编解码能力。
  */
 actual class DeviceCapability actual constructor() {
-
     private val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
 
     actual fun supportsHardwareDecoding(codec: String): Boolean {
@@ -29,7 +28,5 @@ actual class DeviceCapability actual constructor() {
         return Pair(3840, 2160)
     }
 
-    actual fun getDeviceName(): String {
-        return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-    }
+    actual fun getDeviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
 }

@@ -42,14 +42,15 @@ fun formatDuration(durationMs: Long): String {
 fun SubtitleOverlay(
     subtitleText: String?,
     fontSize: Int = 18,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (subtitleText.isNullOrBlank()) return
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 60.dp),
-        contentAlignment = Alignment.BottomCenter
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 60.dp),
+        contentAlignment = Alignment.BottomCenter,
     ) {
         Text(
             text = subtitleText,
@@ -57,19 +58,23 @@ fun SubtitleOverlay(
             fontSize = fontSize.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleSmall.copy(
-                shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.9f),
-                    offset = androidx.compose.ui.geometry.Offset(1f, 1f),
-                    blurRadius = 3f
-                )
-            ),
-            modifier = Modifier
-                .background(
-                    Color.Black.copy(alpha = 0.55f),
-                    RoundedCornerShape(6.dp)
-                )
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+            style =
+                MaterialTheme.typography.titleSmall.copy(
+                    shadow =
+                        Shadow(
+                            color = Color.Black.copy(alpha = 0.9f),
+                            offset =
+                                androidx.compose.ui.geometry
+                                    .Offset(1f, 1f),
+                            blurRadius = 3f,
+                        ),
+                ),
+            modifier =
+                Modifier
+                    .background(
+                        Color.Black.copy(alpha = 0.55f),
+                        RoundedCornerShape(6.dp),
+                    ).padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }
 }
@@ -81,28 +86,29 @@ fun SubtitleOverlay(
 @Composable
 fun SeekingOverlay(
     seekPositionText: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Row(
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(16.dp),
                 color = Color.White,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
             Text(
                 text = seekPositionText,
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
         }
     }
@@ -115,20 +121,21 @@ fun SeekingOverlay(
 @Composable
 fun SpeedIndicator(
     speed: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .padding(top = 60.dp, end = 16.dp)
-            .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .padding(top = 60.dp, end = 16.dp)
+                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "${speed}x",
             color = Color.White,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -140,25 +147,26 @@ fun SpeedIndicator(
 @Composable
 fun LockIcon(
     onUnlock: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color.Black.copy(alpha = 0.45f))
-                .clickable(onClick = onUnlock)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onUnlock)
+                    .padding(16.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = "Unlock",
                 tint = Color.White,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
             )
         }
     }
@@ -171,29 +179,30 @@ fun LockIcon(
 @Composable
 fun BrightnessIndicator(
     brightness: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.BrightnessMedium,
                 contentDescription = "Brightness",
                 tint = Color.White,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Brightness ${(brightness * 100).toInt()}%",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
         }
     }
@@ -206,29 +215,30 @@ fun BrightnessIndicator(
 @Composable
 fun VolumeIndicator(
     volume: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = if (volume == 0f) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
                 contentDescription = "Volume",
                 tint = Color.White,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Volume ${(volume * 100).toInt()}%",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
         }
     }
@@ -242,35 +252,36 @@ fun VolumeIndicator(
 fun LoadingOverlay(
     loadingText: String,
     bufferedPercentage: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(16.dp))
-                .padding(horizontal = 32.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 32.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(40.dp),
                 color = Color.White,
-                strokeWidth = 3.dp
+                strokeWidth = 3.dp,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = loadingText,
                 color = Color.White,
-                fontSize = 16.sp
+                fontSize = 16.sp,
             )
             if (bufferedPercentage > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Buffer: $bufferedPercentage%",
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
                 )
             }
         }
@@ -285,35 +296,36 @@ fun LoadingOverlay(
 fun ErrorOverlay(
     errorMessage: String,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(16.dp))
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.87f), RoundedCornerShape(16.dp))
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.ErrorOutline,
                 contentDescription = "Error",
                 tint = Color.Red,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp),
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = if (errorMessage.length > 100) errorMessage.take(100) + "..." else errorMessage,
                 color = Color.White,
                 fontSize = 14.sp,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
             ) {
                 Text("Retry", color = Color.White)
             }

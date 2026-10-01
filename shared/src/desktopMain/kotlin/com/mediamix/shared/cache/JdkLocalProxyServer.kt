@@ -18,19 +18,18 @@ import java.net.URLEncoder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/** 代理并发处理线程数。m3u8 会并发拉取分片，8 个足够且不会打满 CPU。 */
+private const val PROXY_THREADS = 8
+
 /**
  * Desktop 平台的本地代理实现，基于 JDK 自带的 `com.sun.net.httpserver`。
  *
  * 完整支持：L3 整文件缓存直出、L4 分片拼装、CDN 转发 + 边下边存（512KB 分片）、
  * HTTP Range（含 206 / 416）。单例由 Koin 的 `single {}` 保证，本类不做静态持有。
  */
-/** 代理并发处理线程数。m3u8 会并发拉取分片，8 个足够且不会打满 CPU。 */
-private const val PROXY_THREADS = 8
-
 class JdkLocalProxyServer(
     private val cacheService: VideoCacheService,
 ) : LocalProxyServer {
-
     private val logger = Logger.withTag("LocalProxyServer")
     private var server: HttpServer? = null
     private var port = 0
@@ -53,9 +52,10 @@ class JdkLocalProxyServer(
             // ⚠️ 不要用 `srv.executor = null`：JDK HttpServer 在 null 时回落到**单线程**
             // executor，而 m3u8 播放器会并发拉取多个分片，单线程会把所有请求串行化，
             // 表现为「能播但一直转圈 / 拖动后卡很久」。这里显式给一个有界线程池。
-            executor = Executors.newFixedThreadPool(PROXY_THREADS) { runnable ->
-                Thread(runnable, "mediamix-proxy").apply { isDaemon = true }
-            }
+            executor =
+                Executors.newFixedThreadPool(PROXY_THREADS) { runnable ->
+                    Thread(runnable, "mediamix-proxy").apply { isDaemon = true }
+                }
             srv.executor = executor
             srv.start()
             server = srv
@@ -72,7 +72,8 @@ class JdkLocalProxyServer(
         try {
             streamingClient?.close()
             streamingClient = null
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
         server?.stop(0)
         server = null
         // 关闭线程池，避免反复 start/stop 时线程泄漏
@@ -82,7 +83,11 @@ class JdkLocalProxyServer(
         logger.i { "Local proxy stopped" }
     }
 
-    override fun proxyUrl(cdnUrl: String, videoId: String, quality: String): String {
+    override fun proxyUrl(
+        cdnUrl: String,
+        videoId: String,
+        quality: String,
+    ): String {
         val encoded = URLEncoder.encode(cdnUrl, "UTF-8")
         return "http://127.0.0.1:$port/vod/$videoId?url=$encoded&quality=$quality"
     }
@@ -137,7 +142,8 @@ class JdkLocalProxyServer(
             logger.e(e) { "Proxy request handling failed" }
             try {
                 sendError(exchange, 500, "Internal Error")
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -149,7 +155,10 @@ class JdkLocalProxyServer(
      * Probe L4 segments by incrementing index 0..199,
      * checking both "preload_{i}" and "seg_{i}" keys.
      */
-    private fun getSegmentsForVideo(videoId: String, quality: String): List<String> {
+    private fun getSegmentsForVideo(
+        videoId: String,
+        quality: String,
+    ): List<String> {
         val result = mutableListOf<String>()
         for (i in 0 until 200) {
             val preloadResult = cacheService.getSegment(videoId, "preload_$i", quality)
@@ -169,7 +178,11 @@ class JdkLocalProxyServer(
     // Serve from complete file cache
     // ----------------------------------------------------------
 
-    private fun serveFile(exchange: HttpExchange, file: File, rangeHeader: String?) {
+    private fun serveFile(
+        exchange: HttpExchange,
+        file: File,
+        rangeHeader: String?,
+    ) {
         val fileSize = file.length()
 
         if (rangeHeader != null) {
@@ -344,21 +357,23 @@ class JdkLocalProxyServer(
         quality: String,
     ) {
         val rangeHeader = exchange.requestHeaders.getFirst("Range")
-        val client = streamingClient ?: run {
-            sendError(exchange, 500, "Streaming client not available")
-            return
-        }
+        val client =
+            streamingClient ?: run {
+                sendError(exchange, 500, "Streaming client not available")
+                return
+            }
 
         val downloadStartMs = System.currentTimeMillis()
         var totalDownloadBytes = 0L
 
         try {
             runBlocking {
-                val response = client.get(cdnUrl) {
-                    if (rangeHeader != null) {
-                        headers.append("Range", rangeHeader)
+                val response =
+                    client.get(cdnUrl) {
+                        if (rangeHeader != null) {
+                            headers.append("Range", rangeHeader)
+                        }
                     }
-                }
 
                 val statusCode = response.status.value
                 val contentLength = response.headers["Content-Length"]
@@ -421,7 +436,8 @@ class JdkLocalProxyServer(
             logger.e(e) { "Proxy CDN request failed" }
             try {
                 sendError(exchange, 502, "Bad Gateway")
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             return
         }
         exchange.close()
@@ -445,7 +461,11 @@ class JdkLocalProxyServer(
         return result
     }
 
-    private fun sendError(exchange: HttpExchange, status: Int, message: String) {
+    private fun sendError(
+        exchange: HttpExchange,
+        status: Int,
+        message: String,
+    ) {
         val bytes = message.toByteArray()
         exchange.responseHeaders.set("Content-Type", "text/plain")
         exchange.sendResponseHeaders(status, bytes.size.toLong())
@@ -454,8 +474,7 @@ class JdkLocalProxyServer(
     }
 }
 
-actual fun createLocalProxyServer(cacheService: VideoCacheService): LocalProxyServer =
-    JdkLocalProxyServer(cacheService)
+actual fun createLocalProxyServer(cacheService: VideoCacheService): LocalProxyServer = JdkLocalProxyServer(cacheService)
 
 /**
  * Simple byte buffer for accumulating segment data during proxy streaming.
@@ -464,13 +483,18 @@ private class SegBuffer {
     private var buf = ByteArray(1024)
     private var count = 0
 
-    fun write(data: ByteArray, offset: Int, length: Int) {
+    fun write(
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+    ) {
         ensureCapacity(count + length)
         System.arraycopy(data, offset, buf, count, length)
         count += length
     }
 
     fun toByteArray(): ByteArray = buf.copyOf(count)
+
     fun size(): Int = count
 
     private fun ensureCapacity(minCapacity: Int) {

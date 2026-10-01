@@ -2,15 +2,11 @@ package com.mediamix.shared.player
 
 import com.mediamix.shared.core.PowerMode
 import com.mediamix.shared.player.engines.*
-import com.mediamix.shared.network.ThroughputPrediction
-import com.russhwolf.settings.MapSettings
-import kotlin.test.Test
 import kotlin.test.BeforeTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.assertNull
-import kotlin.test.assertNotNull
 
 // ============================================================================
 // Fake implementations for testing
@@ -36,7 +32,7 @@ private class FakePlaybackErrorHandler : PlaybackErrorHandler {
         hardwareDecodingEnabled: Boolean,
         hasQualityOptions: Boolean,
         currentQualityIndex: Int,
-        lastPlaybackPositionMs: Long
+        lastPlaybackPositionMs: Long,
     ): ErrorHandleResult {
         lastError = error
         return ErrorHandleResult(action = nextAction, nextQualityIndex = nextQualityIndex)
@@ -49,15 +45,26 @@ private class FakePlaybackErrorHandler : PlaybackErrorHandler {
         return -1
     }
 
-    override fun resetRetryCount() { _retryCount = 0 }
-    override fun clearTriedQualityIndices() { _triedQualityIndices.clear() }
-    override fun addTriedQualityIndex(index: Int) { _triedQualityIndices.add(index) }
+    override fun resetRetryCount() {
+        _retryCount = 0
+    }
+
+    override fun clearTriedQualityIndices() {
+        _triedQualityIndices.clear()
+    }
+
+    override fun addTriedQualityIndex(index: Int) {
+        _triedQualityIndices.add(index)
+    }
+
     override fun startNetworkRecoveryMonitoring(onNetworkRecovered: () -> Unit) {
         _isWaitingForNetwork = true
     }
+
     override fun stopNetworkRecoveryMonitoring() {
         _isWaitingForNetwork = false
     }
+
     override fun dispose() {}
 }
 
@@ -73,14 +80,19 @@ private class FakeCacheEngine : CacheEngine {
     private var _isUsingCache = false
     override val isUsingCache: Boolean get() = _isUsingCache
 
-    override suspend fun resolveVideoUrl(url: String, videoId: String): String {
+    override suspend fun resolveVideoUrl(
+        url: String,
+        videoId: String,
+    ): String {
         lastResolvedUrl = url
         lastResolvedVideoId = videoId
         return resolveUrlToReturn
     }
 
     override suspend fun resolveVideoUrlWithFallback(
-        url: String, videoId: String, preferredQuality: String?
+        url: String,
+        videoId: String,
+        preferredQuality: String?,
     ): CacheResolveResult {
         lastResolvedUrl = url
         lastResolvedVideoId = videoId
@@ -88,11 +100,23 @@ private class FakeCacheEngine : CacheEngine {
     }
 
     override fun notifyPreloadBuffering(isBuffering: Boolean) {}
-    override fun preloadNextEpisode(videoId: String, url: String) {}
-    override fun preloadAdjacentEpisodes(
-        indices: List<Int>, title: String, episodeUrls: List<String>, powerMode: PowerMode
+
+    override fun preloadNextEpisode(
+        videoId: String,
+        url: String,
     ) {}
-    override fun cancelPreloads() { preloadCancelled = true }
+
+    override fun preloadAdjacentEpisodes(
+        indices: List<Int>,
+        title: String,
+        episodeUrls: List<String>,
+        powerMode: PowerMode,
+    ) {}
+
+    override fun cancelPreloads() {
+        preloadCancelled = true
+    }
+
     override fun dispose() {}
 }
 
@@ -116,19 +140,36 @@ private class FakeMetricsEngine : MetricsEngine {
         this.enabled = enabled
     }
 
-    override fun startSession(videoId: String) { sessionStarted = true }
+    override fun startSession(videoId: String) {
+        sessionStarted = true
+    }
+
     override fun endSession(): Map<String, Any?>? {
         sessionEnded = true
         return null
     }
-    override fun recordEvent(event: MetricsEvent, errorMessage: String?, avSyncOffsetMs: Int?) {
+
+    override fun recordEvent(
+        event: MetricsEvent,
+        errorMessage: String?,
+        avSyncOffsetMs: Int?,
+    ) {
         recordedEvents.add(event)
     }
-    override fun getCurrentMetrics(): Map<String, Any?>? = mapOf(
-        "firstFrameTimeMs" to 100L
-    )
-    override fun markFirstFrameRecorded() { _hasRecordedFirstFrame = true }
-    override fun setBuffering(value: Boolean) { _isBuffering = value }
+
+    override fun getCurrentMetrics(): Map<String, Any?>? =
+        mapOf(
+            "firstFrameTimeMs" to 100L,
+        )
+
+    override fun markFirstFrameRecorded() {
+        _hasRecordedFirstFrame = true
+    }
+
+    override fun setBuffering(value: Boolean) {
+        _isBuffering = value
+    }
+
     override fun dispose() {}
 }
 
@@ -137,7 +178,6 @@ private class FakeMetricsEngine : MetricsEngine {
 // ============================================================================
 
 class PlayerCoreManagerUtilTest {
-
     @Test
     fun formatDuration_zero() {
         assertEquals("00:00", PlayerCoreManager.formatDuration(0))
@@ -198,15 +238,15 @@ class PlayerCoreManagerUtilTest {
 // ============================================================================
 
 class PlaybackProgressTest {
-
     @Test
     fun playbackProgress_construction() {
-        val progress = PlaybackProgress(
-            videoUrl = "https://example.com/video.mp4",
-            positionMs = 5000,
-            durationMs = 120000,
-            lastPlayTimeMs = 1000000
-        )
+        val progress =
+            PlaybackProgress(
+                videoUrl = "https://example.com/video.mp4",
+                positionMs = 5000,
+                durationMs = 120000,
+                lastPlayTimeMs = 1000000,
+            )
         assertEquals("https://example.com/video.mp4", progress.videoUrl)
         assertEquals(5000L, progress.positionMs)
         assertEquals(120000L, progress.durationMs)
@@ -234,38 +274,40 @@ class PlaybackProgressTest {
 // ============================================================================
 
 class PlayModeCycleTest {
-
     @Test
     fun cyclePlayMode_sequentialToLoopAll() {
         // Test the cycle logic directly
         val mode = PlayMode.SEQUENTIAL
-        val next = when (mode) {
-            PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
-            PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
-            PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
-        }
+        val next =
+            when (mode) {
+                PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
+                PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
+                PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
+            }
         assertEquals(PlayMode.LOOP_ALL, next)
     }
 
     @Test
     fun cyclePlayMode_loopAllToLoopSingle() {
         val mode = PlayMode.LOOP_ALL
-        val next = when (mode) {
-            PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
-            PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
-            PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
-        }
+        val next =
+            when (mode) {
+                PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
+                PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
+                PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
+            }
         assertEquals(PlayMode.LOOP_SINGLE, next)
     }
 
     @Test
     fun cyclePlayMode_loopSingleToSequential() {
         val mode = PlayMode.LOOP_SINGLE
-        val next = when (mode) {
-            PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
-            PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
-            PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
-        }
+        val next =
+            when (mode) {
+                PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
+                PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
+                PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
+            }
         assertEquals(PlayMode.SEQUENTIAL, next)
     }
 }
@@ -275,13 +317,14 @@ class PlayModeCycleTest {
 // ============================================================================
 
 class VideoParserTest {
-
     @Test
     fun videoParser_buildUrl() {
-        val parser = object : VideoParser {
-            override val name = "TestParser"
-            override fun buildUrl(originalUrl: String): String = "$originalUrl?parsed=true"
-        }
+        val parser =
+            object : VideoParser {
+                override val name = "TestParser"
+
+                override fun buildUrl(originalUrl: String): String = "$originalUrl?parsed=true"
+            }
         assertEquals("TestParser", parser.name)
         assertEquals("https://example.com?parsed=true", parser.buildUrl("https://example.com"))
     }
@@ -300,7 +343,6 @@ class VideoParserTest {
 // ============================================================================
 
 class ErrorHandlingDelegationTest {
-
     private lateinit var errorHandler: FakePlaybackErrorHandler
 
     @BeforeTest
@@ -365,7 +407,6 @@ class ErrorHandlingDelegationTest {
 // ============================================================================
 
 class EpisodeSwitchingLogicTest {
-
     @Test
     fun hasPrevEpisode_firstEpisode_returnsFalse() {
         val episodeUrls = listOf("url0", "url1", "url2")
@@ -436,7 +477,6 @@ class EpisodeSwitchingLogicTest {
 // ============================================================================
 
 class QualitySwitchingLogicTest {
-
     @Test
     fun hasQualityOptions_multipleUrls_returnsTrue() {
         val qualityUrls = listOf("url_480p", "url_720p", "url_1080p")
@@ -466,8 +506,12 @@ class QualitySwitchingLogicTest {
     fun currentQualityLabel_outOfBounds_returnsDefault() {
         val qualityLabels = listOf("480p", "720p")
         val currentIndex = 5
-        val label = if (qualityLabels.isEmpty() || currentIndex >= qualityLabels.size) "720p"
-        else qualityLabels[currentIndex]
+        val label =
+            if (qualityLabels.isEmpty() || currentIndex >= qualityLabels.size) {
+                "720p"
+            } else {
+                qualityLabels[currentIndex]
+            }
         assertEquals("720p", label)
     }
 
@@ -475,8 +519,12 @@ class QualitySwitchingLogicTest {
     fun currentQualityLabel_empty_returnsDefault() {
         val qualityLabels = emptyList<String>()
         val currentIndex = 0
-        val label = if (qualityLabels.isEmpty() || currentIndex >= qualityLabels.size) "720p"
-        else qualityLabels[currentIndex]
+        val label =
+            if (qualityLabels.isEmpty() || currentIndex >= qualityLabels.size) {
+                "720p"
+            } else {
+                qualityLabels[currentIndex]
+            }
         assertEquals("720p", label)
     }
 
@@ -500,7 +548,6 @@ class QualitySwitchingLogicTest {
 // ============================================================================
 
 class PlaybackSpeedTest {
-
     private val speedOptions = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 2.75f, 3.0f)
 
     @Test
@@ -535,7 +582,6 @@ class PlaybackSpeedTest {
 // ============================================================================
 
 class SkipIntervalTest {
-
     private val skipIntervals = listOf(5, 10, 30, 60)
 
     @Test
@@ -586,7 +632,6 @@ class SkipIntervalTest {
 // ============================================================================
 
 class VolumeClampTest {
-
     @Test
     fun volume_normalValue() {
         val v = 0.5f.coerceIn(0f, 1f)
@@ -623,7 +668,6 @@ class VolumeClampTest {
 // ============================================================================
 
 class PreloadDepthTest {
-
     @Test
     fun preloadDepth_defaultValue() {
         val depth = 1
@@ -648,10 +692,11 @@ class PreloadDepthTest {
         val totalEpisodes = 10
         val depth = 2
         val urls = (0 until totalEpisodes).map { "url_$it" }
-        val indices = ((-depth)..depth)
-            .map { currentIndex + it }
-            .filter { it >= 0 && it < urls.size }
-            .filter { it != currentIndex }
+        val indices =
+            ((-depth)..depth)
+                .map { currentIndex + it }
+                .filter { it >= 0 && it < urls.size }
+                .filter { it != currentIndex }
         assertEquals(listOf(3, 4, 6, 7), indices)
     }
 
@@ -661,10 +706,11 @@ class PreloadDepthTest {
         val totalEpisodes = 10
         val depth = 2
         val urls = (0 until totalEpisodes).map { "url_$it" }
-        val indices = ((-depth)..depth)
-            .map { currentIndex + it }
-            .filter { it >= 0 && it < urls.size }
-            .filter { it != currentIndex }
+        val indices =
+            ((-depth)..depth)
+                .map { currentIndex + it }
+                .filter { it >= 0 && it < urls.size }
+                .filter { it != currentIndex }
         assertEquals(listOf(1, 2), indices)
     }
 
@@ -674,10 +720,11 @@ class PreloadDepthTest {
         val totalEpisodes = 10
         val depth = 2
         val urls = (0 until totalEpisodes).map { "url_$it" }
-        val indices = ((-depth)..depth)
-            .map { currentIndex + it }
-            .filter { it >= 0 && it < urls.size }
-            .filter { it != currentIndex }
+        val indices =
+            ((-depth)..depth)
+                .map { currentIndex + it }
+                .filter { it >= 0 && it < urls.size }
+                .filter { it != currentIndex }
         assertEquals(listOf(7, 8), indices)
     }
 }
@@ -687,7 +734,6 @@ class PreloadDepthTest {
 // ============================================================================
 
 class PlaybackCompletionLogicTest {
-
     @Test
     fun onPlaybackCompleted_loopSingle_shouldSeekToStart() {
         val playMode = PlayMode.LOOP_SINGLE
@@ -733,7 +779,6 @@ class PlaybackCompletionLogicTest {
 // ============================================================================
 
 class AVSyncDriftCalculationTest {
-
     @Test
     fun driftCalculation_noDrift() {
         val lastVideoPositionMs = 10000L
@@ -793,7 +838,6 @@ class AVSyncDriftCalculationTest {
 // ============================================================================
 
 class FakeMetricsEngineTest {
-
     private lateinit var engine: FakeMetricsEngine
 
     @BeforeTest
@@ -847,7 +891,6 @@ class FakeMetricsEngineTest {
 // ============================================================================
 
 class FakeCacheEngineTest {
-
     private lateinit var engine: FakeCacheEngine
 
     @BeforeTest
@@ -868,15 +911,15 @@ class FakeCacheEngineTest {
 // ============================================================================
 
 class ProgressSaveCallbackTest {
-
     @Test
     fun playbackProgress_dataClass_worksCorrectly() {
-        val progress = PlaybackProgress(
-            videoUrl = "https://example.com/video.mp4",
-            positionMs = 60000,
-            durationMs = 3600000,
-            lastPlayTimeMs = 1000000
-        )
+        val progress =
+            PlaybackProgress(
+                videoUrl = "https://example.com/video.mp4",
+                positionMs = 60000,
+                durationMs = 3600000,
+                lastPlayTimeMs = 1000000,
+            )
         assertEquals("https://example.com/video.mp4", progress.videoUrl)
         assertEquals(60000L, progress.positionMs)
         assertEquals(3600000L, progress.durationMs)
@@ -888,7 +931,6 @@ class ProgressSaveCallbackTest {
 // ============================================================================
 
 class BrightnessClampTest {
-
     @Test
     fun brightness_normalValue() {
         val b = 0.7f.coerceIn(0f, 1f)

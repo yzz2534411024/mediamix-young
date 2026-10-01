@@ -3,7 +3,6 @@ package com.mediamix.shared.core
 import kotlin.test.*
 
 class PowerManagerTest {
-
     private val powerManager = PowerManager()
 
     @Test

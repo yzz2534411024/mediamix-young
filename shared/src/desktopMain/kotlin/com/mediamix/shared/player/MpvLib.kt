@@ -7,20 +7,64 @@ import com.sun.jna.*
  * 参考: https://github.com/mpv-player/mpv/blob/master/libmpv/client.h
  */
 interface MpvLib : Library {
-
     fun mpv_create(): Pointer?
+
     fun mpv_initialize(handle: Pointer): Int
+
     fun mpv_destroy(handle: Pointer)
-    fun mpv_command(handle: Pointer, args: Array<String?>): Int
-    fun mpv_command_string(handle: Pointer, args: String): Int
-    fun mpv_get_property(handle: Pointer, name: String, format: Int, data: Pointer): Int
-    fun mpv_set_property(handle: Pointer, name: String, format: Int, data: Pointer): Int
-    fun mpv_observe_property(handle: Pointer, replyUserData: Long, name: String, format: Int): Int
-    fun mpv_unobserve_property(handle: Pointer, replyUserData: Long): Int
-    fun mpv_wait_event(handle: Pointer, timeout: Double): Pointer?
-    fun mpv_set_option(handle: Pointer, name: String, format: Int, data: Pointer?): Int
+
+    fun mpv_command(
+        handle: Pointer,
+        args: Array<String?>,
+    ): Int
+
+    fun mpv_command_string(
+        handle: Pointer,
+        args: String,
+    ): Int
+
+    fun mpv_get_property(
+        handle: Pointer,
+        name: String,
+        format: Int,
+        data: Pointer,
+    ): Int
+
+    fun mpv_set_property(
+        handle: Pointer,
+        name: String,
+        format: Int,
+        data: Pointer,
+    ): Int
+
+    fun mpv_observe_property(
+        handle: Pointer,
+        replyUserData: Long,
+        name: String,
+        format: Int,
+    ): Int
+
+    fun mpv_unobserve_property(
+        handle: Pointer,
+        replyUserData: Long,
+    ): Int
+
+    fun mpv_wait_event(
+        handle: Pointer,
+        timeout: Double,
+    ): Pointer?
+
+    fun mpv_set_option(
+        handle: Pointer,
+        name: String,
+        format: Int,
+        data: Pointer?,
+    ): Int
+
     fun mpv_error_string(error: Int): String?
+
     fun mpv_client_name(handle: Pointer): String?
+
     fun mpv_free(data: Pointer?)
 
     companion object {
@@ -95,7 +139,7 @@ interface MpvLib : Library {
                 "无法加载 mpv 运行库（已尝试：${candidates.joinToString()}）。" +
                     "Desktop 端播放需要 mpv-1.dll 或 libmpv-2.dll；" +
                     "请把该 DLL 放到应用可执行文件（MediaMix.exe）同目录。" +
-                    "底层错误：${lastError?.message}"
+                    "底层错误：${lastError?.message}",
             )
         }
     }

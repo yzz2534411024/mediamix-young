@@ -37,13 +37,13 @@ class VideoCacheService(
     // ----------------------------------------------------------
     // Constants
     // ----------------------------------------------------------
-    private val emergencyThresholdBytes = 500L * 1024 * 1024   // 500MB
+    private val emergencyThresholdBytes = 500L * 1024 * 1024 // 500MB
     private val evictionThresholdPercent = 80.0
-    private val maxCacheBytes = 2L * 1024 * 1024 * 1024         // 2GB
-    private val recentlyPlayedWindowMs = 24L * 60 * 60 * 1000   // 24 hours
+    private val maxCacheBytes = 2L * 1024 * 1024 * 1024 // 2GB
+    private val recentlyPlayedWindowMs = 24L * 60 * 60 * 1000 // 24 hours
 
     // TTL cleanup
-    private val ttlCleanupIntervalMs = 30L * 1000  // 30 seconds
+    private val ttlCleanupIntervalMs = 30L * 1000 // 30 seconds
     private var ttlCleanupJob: Job? = null
 
     // ===========================================================
@@ -67,12 +67,18 @@ class VideoCacheService(
     // Unified API - Query
     // ===========================================================
 
-    fun hasCache(videoId: String, quality: String = "default"): Boolean {
+    fun hasCache(
+        videoId: String,
+        quality: String = "default",
+    ): Boolean {
         // L3/L4 disk check
         return diskCache.hasCache(videoId, quality)
     }
 
-    fun getCachePath(videoId: String, quality: String = "default"): String? {
+    fun getCachePath(
+        videoId: String,
+        quality: String = "default",
+    ): String? {
         val path = diskCache.getCachePath(videoId, quality)
         if (path != null) {
             hitCount++
@@ -84,7 +90,10 @@ class VideoCacheService(
         return null
     }
 
-    fun getAnyQualityCachePath(videoId: String, preferredQuality: String? = null): Pair<String, String>? {
+    fun getAnyQualityCachePath(
+        videoId: String,
+        preferredQuality: String? = null,
+    ): Pair<String, String>? {
         val result = diskCache.getAnyQualityCachePath(videoId, preferredQuality)
         if (result != null) {
             hitCount++
@@ -108,21 +117,23 @@ class VideoCacheService(
         category: String? = null,
     ) {
         // Use dynamic TTL if strategy manager available
-        val effectiveTtl = if (cacheStrategyManager != null && cacheStrategyManager.isInitialized) {
-            cacheStrategyManager.getDynamicTtl(videoId, category = category, baseTtl = ttl)
-        } else {
-            ttl
-        }
+        val effectiveTtl =
+            if (cacheStrategyManager != null && cacheStrategyManager.isInitialized) {
+                cacheStrategyManager.getDynamicTtl(videoId, category = category, baseTtl = ttl)
+            } else {
+                ttl
+            }
 
         // Use dynamic priority if strategy manager available
         var effectivePriority = priority
         if (cacheStrategyManager != null && cacheStrategyManager.isInitialized) {
             val dynamicPriority = cacheStrategyManager.getPriority(videoId, category = category)
-            val mappedPriority = when (dynamicPriority) {
-                CachePriority.HIGH -> 20
-                CachePriority.LOW -> -5
-                else -> 0
-            }
+            val mappedPriority =
+                when (dynamicPriority) {
+                    CachePriority.HIGH -> 20
+                    CachePriority.LOW -> -5
+                    else -> 0
+                }
             if (mappedPriority > effectivePriority) {
                 effectivePriority = mappedPriority
             }
@@ -145,7 +156,11 @@ class VideoCacheService(
         diskCache.putSegment(videoId, segmentKey, data, quality)
     }
 
-    fun getSegment(videoId: String, segmentKey: String, quality: String = "default"): SegmentCacheResult {
+    fun getSegment(
+        videoId: String,
+        segmentKey: String,
+        quality: String = "default",
+    ): SegmentCacheResult {
         // L2 memory
         val memResult = memoryCache.getSegment(videoId, segmentKey, quality)
         if (memResult != null) {
@@ -172,11 +187,18 @@ class VideoCacheService(
     // L1 Frame Buffer
     // ===========================================================
 
-    fun putFrameBuffer(videoId: String, frameBuffer: Map<String, Any>, quality: String = "default") {
+    fun putFrameBuffer(
+        videoId: String,
+        frameBuffer: Map<String, Any>,
+        quality: String = "default",
+    ) {
         memoryCache.putFrameBuffer(videoId, frameBuffer, quality)
     }
 
-    fun getFrameBuffer(videoId: String, quality: String = "default"): Map<String, Any>? {
+    fun getFrameBuffer(
+        videoId: String,
+        quality: String = "default",
+    ): Map<String, Any>? {
         val result = memoryCache.getFrameBuffer(videoId, quality)
         if (result != null) {
             hitCount++
@@ -231,9 +253,11 @@ class VideoCacheService(
 
     private suspend fun evictExpired(): Int {
         val now = Clock.System.now().toEpochMilliseconds()
-        val expiredKeys = diskCache.getAllEntries()
-            .filter { it.isExpired(now) }
-            .map { it.cacheId }
+        val expiredKeys =
+            diskCache
+                .getAllEntries()
+                .filter { it.isExpired(now) }
+                .map { it.cacheId }
 
         for (key in expiredKeys) {
             diskCache.removeEntry(key)
@@ -245,12 +269,13 @@ class VideoCacheService(
     }
 
     private suspend fun evictLowPriorityPreload(): Int {
-        val candidates = diskCache.getAllEntries()
-            .filter { entry ->
-                val effectivePri = getEffectivePriorityForEntry(entry)
-                effectivePri <= 0 && !entry.isComplete && !shouldKeep(entry)
-            }
-            .sortedWith(compareBy({ getEffectivePriorityForEntry(it) }, { it.lastAccess }))
+        val candidates =
+            diskCache
+                .getAllEntries()
+                .filter { entry ->
+                    val effectivePri = getEffectivePriorityForEntry(entry)
+                    effectivePri <= 0 && !entry.isComplete && !shouldKeep(entry)
+                }.sortedWith(compareBy({ getEffectivePriorityForEntry(it) }, { it.lastAccess }))
 
         var evicted = 0
         for (entry in candidates) {
@@ -263,9 +288,11 @@ class VideoCacheService(
     }
 
     private suspend fun evictLRU(): Int {
-        val candidates = diskCache.getAllEntries()
-            .filter { !shouldKeep(it) }
-            .sortedWith(compareBy({ getEffectivePriorityForEntry(it) }, { it.lastAccess }))
+        val candidates =
+            diskCache
+                .getAllEntries()
+                .filter { !shouldKeep(it) }
+                .sortedWith(compareBy({ getEffectivePriorityForEntry(it) }, { it.lastAccess }))
 
         var evicted = 0
         for (entry in candidates) {
@@ -278,13 +305,15 @@ class VideoCacheService(
     }
 
     private suspend fun evictLargeFiles(): Int {
-        val candidates = diskCache.getAllEntries()
-            .filter { !shouldKeep(it) }
-            .sortedWith(
-                compareByDescending<CacheEntry> { getEffectivePriorityForEntry(it) }
-                    .thenByDescending { it.fileSize }
-                    .reversed()
-            )
+        val candidates =
+            diskCache
+                .getAllEntries()
+                .filter { !shouldKeep(it) }
+                .sortedWith(
+                    compareByDescending<CacheEntry> { getEffectivePriorityForEntry(it) }
+                        .thenByDescending { it.fileSize }
+                        .reversed(),
+                )
 
         var evicted = 0
         for (entry in candidates) {
@@ -298,12 +327,12 @@ class VideoCacheService(
 
     private fun shouldKeep(entry: CacheEntry): Boolean {
         val effectivePriority = getEffectivePriorityForEntry(entry)
-        if (effectivePriority >= 10) return true  // user favorites
+        if (effectivePriority >= 10) return true // user favorites
 
         val now = Clock.System.now().toEpochMilliseconds()
-        if (now - entry.lastAccess < recentlyPlayedWindowMs) return true  // 24h playback
+        if (now - entry.lastAccess < recentlyPlayedWindowMs) return true // 24h playback
 
-        if (entry.hitCount >= 10) return true  // popular videos
+        if (entry.hitCount >= 10) return true // popular videos
 
         return false
     }
@@ -317,7 +346,10 @@ class VideoCacheService(
         logger.i("Cache policy switched: $policy")
     }
 
-    fun autoSelectPolicy(isWiFi: Boolean, availableDiskBytes: Long) {
+    fun autoSelectPolicy(
+        isWiFi: Boolean,
+        availableDiskBytes: Long,
+    ) {
         if (availableDiskBytes < emergencyThresholdBytes) {
             setPolicy(CachePolicy.EMERGENCY)
         } else if (!isWiFi) {
@@ -398,11 +430,12 @@ class VideoCacheService(
         if (cacheStrategyManager != null && cacheStrategyManager.isInitialized) {
             try {
                 val dynamicPriority = cacheStrategyManager.getPriority(entry.videoId)
-                val mappedPriority = when (dynamicPriority) {
-                    CachePriority.HIGH -> 20
-                    CachePriority.LOW -> -5
-                    else -> 0
-                }
+                val mappedPriority =
+                    when (dynamicPriority) {
+                        CachePriority.HIGH -> 20
+                        CachePriority.LOW -> -5
+                        else -> 0
+                    }
                 return maxOf(mappedPriority, entry.priority)
             } catch (_: Exception) {
                 // fallback
@@ -423,11 +456,12 @@ class VideoCacheService(
 
     private fun startTtlCleanupTimer() {
         ttlCleanupJob?.cancel()
-        ttlCleanupJob = scope.launch {
-            while (isActive) {
-                delay(ttlCleanupIntervalMs)
-                memoryCache.ttlCleanup()
+        ttlCleanupJob =
+            scope.launch {
+                while (isActive) {
+                    delay(ttlCleanupIntervalMs)
+                    memoryCache.ttlCleanup()
+                }
             }
-        }
     }
 }

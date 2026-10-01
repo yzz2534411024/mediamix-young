@@ -1,10 +1,10 @@
 package com.mediamix.shared.cache
 
 import kotlinx.coroutines.test.runTest
-import kotlin.test.*
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.test.*
 
 /**
  * JdkLocalProxyServer（Desktop 实现）的集成测试。
@@ -13,7 +13,6 @@ import java.net.URL
  * 只能在 JVM/Desktop 上运行，故迁移到 desktopTest。
  */
 class LocalProxyServerTest {
-
     private lateinit var cacheService: VideoCacheService
     private lateinit var memoryCache: MemoryCache
     private lateinit var diskCache: DiskCache
@@ -21,14 +20,15 @@ class LocalProxyServerTest {
     private lateinit var proxyServer: LocalProxyServer
 
     @BeforeTest
-    fun setup() = runTest {
-        tempDir = createTempDir("proxy_test")
-        memoryCache = MemoryCache(maxL1Entries = 5, maxL2Entries = 10, memoryReader = { 0L })
-        diskCache = DiskCache(cacheDir = tempDir.absolutePath)
-        cacheService = VideoCacheService(memoryCache = memoryCache, diskCache = diskCache)
-        cacheService.initialize()
-        proxyServer = createLocalProxyServer(cacheService)
-    }
+    fun setup() =
+        runTest {
+            tempDir = createTempDir("proxy_test")
+            memoryCache = MemoryCache(maxL1Entries = 5, maxL2Entries = 10, memoryReader = { 0L })
+            diskCache = DiskCache(cacheDir = tempDir.absolutePath)
+            cacheService = VideoCacheService(memoryCache = memoryCache, diskCache = diskCache)
+            cacheService.initialize()
+            proxyServer = createLocalProxyServer(cacheService)
+        }
 
     @AfterTest
     fun teardown() {
@@ -176,9 +176,10 @@ class LocalProxyServerTest {
         }
 
         // Request from proxy
-        val url = URL(
-            "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_cache?url=http%3A%2F%2Ffake&quality=720p"
-        )
+        val url =
+            URL(
+                "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_cache?url=http%3A%2F%2Ffake&quality=720p",
+            )
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         assertEquals(200, conn.responseCode)
@@ -201,9 +202,10 @@ class LocalProxyServerTest {
             cacheService.putVideo("vid_range", videoFile.absolutePath, "720p")
         }
 
-        val url = URL(
-            "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_range?url=http%3A%2F%2Ffake&quality=720p"
-        )
+        val url =
+            URL(
+                "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_range?url=http%3A%2F%2Ffake&quality=720p",
+            )
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         conn.setRequestProperty("Range", "bytes=0-1023")
@@ -228,9 +230,10 @@ class LocalProxyServerTest {
             cacheService.putVideo("vid_416", videoFile.absolutePath, "720p")
         }
 
-        val url = URL(
-            "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_416?url=http%3A%2F%2Ffake&quality=720p"
-        )
+        val url =
+            URL(
+                "http://127.0.0.1:${proxyServer.currentPort}/vod/vid_416?url=http%3A%2F%2Ffake&quality=720p",
+            )
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         conn.setRequestProperty("Range", "bytes=500-600")

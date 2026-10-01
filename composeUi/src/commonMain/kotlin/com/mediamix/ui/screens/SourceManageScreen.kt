@@ -64,12 +64,13 @@ fun SourceManageScreen(
                     }
                 },
             )
-        }
+        },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
         ) {
             items(sites, key = { it.key }) { site ->
                 val status = sourceStatuses[site.key]
@@ -77,7 +78,12 @@ fun SourceManageScreen(
                     site = site,
                     status = status,
                     onToggle = { viewModel.toggleSourceEnabled(site.key) },
-                    onDelete = if (!site.isBuiltIn) {{ deleteTarget = site }} else null,
+                    onDelete =
+                        if (!site.isBuiltIn) {
+                            { deleteTarget = site }
+                        } else {
+                            null
+                        },
                     onCheck = { viewModel.checkSource(site) },
                 )
                 HorizontalDivider()
@@ -96,7 +102,7 @@ fun SourceManageScreen(
                     onClick = {
                         viewModel.removeSource(site.key)
                         deleteTarget = null
-                    }
+                    },
                 ) { Text("删除", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
@@ -143,12 +149,12 @@ private fun SourceTile(
                         text = "内置",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                MaterialTheme.shapes.extraSmall,
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        modifier =
+                            Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    MaterialTheme.shapes.extraSmall,
+                                ).padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
             }
@@ -162,11 +168,12 @@ private fun SourceTile(
                     fontSize = 11.sp,
                 )
                 if (status != null) {
-                    val color = when {
-                        status.isAvailable && status.latencyMs < 500 -> Color(0xFF4CAF50)
-                        status.isAvailable -> Color(0xFFFF9800)
-                        else -> Color(0xFFF44336)
-                    }
+                    val color =
+                        when {
+                            status.isAvailable && status.latencyMs < 500 -> Color(0xFF4CAF50)
+                            status.isAvailable -> Color(0xFFFF9800)
+                            else -> Color(0xFFF44336)
+                        }
                     Text(
                         text = if (status.isAvailable) "可用 · ${status.latencyMs}ms" else "不可用",
                         fontSize = 11.sp,
@@ -177,12 +184,13 @@ private fun SourceTile(
             }
         },
         leadingContent = {
-            val statusPair: Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> = when {
-                status == null -> Icons.Default.Cloud to Color.Gray
-                status.isAvailable && status.latencyMs < 500 -> Icons.Default.CloudDone to Color(0xFF4CAF50)
-                status.isAvailable -> Icons.Default.CloudQueue to Color(0xFFFF9800)
-                else -> Icons.Default.CloudOff to Color(0xFFF44336)
-            }
+            val statusPair: Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> =
+                when {
+                    status == null -> Icons.Default.Cloud to Color.Gray
+                    status.isAvailable && status.latencyMs < 500 -> Icons.Default.CloudDone to Color(0xFF4CAF50)
+                    status.isAvailable -> Icons.Default.CloudQueue to Color(0xFFFF9800)
+                    else -> Icons.Default.CloudOff to Color(0xFFF44336)
+                }
             Icon(statusPair.first, contentDescription = null, tint = statusPair.second)
         },
         trailingContent = {

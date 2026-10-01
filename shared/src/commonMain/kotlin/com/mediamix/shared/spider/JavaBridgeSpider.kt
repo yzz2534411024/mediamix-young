@@ -16,7 +16,6 @@ class JavaBridgeSpider(
     // TODO: 依赖 JavaBridgeManager (Task 34)
     // private val bridgeManager: JavaBridgeManager,
 ) : SpiderAdapter {
-
     override val key: String get() = site.key
     override val name: String get() = site.name
     override val type: SpiderType get() = SpiderType.JAVA_BRIDGE
@@ -45,16 +44,22 @@ class JavaBridgeSpider(
     override suspend fun detailContent(id: String): SpiderDetailResult {
         // TODO: 调用 bridgeManager.detailContent(site.key, id)
         return SpiderDetailResult(
-            detail = VideoDetail(vodId = id, vodName = "未知", sourceKey = key)
+            detail = VideoDetail(vodId = id, vodName = "未知", sourceKey = key),
         )
     }
 
-    override suspend fun searchContent(keyword: String, page: Int): SpiderListResult {
+    override suspend fun searchContent(
+        keyword: String,
+        page: Int,
+    ): SpiderListResult {
         // TODO: 调用 bridgeManager.searchContent(site.key, keyword, page)
         return SpiderListResult()
     }
 
-    override suspend fun playerContent(flag: String, id: String): SpiderPlayResult {
+    override suspend fun playerContent(
+        flag: String,
+        id: String,
+    ): SpiderPlayResult {
         // TODO: 调用 bridgeManager.playerContent(site.key, flag, id)
         return SpiderPlayResult(url = id)
     }
@@ -84,7 +89,8 @@ class JavaBridgeSpider(
                 if (element is kotlinx.serialization.json.JsonArray) {
                     return mapOf("list" to (JsonSpider.jsonElementToAny(element) ?: emptyList<Any>()))
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
         return null
     }
@@ -105,13 +111,12 @@ class JavaBridgeSpider(
     }
 
     /** 安全转为 Int */
-    fun intValue(v: Any?): Int {
-        return when (v) {
+    fun intValue(v: Any?): Int =
+        when (v) {
             is Int -> v
             is String -> v.toIntOrNull() ?: 0
             is Double -> v.toInt()
             is Long -> v.toInt()
             else -> 0
         }
-    }
 }

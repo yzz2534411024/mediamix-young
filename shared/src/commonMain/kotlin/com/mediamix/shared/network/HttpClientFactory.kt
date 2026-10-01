@@ -14,12 +14,12 @@ import kotlinx.serialization.json.Json
  * 各蜘蛛和缓存服务通过此工厂创建 HttpClient 实例。
  */
 object HttpClientFactory {
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
+        }
 
     /**
      * 创建默认配置的 HttpClient
@@ -30,8 +30,8 @@ object HttpClientFactory {
         requestTimeoutSeconds: Long = 30,
         userAgent: String = "okhttp/3.12.11",
         enableLogging: Boolean = false,
-    ): HttpClient {
-        return HttpClient {
+    ): HttpClient =
+        HttpClient {
             install(ContentNegotiation) {
                 json(json)
             }
@@ -54,7 +54,6 @@ object HttpClientFactory {
                 }
             }
         }
-    }
 
     /**
      * 创建用于流式下载的 HttpClient
@@ -63,8 +62,8 @@ object HttpClientFactory {
     fun createStreamingClient(
         connectTimeoutSeconds: Long = 10,
         userAgent: String = "okhttp/3.12.11",
-    ): HttpClient {
-        return HttpClient {
+    ): HttpClient =
+        HttpClient {
             install(HttpTimeout) {
                 connectTimeoutMillis = connectTimeoutSeconds * 1000
                 socketTimeoutMillis = 30 * 60 * 1000 // 30 分钟，流式传输需要长超时
@@ -74,7 +73,6 @@ object HttpClientFactory {
                 headers.append("User-Agent", userAgent)
             }
         }
-    }
 
     /** 共享的 Json 实例 */
     val sharedJson: Json get() = json

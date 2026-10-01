@@ -7,7 +7,6 @@ package com.mediamix.shared.core
  * TODO: 可通过 JNA 调用系统 API 获取真实电源信息。
  */
 actual class PowerManager actual constructor() {
-
     actual fun getBatteryLevel(): Int {
         // 桌面端默认返回满电
         return 100

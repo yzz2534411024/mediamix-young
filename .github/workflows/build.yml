@@ -122,8 +122,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run detekt
+        # 不再挂 continue-on-error：detekt 现已能通过（配置见 config/detekt/detekt.yml），
+        # 留着兜底等于这道门禁永远不拦人。
         run: ./gradlew detekt
-        continue-on-error: true
+
+      - name: Run ktlint
+        run: ./gradlew ktlintCheck
 
       - name: Upload detekt report
         if: always()
@@ -131,3 +135,10 @@ jobs:
         with:
           name: detekt-report
           path: "**/build/reports/detekt/"
+
+      - name: Upload ktlint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ktlint-report
+          path: "**/build/reports/ktlint/"

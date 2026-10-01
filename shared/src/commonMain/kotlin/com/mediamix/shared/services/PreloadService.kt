@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.io.File
 import kotlinx.datetime.Clock
+import java.io.File
 
 // =====================================================================
 // Enums & Data Classes
@@ -24,25 +24,35 @@ import kotlinx.datetime.Clock
  * Network condition for preload strategy selection.
  */
 enum class NetworkCondition {
-    WIFI, LTE, THREE_G, POOR, OFFLINE
+    WIFI,
+    LTE,
+    THREE_G,
+    POOR,
+    OFFLINE,
 }
 
 /**
  * Preload priority levels. Lower value = higher priority.
  */
-enum class PreloadPriority(val value: Int) {
+enum class PreloadPriority(
+    val value: Int,
+) {
     CURRENT_PLAYBACK(0),
     NEXT_EPISODE(1),
     ADJACENT_ITEM(2),
     PLAYLIST_ITEM(3),
-    HISTORY_REPLAY(4);
+    HISTORY_REPLAY(4),
 }
 
 /**
  * Preload task status.
  */
 enum class PreloadTaskStatus {
-    WAITING, DOWNLOADING, COMPLETED, FAILED, CANCELLED
+    WAITING,
+    DOWNLOADING,
+    COMPLETED,
+    FAILED,
+    CANCELLED,
 }
 
 /**
@@ -103,10 +113,10 @@ object PreloadDepthCalculator {
     const val defaultDepth = 2
 
     // Thresholds
-    private const val longDwellThresholdSec = 600.0   // 10 min
-    private const val shortDwellThresholdSec = 120.0  // 2 min
+    private const val longDwellThresholdSec = 600.0 // 10 min
+    private const val shortDwellThresholdSec = 120.0 // 2 min
     private const val highBounceRateThreshold = 0.6
-    private const val lowDiskThresholdMB = 500L        // 500 MB
+    private const val lowDiskThresholdMB = 500L // 500 MB
 
     fun calculateDepth(
         networkCondition: NetworkCondition,
@@ -119,32 +129,36 @@ object PreloadDepthCalculator {
         if (networkCondition == NetworkCondition.POOR) return minDepth
 
         // Base depth by network
-        val baseDepth = when (networkCondition) {
-            NetworkCondition.WIFI -> maxDepth   // 3
-            NetworkCondition.LTE -> 2
-            NetworkCondition.THREE_G -> minDepth // 1
-            NetworkCondition.POOR -> minDepth
-            NetworkCondition.OFFLINE -> 0
-        }
+        val baseDepth =
+            when (networkCondition) {
+                NetworkCondition.WIFI -> maxDepth // 3
+                NetworkCondition.LTE -> 2
+                NetworkCondition.THREE_G -> minDepth // 1
+                NetworkCondition.POOR -> minDepth
+                NetworkCondition.OFFLINE -> 0
+            }
 
         // Dwell time adjustment (-1 ~ +1)
-        val dwellAdj = when {
-            avgDwellTimeSec != null && avgDwellTimeSec >= longDwellThresholdSec -> 1
-            avgDwellTimeSec != null && avgDwellTimeSec < shortDwellThresholdSec -> -1
-            else -> 0
-        }
+        val dwellAdj =
+            when {
+                avgDwellTimeSec != null && avgDwellTimeSec >= longDwellThresholdSec -> 1
+                avgDwellTimeSec != null && avgDwellTimeSec < shortDwellThresholdSec -> -1
+                else -> 0
+            }
 
         // Bounce rate adjustment (-1 ~ 0)
-        val bounceAdj = when {
-            bounceRate != null && bounceRate >= highBounceRateThreshold -> -1
-            else -> 0
-        }
+        val bounceAdj =
+            when {
+                bounceRate != null && bounceRate >= highBounceRateThreshold -> -1
+                else -> 0
+            }
 
         // Disk space adjustment (-1 ~ 0)
-        val diskAdj = when {
-            availableDiskMB != null && availableDiskMB < lowDiskThresholdMB -> -1
-            else -> 0
-        }
+        val diskAdj =
+            when {
+                availableDiskMB != null && availableDiskMB < lowDiskThresholdMB -> -1
+                else -> 0
+            }
 
         return (baseDepth + dwellAdj + bounceAdj + diskAdj).coerceIn(minDepth, maxDepth)
     }
@@ -158,7 +172,6 @@ object PreloadDepthCalculator {
  * Preload strategy configuration per network condition.
  */
 object PreloadStrategy {
-
     data class StrategyConfig(
         val cacheFullVideo: Boolean,
         val preloadCount: Int,
@@ -166,41 +179,46 @@ object PreloadStrategy {
         val bandwidthRatio: Double,
     )
 
-    val WIFI = StrategyConfig(
-        cacheFullVideo = true,
-        preloadCount = 3,
-        firstSegmentBytes = 0L,
-        bandwidthRatio = 0.30,
-    )
+    val WIFI =
+        StrategyConfig(
+            cacheFullVideo = true,
+            preloadCount = 3,
+            firstSegmentBytes = 0L,
+            bandwidthRatio = 0.30,
+        )
 
-    val MOBILE = StrategyConfig(
-        cacheFullVideo = false,
-        preloadCount = 1,
-        firstSegmentBytes = 512L * 1024,  // 512 KB
-        bandwidthRatio = 0.20,
-    )
+    val MOBILE =
+        StrategyConfig(
+            cacheFullVideo = false,
+            preloadCount = 1,
+            firstSegmentBytes = 512L * 1024, // 512 KB
+            bandwidthRatio = 0.20,
+        )
 
-    val POOR = StrategyConfig(
-        cacheFullVideo = false,
-        preloadCount = 0,
-        firstSegmentBytes = 128L * 1024,  // 128 KB
-        bandwidthRatio = 0.10,
-    )
+    val POOR =
+        StrategyConfig(
+            cacheFullVideo = false,
+            preloadCount = 0,
+            firstSegmentBytes = 128L * 1024, // 128 KB
+            bandwidthRatio = 0.10,
+        )
 
-    val OFFLINE = StrategyConfig(
-        cacheFullVideo = false,
-        preloadCount = 0,
-        firstSegmentBytes = 0L,
-        bandwidthRatio = 0.0,
-    )
+    val OFFLINE =
+        StrategyConfig(
+            cacheFullVideo = false,
+            preloadCount = 0,
+            firstSegmentBytes = 0L,
+            bandwidthRatio = 0.0,
+        )
 
-    fun getStrategy(condition: NetworkCondition): StrategyConfig = when (condition) {
-        NetworkCondition.WIFI -> WIFI
-        NetworkCondition.LTE -> MOBILE
-        NetworkCondition.THREE_G -> MOBILE
-        NetworkCondition.POOR -> POOR
-        NetworkCondition.OFFLINE -> OFFLINE
-    }
+    fun getStrategy(condition: NetworkCondition): StrategyConfig =
+        when (condition) {
+            NetworkCondition.WIFI -> WIFI
+            NetworkCondition.LTE -> MOBILE
+            NetworkCondition.THREE_G -> MOBILE
+            NetworkCondition.POOR -> POOR
+            NetworkCondition.OFFLINE -> OFFLINE
+        }
 }
 
 // =====================================================================
@@ -271,8 +289,11 @@ class PreloadService(
 
     /** Build a status snapshot. */
     fun getStatusInfo(): PreloadStatusInfo {
-        var pending = 0; var downloading = 0; var completed = 0
-        var cancelled = 0; var failed = 0
+        var pending = 0
+        var downloading = 0
+        var completed = 0
+        var cancelled = 0
+        var failed = 0
         for (t in tasks) {
             when (t.status) {
                 PreloadTaskStatus.WAITING -> pending++
@@ -335,13 +356,14 @@ class PreloadService(
 
         val bytes = targetBytes ?: if (strategy.cacheFullVideo) 0L else strategy.firstSegmentBytes
 
-        val entry = PreloadTaskEntry(
-            id = "preload_${taskIdCounter++}",
-            videoId = videoId,
-            url = url,
-            priority = priority,
-            preloadBytes = bytes,
-        )
+        val entry =
+            PreloadTaskEntry(
+                id = "preload_${taskIdCounter++}",
+                videoId = videoId,
+                url = url,
+                priority = priority,
+                preloadBytes = bytes,
+            )
 
         synchronized(tasks) {
             tasks.add(entry)
@@ -383,12 +405,18 @@ class PreloadService(
     }
 
     /** Convenience: preload next episode. */
-    suspend fun preloadNextEpisode(videoId: String, url: String, quality: String = "720p") =
-        preloadVideo(videoId, url, PreloadPriority.NEXT_EPISODE, quality)
+    suspend fun preloadNextEpisode(
+        videoId: String,
+        url: String,
+        quality: String = "720p",
+    ) = preloadVideo(videoId, url, PreloadPriority.NEXT_EPISODE, quality)
 
     /** Convenience: preload adjacent item. */
-    suspend fun preloadAdjacent(videoId: String, url: String, quality: String = "720p") =
-        preloadVideo(videoId, url, PreloadPriority.ADJACENT_ITEM, quality)
+    suspend fun preloadAdjacent(
+        videoId: String,
+        url: String,
+        quality: String = "720p",
+    ) = preloadVideo(videoId, url, PreloadPriority.ADJACENT_ITEM, quality)
 
     // ---- Cancel ----
 
@@ -420,9 +448,10 @@ class PreloadService(
      * Low-priority WAITING tasks beyond [depth] are cancelled.
      */
     fun trimTasksToDepth(depth: Int = currentPreloadDepth) {
-        val waitingSorted = tasks
-            .filter { it.status == PreloadTaskStatus.WAITING }
-            .sortedBy { it.priority.value }
+        val waitingSorted =
+            tasks
+                .filter { it.status == PreloadTaskStatus.WAITING }
+                .sortedBy { it.priority.value }
 
         for (i in depth until waitingSorted.size) {
             val t = waitingSorted[i]
@@ -466,9 +495,11 @@ class PreloadService(
         if (networkCondition == condition) return
         networkCondition = condition
         strategy = PreloadStrategy.getStrategy(condition)
-        logger.i("Network changed: ${condition.name}, strategy: " +
-            "fullVideo=${strategy.cacheFullVideo}, count=${strategy.preloadCount}, " +
-            "segmentBytes=${strategy.firstSegmentBytes}, bw=${(strategy.bandwidthRatio * 100).toInt()}%")
+        logger.i(
+            "Network changed: ${condition.name}, strategy: " +
+                "fullVideo=${strategy.cacheFullVideo}, count=${strategy.preloadCount}, " +
+                "segmentBytes=${strategy.firstSegmentBytes}, bw=${(strategy.bandwidthRatio * 100).toInt()}%",
+        )
 
         // Recalculate depth
         updateUserBehavior()
@@ -480,10 +511,11 @@ class PreloadService(
 
         if (condition == NetworkCondition.POOR) {
             // Cancel low-priority waiting tasks
-            val toRemove = tasks.filter {
-                it.priority.value > PreloadPriority.NEXT_EPISODE.value &&
-                    it.status != PreloadTaskStatus.DOWNLOADING
-            }
+            val toRemove =
+                tasks.filter {
+                    it.priority.value > PreloadPriority.NEXT_EPISODE.value &&
+                        it.status != PreloadTaskStatus.DOWNLOADING
+                }
             for (t in toRemove) {
                 t.job?.cancel()
                 t.status = PreloadTaskStatus.CANCELLED
@@ -508,19 +540,22 @@ class PreloadService(
         if (bounceRate != null) this.bounceRate = bounceRate
         if (availableDiskMB != null) this.availableDiskMB = availableDiskMB
 
-        val newDepth = depthCalculator.calculateDepth(
-            networkCondition = networkCondition,
-            avgDwellTimeSec = this.avgDwellTimeSec,
-            bounceRate = this.bounceRate,
-            availableDiskMB = this.availableDiskMB,
-        )
+        val newDepth =
+            depthCalculator.calculateDepth(
+                networkCondition = networkCondition,
+                avgDwellTimeSec = this.avgDwellTimeSec,
+                bounceRate = this.bounceRate,
+                availableDiskMB = this.availableDiskMB,
+            )
 
         if (newDepth != currentPreloadDepth) {
-            logger.i("Preload depth adjusted: $currentPreloadDepth → $newDepth " +
-                "(dwell=${this.avgDwellTimeSec?.let { "%.0f".format(it) } ?: "?"}s, " +
-                "bounce=${this.bounceRate?.let { "%.2f".format(it) } ?: "?"}, " +
-                "disk=${this.availableDiskMB?.let { "${it}MB" } ?: "?"}, " +
-                "net=${networkCondition.name})")
+            logger.i(
+                "Preload depth adjusted: $currentPreloadDepth → $newDepth " +
+                    "(dwell=${this.avgDwellTimeSec?.let { "%.0f".format(it) } ?: "?"}s, " +
+                    "bounce=${this.bounceRate?.let { "%.2f".format(it) } ?: "?"}, " +
+                    "disk=${this.availableDiskMB?.let { "${it}MB" } ?: "?"}, " +
+                    "net=${networkCondition.name})",
+            )
             currentPreloadDepth = newDepth
             trimTasksToDepth()
         }
@@ -578,43 +613,44 @@ class PreloadService(
     }
 
     private fun executeTask(entry: PreloadTaskEntry) {
-        scope.launch {
-            semaphore.withPermit {
-                if (disposed || entry.status == PreloadTaskStatus.CANCELLED) return@launch
+        scope
+            .launch {
+                semaphore.withPermit {
+                    if (disposed || entry.status == PreloadTaskStatus.CANCELLED) return@launch
 
-                entry.status = PreloadTaskStatus.DOWNLOADING
-                entry.job = currentCoroutineContext()[Job]
-                notifyTasksUpdate()
-
-                try {
-                    logger.d("Start preload: ${entry.videoId}, bytes=${entry.preloadBytes}")
-                    downloadTask(entry)
-                    entry.status = PreloadTaskStatus.COMPLETED
-                    logger.i("Preload completed: ${entry.videoId}, loaded=${entry.loadedBytes}B")
-                } catch (ce: CancellationException) {
-                    // Normal cancellation (target bytes reached or manual cancel)
-                    if (entry.status != PreloadTaskStatus.CANCELLED) {
-                        entry.status = PreloadTaskStatus.COMPLETED
-                        logger.d("Preload terminated normally: ${entry.videoId}")
-                    }
-                    throw ce // re-throw to cooperate with coroutine cancellation
-                } catch (e: Exception) {
-                    entry.status = PreloadTaskStatus.FAILED
-                    logger.e("Preload failed: ${entry.videoId}", e)
-                } finally {
+                    entry.status = PreloadTaskStatus.DOWNLOADING
+                    entry.job = currentCoroutineContext()[Job]
                     notifyTasksUpdate()
-                    // Remove finished / cancelled tasks
-                    synchronized(tasks) {
-                        tasks.removeAll {
-                            it.status == PreloadTaskStatus.COMPLETED ||
-                                it.status == PreloadTaskStatus.CANCELLED ||
-                                it.status == PreloadTaskStatus.FAILED
+
+                    try {
+                        logger.d("Start preload: ${entry.videoId}, bytes=${entry.preloadBytes}")
+                        downloadTask(entry)
+                        entry.status = PreloadTaskStatus.COMPLETED
+                        logger.i("Preload completed: ${entry.videoId}, loaded=${entry.loadedBytes}B")
+                    } catch (ce: CancellationException) {
+                        // Normal cancellation (target bytes reached or manual cancel)
+                        if (entry.status != PreloadTaskStatus.CANCELLED) {
+                            entry.status = PreloadTaskStatus.COMPLETED
+                            logger.d("Preload terminated normally: ${entry.videoId}")
                         }
+                        throw ce // re-throw to cooperate with coroutine cancellation
+                    } catch (e: Exception) {
+                        entry.status = PreloadTaskStatus.FAILED
+                        logger.e("Preload failed: ${entry.videoId}", e)
+                    } finally {
+                        notifyTasksUpdate()
+                        // Remove finished / cancelled tasks
+                        synchronized(tasks) {
+                            tasks.removeAll {
+                                it.status == PreloadTaskStatus.COMPLETED ||
+                                    it.status == PreloadTaskStatus.CANCELLED ||
+                                    it.status == PreloadTaskStatus.FAILED
+                            }
+                        }
+                        processQueue()
                     }
-                    processQueue()
                 }
-            }
-        }.also { entry.job = it }
+            }.also { entry.job = it }
     }
 
     /**
@@ -624,13 +660,14 @@ class PreloadService(
      * - Partial (Range request): download up to preloadBytes, `putSegment`.
      */
     private suspend fun downloadTask(entry: PreloadTaskEntry) {
-        val response: HttpResponse = httpClient.get(entry.url) {
-            header(HttpHeaders.UserAgent, "okhttp/3.12.11")
-            // Range header for partial downloads
-            if (entry.preloadBytes > 0 && !strategy.cacheFullVideo) {
-                header(HttpHeaders.Range, "bytes=0-${entry.preloadBytes - 1}")
+        val response: HttpResponse =
+            httpClient.get(entry.url) {
+                header(HttpHeaders.UserAgent, "okhttp/3.12.11")
+                // Range header for partial downloads
+                if (entry.preloadBytes > 0 && !strategy.cacheFullVideo) {
+                    header(HttpHeaders.Range, "bytes=0-${entry.preloadBytes - 1}")
+                }
             }
-        }
 
         val bytes = response.readRawBytes()
         if (bytes.isEmpty()) return
@@ -642,11 +679,12 @@ class PreloadService(
             // Write to temp file then putVideo
             val tempDir = File(System.getProperty("java.io.tmpdir"), "yl_preload")
             tempDir.mkdirs()
-            val ext = when {
-                entry.url.contains(".ts") -> ".ts"
-                entry.url.contains(".m3u8") -> ".m3u8"
-                else -> ".mp4"
-            }
+            val ext =
+                when {
+                    entry.url.contains(".ts") -> ".ts"
+                    entry.url.contains(".m3u8") -> ".m3u8"
+                    else -> ".mp4"
+                }
             val tempFile = File(tempDir, "video_${entry.id}$ext")
             try {
                 tempFile.writeBytes(bytes)
@@ -657,7 +695,11 @@ class PreloadService(
                 )
                 logger.i("Full video cached (L3): ${entry.videoId}")
             } finally {
-                try { tempFile.delete(); tempDir.delete() } catch (_: Exception) {}
+                try {
+                    tempFile.delete()
+                    tempDir.delete()
+                } catch (_: Exception) {
+                }
             }
         } else {
             cacheService.putSegment(

@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -42,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.compose.koinInject
+import androidx.compose.foundation.lazy.grid.items as gridItems
 
 private const val GRID_COLUMNS = 3
 private const val BANNER_HEIGHT_DP = 168
@@ -60,7 +60,7 @@ private const val BANNER_HEIGHT_DP = 168
 fun VideoHomeScreen(
     viewModel: VideoHomeViewModel = koinInject(),
     onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> },
-    onNavigateToSearch: () -> Unit = {}
+    onNavigateToSearch: () -> Unit = {},
 ) {
     val sites by viewModel.sites.collectAsState()
     val currentSite by viewModel.currentSite.collectAsState()
@@ -82,11 +82,13 @@ fun VideoHomeScreen(
     // 用户停手不滚动时不会触发，最后几屏经常加载不出来。
     LaunchedEffect(gridState, hasMore) {
         snapshotFlow {
-            val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val last =
+                gridState.layoutInfo.visibleItemsInfo
+                    .lastOrNull()
+                    ?.index ?: -1
             val total = gridState.layoutInfo.totalItemsCount
             total > 0 && last >= total - 4
-        }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .filter { it }
             .collect { viewModel.loadMore() }
     }
@@ -104,22 +106,24 @@ fun VideoHomeScreen(
                         Icon(Icons.Default.Refresh, contentDescription = "刷新")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                )
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
             )
-        }
+        },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         ) {
             SourceRow(
                 sites = enabledSites,
                 currentSite = currentSite,
-                onSelect = { viewModel.selectSite(it) }
+                onSelect = { viewModel.selectSite(it) },
             )
 
             if (categories.isNotEmpty()) {
@@ -127,7 +131,7 @@ fun VideoHomeScreen(
                 CategoryRow(
                     categories = categories,
                     selectedId = selectedCategory?.typeId,
-                    onSelect = { viewModel.selectCategory(it) }
+                    onSelect = { viewModel.selectCategory(it) },
                 )
             }
 
@@ -139,7 +143,7 @@ fun VideoHomeScreen(
                         viewModel.switchToAvailableSource()
                         viewModel.dismissNotice()
                     },
-                    onDismiss = { viewModel.dismissNotice() }
+                    onDismiss = { viewModel.dismissNotice() },
                 )
             }
 
@@ -157,7 +161,7 @@ fun VideoHomeScreen(
                 onLoadMore = { viewModel.loadMore() },
                 onOpenDetail = { item ->
                     onNavigateToDetail(item.vodId, currentSite?.key.orEmpty())
-                }
+                },
             )
         }
     }
@@ -171,15 +175,16 @@ fun VideoHomeScreen(
 private fun SourceRow(
     sites: List<CmsApiSite>,
     currentSite: CmsApiSite?,
-    onSelect: (CmsApiSite) -> Unit
+    onSelect: (CmsApiSite) -> Unit,
 ) {
     if (sites.isEmpty()) return
     LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         items(sites, key = { it.key }) { site ->
             val selected = currentSite?.key == site.key
@@ -190,14 +195,15 @@ private fun SourceRow(
                     Text(
                         text = site.name,
                         fontSize = 13.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     )
                 },
                 shape = RoundedCornerShape(8.dp),
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                colors =
+                    FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
             )
         }
     }
@@ -211,12 +217,12 @@ private fun SourceRow(
 private fun CategoryRow(
     categories: List<com.mediamix.shared.models.VideoCategory>,
     selectedId: Int?,
-    onSelect: (com.mediamix.shared.models.VideoCategory?) -> Unit
+    onSelect: (com.mediamix.shared.models.VideoCategory?) -> Unit,
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         item {
             CategoryChip("全部", selectedId == null) { onSelect(null) }
@@ -228,21 +234,39 @@ private fun CategoryRow(
 }
 
 @Composable
-private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
     AssistChip(
         onClick = onClick,
         label = { Text(label, fontSize = 12.sp) },
         shape = RoundedCornerShape(8.dp),
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
-            else Color.Transparent,
-            labelColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        border = if (selected) null else AssistChipDefaults.assistChipBorder(
-            enabled = true,
-            borderColor = MaterialTheme.colorScheme.outlineVariant
-        )
+        colors =
+            AssistChipDefaults.assistChipColors(
+                containerColor =
+                    if (selected) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        Color.Transparent
+                    },
+                labelColor =
+                    if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+            ),
+        border =
+            if (selected) {
+                null
+            } else {
+                AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                )
+            },
     )
 }
 
@@ -255,32 +279,33 @@ private fun NoticeBanner(
     text: String,
     showSwitchAction: Boolean,
     onSwitchSource: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.tertiaryContainer,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(10.dp)
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(10.dp),
     ) {
         Row(
             modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f),
-                lineHeight = 17.sp
+                lineHeight = 17.sp,
             )
             if (showSwitchAction) {
                 TextButton(onClick = onSwitchSource) {
                     Icon(
                         Icons.Default.SwapHoriz,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.width(4.dp))
                     Text("换个源", fontSize = 12.sp)
@@ -291,7 +316,7 @@ private fun NoticeBanner(
                     Icons.Default.Close,
                     contentDescription = "关闭提示",
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
                 )
             }
         }
@@ -313,7 +338,7 @@ private fun HomeContent(
     onRetry: () -> Unit,
     onSwitchSource: () -> Unit,
     onLoadMore: () -> Unit,
-    onOpenDetail: (VideoItem) -> Unit
+    onOpenDetail: (VideoItem) -> Unit,
 ) {
     when {
         isLoading && videos.isEmpty() -> SkeletonContent()
@@ -334,14 +359,14 @@ private fun HomeContent(
                 contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             ) {
                 // Banner 只在「全部」分类下展示，且至少 3 部影片才够轮播
                 if (videos.size >= 3) {
                     item(span = { GridItemSpan(GRID_COLUMNS) }, key = "banner") {
                         BannerSection(
                             items = videos.take(5),
-                            onOpenDetail = onOpenDetail
+                            onOpenDetail = onOpenDetail,
                         )
                     }
                 }
@@ -353,14 +378,15 @@ private fun HomeContent(
                 if (isLoading && videos.isNotEmpty()) {
                     item(span = { GridItemSpan(GRID_COLUMNS) }, key = "loading-more") {
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
                         ) {
                             CircularProgressIndicator(
                                 strokeWidth = 2.dp,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(22.dp),
                             )
                         }
                     }
@@ -370,10 +396,11 @@ private fun HomeContent(
                             text = "已经到底啦",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -401,19 +428,19 @@ private fun EmptyState() {
                 Icons.Default.Movie,
                 contentDescription = null,
                 modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 "还没有影片数据",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 "下拉刷新或换一个数据源试试",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
     }
@@ -426,7 +453,7 @@ private fun EmptyState() {
 @Composable
 private fun BannerSection(
     items: List<VideoItem>,
-    onOpenDetail: (VideoItem) -> Unit
+    onOpenDetail: (VideoItem) -> Unit,
 ) {
     val pagerState = rememberPagerState(pageCount = { items.size })
 
@@ -443,39 +470,44 @@ private fun BannerSection(
         HorizontalPager(
             state = pagerState,
             pageSpacing = 0.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(BANNER_HEIGHT_DP.dp)
-                .clip(RoundedCornerShape(12.dp))
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(BANNER_HEIGHT_DP.dp)
+                    .clip(RoundedCornerShape(12.dp)),
         ) { page ->
             val item = items[page]
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { onOpenDetail(item) }
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .clickable { onOpenDetail(item) },
             ) {
                 AsyncImage(
                     model = item.vodPic,
                     contentDescription = item.vodName,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop,
                 )
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0.35f to Color.Transparent,
-                                1f to Color.Black.copy(alpha = 0.78f)
-                            )
-                        )
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0.35f to Color.Transparent,
+                                    1f to Color.Black.copy(alpha = 0.78f),
+                                ),
+                            ),
                 )
                 Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
                     Text(
                         text = item.vodName,
@@ -483,13 +515,14 @@ private fun BannerSection(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    val caption = listOfNotNull(
-                        item.typeName?.takeIf { it.isNotEmpty() },
-                        item.vodYear?.takeIf { it.isNotEmpty() },
-                        item.vodRemarks?.takeIf { it.isNotEmpty() }
-                    ).joinToString(" · ")
+                    val caption =
+                        listOfNotNull(
+                            item.typeName?.takeIf { it.isNotEmpty() },
+                            item.vodYear?.takeIf { it.isNotEmpty() },
+                            item.vodRemarks?.takeIf { it.isNotEmpty() },
+                        ).joinToString(" · ")
                     if (caption.isNotEmpty()) {
                         Spacer(Modifier.height(3.dp))
                         Text(
@@ -497,7 +530,7 @@ private fun BannerSection(
                             color = Color.White.copy(alpha = 0.82f),
                             fontSize = 12.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -508,19 +541,23 @@ private fun BannerSection(
             Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
             ) {
                 items.indices.forEach { index ->
                     val active = index == pagerState.currentPage
                     Box(
-                        modifier = Modifier
-                            .padding(horizontal = 3.dp)
-                            .size(width = if (active) 14.dp else 6.dp, height = 6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                if (active) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
-                            )
+                        modifier =
+                            Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(width = if (active) 14.dp else 6.dp, height = 6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    if (active) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
+                                    },
+                                ),
                     )
                 }
             }
@@ -535,33 +572,35 @@ private fun BannerSection(
 @Composable
 private fun VideoGridCard(
     item: VideoItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.68f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.68f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
                 model = item.vodPic,
                 contentDescription = item.vodName,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
             )
             val remarks = item.vodRemarks
             if (!remarks.isNullOrEmpty()) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.62f),
                     shape = RoundedCornerShape(bottomStart = 8.dp, topEnd = 8.dp),
-                    modifier = Modifier.align(Alignment.TopEnd)
+                    modifier = Modifier.align(Alignment.TopEnd),
                 ) {
                     Text(
                         text = remarks,
@@ -569,7 +608,7 @@ private fun VideoGridCard(
                         fontSize = 10.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                     )
                 }
             }
@@ -582,7 +621,7 @@ private fun VideoGridCard(
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
@@ -595,16 +634,17 @@ private fun VideoGridCard(
 private fun SkeletonContent() {
     Column(modifier = Modifier.fillMaxSize()) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 10.dp)
-                .height(BANNER_HEIGHT_DP.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 10.dp)
+                    .height(BANNER_HEIGHT_DP.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
         )
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(2) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

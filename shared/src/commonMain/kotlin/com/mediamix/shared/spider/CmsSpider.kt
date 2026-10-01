@@ -1,7 +1,7 @@
 package com.mediamix.shared.spider
 
-import com.mediamix.shared.models.*
 import co.touchlab.kermit.Logger
+import com.mediamix.shared.models.*
 
 /**
  * CMS 采集站蜘蛛适配器
@@ -19,7 +19,6 @@ class CmsSpider(
     private val site: TvBoxSite,
     private val apiService: VideoApiService = VideoApiService.shared,
 ) : SpiderAdapter {
-
     private val logger = Logger.withTag("CmsSpider")
 
     override val key: String get() = site.key
@@ -31,15 +30,16 @@ class CmsSpider(
         // CMS 蜘蛛无需额外初始化：接口地址在构造时已由 site.api 提供
     }
 
-    override suspend fun homeContent(page: Int): SpiderHomeResult {
-        return try {
+    override suspend fun homeContent(page: Int): SpiderHomeResult =
+        try {
             val categories = apiService.fetchCategories(site.api)
-            val spiderCategories = categories.map { c ->
-                SpiderCategory(
-                    typeId = c.typeId.toString(),
-                    typeName = c.typeName,
-                )
-            }
+            val spiderCategories =
+                categories.map { c ->
+                    SpiderCategory(
+                        typeId = c.typeId.toString(),
+                        typeName = c.typeName,
+                    )
+                }
             val videoList = apiService.fetchVideoList(site.api, page = page)
             SpiderHomeResult(
                 categories = spiderCategories,
@@ -50,19 +50,19 @@ class CmsSpider(
             logger.e { "homeContent failed for ${site.key}: ${e.message}" }
             SpiderHomeResult()
         }
-    }
 
     override suspend fun categoryContent(
         tid: String,
         page: Int,
         filter: Map<String, String>?,
-    ): SpiderListResult {
-        return try {
-            val response = apiService.fetchVideoList(
-                apiUrl = site.api,
-                page = page,
-                typeId = tid.toIntOrNull(),
-            )
+    ): SpiderListResult =
+        try {
+            val response =
+                apiService.fetchVideoList(
+                    apiUrl = site.api,
+                    page = page,
+                    typeId = tid.toIntOrNull(),
+                )
             SpiderListResult(
                 list = response.list,
                 page = response.page,
@@ -73,10 +73,9 @@ class CmsSpider(
             logger.e { "categoryContent($tid) failed for ${site.key}: ${e.message}" }
             SpiderListResult()
         }
-    }
 
-    override suspend fun detailContent(id: String): SpiderDetailResult {
-        return try {
+    override suspend fun detailContent(id: String): SpiderDetailResult =
+        try {
             SpiderDetailResult(
                 detail = apiService.fetchVideoDetail(site.api, id, sourceKey = key),
             )
@@ -84,10 +83,12 @@ class CmsSpider(
             logger.e { "detailContent($id) failed for ${site.key}: ${e.message}" }
             SpiderDetailResult()
         }
-    }
 
-    override suspend fun searchContent(keyword: String, page: Int): SpiderListResult {
-        return try {
+    override suspend fun searchContent(
+        keyword: String,
+        page: Int,
+    ): SpiderListResult =
+        try {
             val response = apiService.searchVideos(site.api, keyword)
             SpiderListResult(
                 list = response.list,
@@ -99,15 +100,15 @@ class CmsSpider(
             logger.e { "searchContent($keyword) failed for ${site.key}: ${e.message}" }
             SpiderListResult()
         }
-    }
 
     /**
      * CMS 站点在详情接口里就返回了最终播放地址，`id` 即该地址；
      * `parse = "0"` 表示直连、无需二次解析。
      */
-    override suspend fun playerContent(flag: String, id: String): SpiderPlayResult {
-        return SpiderPlayResult(url = id, parse = "0")
-    }
+    override suspend fun playerContent(
+        flag: String,
+        id: String,
+    ): SpiderPlayResult = SpiderPlayResult(url = id, parse = "0")
 
     override fun dispose() {
         // 注意：VideoApiService.clearAllCache() 是挂起函数，而 SpiderAdapter.dispose()

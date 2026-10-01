@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,27 +59,29 @@ fun TopControlsBar(
     onSubtitleClick: () -> Unit,
     onRotateClick: () -> Unit,
     onMoreClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "返回",
                 tint = Color.White,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(22.dp),
             )
         }
 
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 6.dp)
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 6.dp),
         ) {
             Text(
                 text = title.ifEmpty { "正在播放" },
@@ -88,14 +89,14 @@ fun TopControlsBar(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             if (!subtitle.isNullOrEmpty()) {
                 Text(
                     text = subtitle,
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 11.sp,
-                    maxLines = 1
+                    maxLines = 1,
                 )
             }
         }
@@ -106,7 +107,7 @@ fun TopControlsBar(
                     imageVector = Icons.Default.PlaylistPlay,
                     contentDescription = "选集",
                     tint = Color.White,
-                    modifier = Modifier.size(21.dp)
+                    modifier = Modifier.size(21.dp),
                 )
             }
         }
@@ -114,23 +115,27 @@ fun TopControlsBar(
         TextButton(
             onClick = onSpeedClick,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(40.dp)
+            modifier = Modifier.height(40.dp),
         ) {
             Text(
                 text = "${trimSpeed(speed)}x",
                 color = Color.White,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
             )
         }
 
         IconButton(onClick = onSubtitleClick, modifier = Modifier.size(40.dp)) {
             Icon(
-                imageVector = if (hasSubtitles) Icons.Default.ClosedCaption
-                else Icons.Default.ClosedCaptionOff,
+                imageVector =
+                    if (hasSubtitles) {
+                        Icons.Default.ClosedCaption
+                    } else {
+                        Icons.Default.ClosedCaptionOff
+                    },
                 contentDescription = "字幕",
                 tint = Color.White.copy(alpha = if (hasSubtitles) 1f else 0.45f),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
             )
         }
 
@@ -141,7 +146,7 @@ fun TopControlsBar(
                 imageVector = Icons.Default.ScreenRotation,
                 contentDescription = if (isLandscape) "竖屏播放" else "横屏播放",
                 tint = Color.White,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(21.dp),
             )
         }
 
@@ -150,14 +155,13 @@ fun TopControlsBar(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "更多",
                 tint = Color.White,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(21.dp),
             )
         }
     }
 }
 
-private fun trimSpeed(speed: Float): String =
-    if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()
+private fun trimSpeed(speed: Float): String = if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()
 
 // ============================================================================
 // 底部控制栏
@@ -186,25 +190,27 @@ fun BottomControlsBar(
     onPlayPause: () -> Unit,
     onForward: () -> Unit,
     onNextEpisode: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onPlayModeClick, modifier = Modifier.size(44.dp)) {
             Icon(
-                imageVector = when (playMode) {
-                    PlayMode.SEQUENTIAL -> Icons.Default.PlaylistPlay
-                    PlayMode.LOOP_SINGLE -> Icons.Default.RepeatOne
-                    PlayMode.LOOP_ALL -> Icons.Default.Repeat
-                },
+                imageVector =
+                    when (playMode) {
+                        PlayMode.SEQUENTIAL -> Icons.Default.PlaylistPlay
+                        PlayMode.LOOP_SINGLE -> Icons.Default.RepeatOne
+                        PlayMode.LOOP_ALL -> Icons.Default.Repeat
+                    },
                 contentDescription = "播放模式",
                 tint = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(22.dp),
             )
         }
 
@@ -214,7 +220,7 @@ fun BottomControlsBar(
                     imageVector = Icons.Default.SkipPrevious,
                     contentDescription = "上一集",
                     tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp),
                 )
             }
         }
@@ -224,23 +230,24 @@ fun BottomControlsBar(
             contentDescription = "后退 $skipInterval 秒",
             seconds = skipInterval,
             onClick = onRewind,
-            onLongClick = onRewind
+            onLongClick = onRewind,
         )
 
         // 主按钮：白色实心圆底，视觉重心明确
         Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color.White),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color.White),
+            contentAlignment = Alignment.Center,
         ) {
             IconButton(onClick = onPlayPause, modifier = Modifier.size(56.dp)) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
                     tint = Color.Black,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(30.dp),
                 )
             }
         }
@@ -250,7 +257,7 @@ fun BottomControlsBar(
             contentDescription = "前进 $skipInterval 秒",
             seconds = skipInterval,
             onClick = onForward,
-            onLongClick = onForward
+            onLongClick = onForward,
         )
 
         if (hasNextEpisode) {
@@ -259,7 +266,7 @@ fun BottomControlsBar(
                     imageVector = Icons.Default.SkipNext,
                     contentDescription = "下一集",
                     tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp),
                 )
             }
         }
@@ -273,20 +280,21 @@ private fun SkipButton(
     contentDescription: String,
     seconds: Int,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = Color.White,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(26.dp),
         )
     }
 }
@@ -307,7 +315,7 @@ fun PlayerProgressBar(
     durationMs: Long,
     bufferedPercentage: Int,
     onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val maxMs = durationMs.coerceAtLeast(1L)
     var dragging by remember { mutableStateOf(false) }
@@ -327,21 +335,24 @@ fun PlayerProgressBar(
                 onSeek(dragValue.toLong())
             },
             valueRange = 0f..maxMs.toFloat(),
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.White.copy(alpha = 0.24f)
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+            colors =
+                SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color.White,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.24f),
+                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // 只留「当前 / 总时长」两端对齐。缓冲百分比原先挤在正中间，
             // 既打断视线、又和 BufferingIndicator 的信息重复。
@@ -349,12 +360,12 @@ fun PlayerProgressBar(
                 text = formatDuration(sliderValue.toLong()),
                 color = Color.White,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
             )
             Text(
                 text = formatDuration(durationMs),
                 color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp
+                fontSize = 12.sp,
             )
         }
     }

@@ -5,13 +5,13 @@ import com.mediamix.shared.network.NetworkConditionLevel
 import com.mediamix.shared.network.NetworkStatusProvider
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlin.test.Test
 import kotlin.test.BeforeTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
-import kotlin.test.assertNull
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 // ============================================================================
 // Fake NetworkStatusProvider for testing
@@ -35,7 +35,6 @@ private class FakeNetworkStatusProvider(
 // ============================================================================
 
 class PlaybackErrorHandlerTest {
-
     private lateinit var handler: PlaybackErrorHandlerImpl
     private lateinit var networkProvider: FakeNetworkStatusProvider
 
@@ -100,49 +99,53 @@ class PlaybackErrorHandlerTest {
 
     @Test
     fun handleError_stuckHasHighestPriority() {
-        val result = handler.handleError(
-            error = "player stuck",
-            hardwareDecodingEnabled = true,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 10000L,
-        )
+        val result =
+            handler.handleError(
+                error = "player stuck",
+                hardwareDecodingEnabled = true,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 10000L,
+            )
         assertEquals(ErrorAction.RECOVER_FROM_STUCK, result.action)
     }
 
     @Test
     fun handleError_blackScreen() {
-        val result = handler.handleError(
-            error = "black screen detected",
-            hardwareDecodingEnabled = true,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 10000L,
-        )
+        val result =
+            handler.handleError(
+                error = "black screen detected",
+                hardwareDecodingEnabled = true,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 10000L,
+            )
         assertEquals(ErrorAction.RECOVER_FROM_BLACK_SCREEN, result.action)
     }
 
     @Test
     fun handleError_silence() {
-        val result = handler.handleError(
-            error = "no audio output",
-            hardwareDecodingEnabled = true,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 10000L,
-        )
+        val result =
+            handler.handleError(
+                error = "no audio output",
+                hardwareDecodingEnabled = true,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 10000L,
+            )
         assertEquals(ErrorAction.RECOVER_FROM_SILENCE, result.action)
     }
 
     @Test
     fun handleError_codecWithHwDecode_downgradesToSoftware() {
-        val result = handler.handleError(
-            error = "codec error",
-            hardwareDecodingEnabled = true,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "codec error",
+                hardwareDecodingEnabled = true,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.DOWNGRADE_TO_SOFTWARE_DECODE, result.action)
     }
 
@@ -150,87 +153,94 @@ class PlaybackErrorHandlerTest {
     fun handleError_codecWithoutHwDecode_fallsThrough() {
         // Codec error but hardware decoding already off -> not downgrade
         // Falls through to retry / quality downgrade
-        val result = handler.handleError(
-            error = "codec error",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "codec error",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         // Should retry since retryCount < maxAutoRetry
         assertEquals(ErrorAction.RETRY_SAME_URL, result.action)
     }
 
     @Test
     fun handleError_sourceError_switchesQuality() {
-        val result = handler.handleError(
-            error = "HTTP 404 not found",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "HTTP 404 not found",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.SWITCH_TO_NEXT_QUALITY, result.action)
         assertEquals(1, result.nextQualityIndex)
     }
 
     @Test
     fun handleError_sourceError_noQualityOptions_showsDialog() {
-        val result = handler.handleError(
-            error = "HTTP 403 forbidden",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = false,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "HTTP 403 forbidden",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = false,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.SHOW_ERROR_DIALOG, result.action)
     }
 
     @Test
     fun handleError_networkError_waitsForRecovery() {
-        val result = handler.handleError(
-            error = "network unreachable",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = true,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "network unreachable",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = true,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.WAIT_FOR_NETWORK_RECOVERY, result.action)
         assertTrue(handler.isWaitingForNetwork)
     }
 
     @Test
     fun handleError_timeout_retriesOnce() {
-        val result1 = handler.handleError(
-            error = "operation timed out",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = false,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result1 =
+            handler.handleError(
+                error = "operation timed out",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = false,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.RETRY_SAME_URL, result1.action)
         assertEquals(1, handler.retryCount)
 
         // Second retry should fall through to error dialog
-        val result2 = handler.handleError(
-            error = "operation timed out",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = false,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result2 =
+            handler.handleError(
+                error = "operation timed out",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = false,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.SHOW_ERROR_DIALOG, result2.action)
     }
 
     @Test
     fun handleError_unknownError_retriesOnce() {
-        val result = handler.handleError(
-            error = "something weird",
-            hardwareDecodingEnabled = false,
-            hasQualityOptions = false,
-            currentQualityIndex = 0,
-            lastPlaybackPositionMs = 5000L,
-        )
+        val result =
+            handler.handleError(
+                error = "something weird",
+                hardwareDecodingEnabled = false,
+                hasQualityOptions = false,
+                currentQualityIndex = 0,
+                lastPlaybackPositionMs = 5000L,
+            )
         assertEquals(ErrorAction.RETRY_SAME_URL, result.action)
         assertEquals(1, handler.retryCount)
     }
@@ -307,7 +317,6 @@ class PlaybackErrorHandlerTest {
 // ============================================================================
 
 class MetricsEngineTest {
-
     private lateinit var engine: MetricsEngineImpl
 
     @BeforeTest
@@ -428,7 +437,6 @@ class MetricsEngineTest {
 // ============================================================================
 
 class CacheEngineTest {
-
     @Test
     fun preloadNextEpisode_tracksVideoId() {
         // Basic smoke test: just verify no exceptions
@@ -484,21 +492,28 @@ class CacheEngineTest {
         return CacheEngineImpl(
             cacheService = cacheService,
             proxyServer = createStubProxyServer(),
-            preloadService = com.mediamix.shared.services.PreloadService(cacheService = cacheService),
+            preloadService =
+                com.mediamix.shared.services
+                    .PreloadService(cacheService = cacheService),
         )
     }
 
     private fun createStubCacheService(): com.mediamix.shared.cache.VideoCacheService {
         // Create a minimal VideoCacheService with in-memory dependencies
-        val memoryCache = com.mediamix.shared.cache.MemoryCache()
-        val diskCache = com.mediamix.shared.cache.DiskCache(
-            cacheDir = System.getProperty("java.io.tmpdir") + "/test_cache_${System.nanoTime()}",
-        )
-        return com.mediamix.shared.cache.VideoCacheService(memoryCache, diskCache)
+        val memoryCache =
+            com.mediamix.shared.cache
+                .MemoryCache()
+        val diskCache =
+            com.mediamix.shared.cache.DiskCache(
+                cacheDir = System.getProperty("java.io.tmpdir") + "/test_cache_${System.nanoTime()}",
+            )
+        return com.mediamix.shared.cache
+            .VideoCacheService(memoryCache, diskCache)
     }
 
     private fun createStubProxyServer(): com.mediamix.shared.cache.LocalProxyServer {
         val cacheService = createStubCacheService()
-        return com.mediamix.shared.cache.createLocalProxyServer(cacheService)
+        return com.mediamix.shared.cache
+            .createLocalProxyServer(cacheService)
     }
 }

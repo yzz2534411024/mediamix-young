@@ -2,6 +2,7 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.database.FavoriteDao
 import com.mediamix.shared.database.FavoriteItemEntity
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import co.touchlab.kermit.Logger
 
 /**
  * 收藏数据模型
@@ -38,7 +38,6 @@ data class FavoriteItem(
 class FavoriteViewModel(
     private val favoriteDao: FavoriteDao,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("FavoriteViewModel")
 
     private val _favorites = MutableStateFlow<List<FavoriteItem>>(emptyList())
@@ -53,15 +52,14 @@ class FavoriteViewModel(
 
     /** 监听数据库变化，实时更新收藏列表 */
     private fun observeFavorites() {
-        favoriteDao.observeAll()
+        favoriteDao
+            .observeAll()
             .flowOn(Dispatchers.Default)
             .onEach { entities ->
                 _favorites.value = entities.map { it.toUiModel() }
-            }
-            .catch { e ->
+            }.catch { e ->
                 logger.e { "Observe favorites failed: ${e.message}" }
-            }
-            .launchIn(viewModelScope)
+            }.launchIn(viewModelScope)
     }
 
     fun loadFavorites() {
@@ -120,18 +118,17 @@ class FavoriteViewModel(
         }
     }
 
-    fun isFavorite(vodId: String): Boolean {
-        return try {
+    fun isFavorite(vodId: String): Boolean =
+        try {
             favoriteDao.isFavorite(vodId)
         } catch (e: Exception) {
             logger.e { "isFavorite check failed: ${e.message}" }
             false
         }
-    }
 }
 
-private fun FavoriteItemEntity.toUiModel(): FavoriteItem {
-    return FavoriteItem(
+private fun FavoriteItemEntity.toUiModel(): FavoriteItem =
+    FavoriteItem(
         id = vodId,
         vodId = vodId,
         vodName = vodName,
@@ -141,4 +138,3 @@ private fun FavoriteItemEntity.toUiModel(): FavoriteItem {
         lastEpisodeCount = lastEpisodeCount.toInt(),
         addTime = addTime,
     )
-}

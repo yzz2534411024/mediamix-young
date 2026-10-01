@@ -2,10 +2,10 @@ package com.mediamix.shared.player
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.test.assertFalse
 
 /**
  * 播放器模型单元测试
@@ -18,7 +18,6 @@ import kotlin.test.assertFalse
  * - 其他播放相关枚举
  */
 class PlayerModelsTest {
-
     // ==================== PlayerState 枚举测试 ====================
 
     @Test
@@ -72,14 +71,15 @@ class PlayerModelsTest {
     @Test
     fun trackInfo_fullConstruction() {
         // 验证完整构造
-        val track = TrackInfo(
-            id = "1",
-            label = "英语音轨",
-            language = "eng",
-            mimeType = "audio/mp4a-latm",
-            bitrate = 128000,
-            isSelected = true
-        )
+        val track =
+            TrackInfo(
+                id = "1",
+                label = "英语音轨",
+                language = "eng",
+                mimeType = "audio/mp4a-latm",
+                bitrate = 128000,
+                isSelected = true,
+            )
         assertEquals("1", track.id)
         assertEquals("英语音轨", track.label)
         assertEquals("eng", track.language)
@@ -115,11 +115,12 @@ class PlayerModelsTest {
     @Test
     fun trackInfo_listOperations() {
         // 验证轨道列表操作（模拟 getVideoTracks 等返回结果）
-        val tracks = listOf(
-            TrackInfo(id = "0", label = "高清", bitrate = 2000000, isSelected = true),
-            TrackInfo(id = "1", label = "标清", bitrate = 800000, isSelected = false),
-            TrackInfo(id = "2", label = "流畅", bitrate = 300000, isSelected = false)
-        )
+        val tracks =
+            listOf(
+                TrackInfo(id = "0", label = "高清", bitrate = 2000000, isSelected = true),
+                TrackInfo(id = "1", label = "标清", bitrate = 800000, isSelected = false),
+                TrackInfo(id = "2", label = "流畅", bitrate = 300000, isSelected = false),
+            )
 
         assertEquals(3, tracks.size)
         assertEquals(1, tracks.count { it.isSelected })
@@ -137,14 +138,25 @@ class PlayerModelsTest {
     fun playerEngineListener_stateChangeCallback() {
         // 验证监听器状态回调
         var receivedState: PlayerState? = null
-        val listener = object : PlayerEngineListener {
-            override fun onStateChanged(state: PlayerState) { receivedState = state }
-            override fun onPositionChanged(positionMs: Long) {}
-            override fun onBufferChanged(bufferedPercent: Int) {}
-            override fun onError(error: String, code: Int?) {}
-            override fun onFirstFrameRendered() {}
-            override fun onPlaybackEnded() {}
-        }
+        val listener =
+            object : PlayerEngineListener {
+                override fun onStateChanged(state: PlayerState) {
+                    receivedState = state
+                }
+
+                override fun onPositionChanged(positionMs: Long) {}
+
+                override fun onBufferChanged(bufferedPercent: Int) {}
+
+                override fun onError(
+                    error: String,
+                    code: Int?,
+                ) {}
+
+                override fun onFirstFrameRendered() {}
+
+                override fun onPlaybackEnded() {}
+            }
 
         listener.onStateChanged(PlayerState.BUFFERING)
         assertEquals(PlayerState.BUFFERING, receivedState)
@@ -158,17 +170,26 @@ class PlayerModelsTest {
         // 验证错误回调参数传递
         var errorMsg: String? = null
         var errorCode: Int? = null
-        val listener = object : PlayerEngineListener {
-            override fun onStateChanged(state: PlayerState) {}
-            override fun onPositionChanged(positionMs: Long) {}
-            override fun onBufferChanged(bufferedPercent: Int) {}
-            override fun onError(error: String, code: Int?) {
-                errorMsg = error
-                errorCode = code
+        val listener =
+            object : PlayerEngineListener {
+                override fun onStateChanged(state: PlayerState) {}
+
+                override fun onPositionChanged(positionMs: Long) {}
+
+                override fun onBufferChanged(bufferedPercent: Int) {}
+
+                override fun onError(
+                    error: String,
+                    code: Int?,
+                ) {
+                    errorMsg = error
+                    errorCode = code
+                }
+
+                override fun onFirstFrameRendered() {}
+
+                override fun onPlaybackEnded() {}
             }
-            override fun onFirstFrameRendered() {}
-            override fun onPlaybackEnded() {}
-        }
 
         listener.onError("网络连接失败", 404)
         assertEquals("网络连接失败", errorMsg)
@@ -180,14 +201,27 @@ class PlayerModelsTest {
         // 验证首帧渲染和播放结束回调
         var firstFrameCalled = false
         var playbackEndedCalled = false
-        val listener = object : PlayerEngineListener {
-            override fun onStateChanged(state: PlayerState) {}
-            override fun onPositionChanged(positionMs: Long) {}
-            override fun onBufferChanged(bufferedPercent: Int) {}
-            override fun onError(error: String, code: Int?) {}
-            override fun onFirstFrameRendered() { firstFrameCalled = true }
-            override fun onPlaybackEnded() { playbackEndedCalled = true }
-        }
+        val listener =
+            object : PlayerEngineListener {
+                override fun onStateChanged(state: PlayerState) {}
+
+                override fun onPositionChanged(positionMs: Long) {}
+
+                override fun onBufferChanged(bufferedPercent: Int) {}
+
+                override fun onError(
+                    error: String,
+                    code: Int?,
+                ) {}
+
+                override fun onFirstFrameRendered() {
+                    firstFrameCalled = true
+                }
+
+                override fun onPlaybackEnded() {
+                    playbackEndedCalled = true
+                }
+            }
 
         listener.onFirstFrameRendered()
         assertTrue(firstFrameCalled)
@@ -200,14 +234,25 @@ class PlayerModelsTest {
     fun playerEngineListener_fullPlaybackFlow() {
         // 模拟完整播放流程的状态变化序列
         val stateHistory = mutableListOf<PlayerState>()
-        val listener = object : PlayerEngineListener {
-            override fun onStateChanged(state: PlayerState) { stateHistory.add(state) }
-            override fun onPositionChanged(positionMs: Long) {}
-            override fun onBufferChanged(bufferedPercent: Int) {}
-            override fun onError(error: String, code: Int?) {}
-            override fun onFirstFrameRendered() {}
-            override fun onPlaybackEnded() {}
-        }
+        val listener =
+            object : PlayerEngineListener {
+                override fun onStateChanged(state: PlayerState) {
+                    stateHistory.add(state)
+                }
+
+                override fun onPositionChanged(positionMs: Long) {}
+
+                override fun onBufferChanged(bufferedPercent: Int) {}
+
+                override fun onError(
+                    error: String,
+                    code: Int?,
+                ) {}
+
+                override fun onFirstFrameRendered() {}
+
+                override fun onPlaybackEnded() {}
+            }
 
         // 模拟: IDLE → BUFFERING → READY → PLAYING → PAUSED → PLAYING → ENDED
         listener.onStateChanged(PlayerState.BUFFERING)

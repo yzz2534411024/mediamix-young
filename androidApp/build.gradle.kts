@@ -9,20 +9,21 @@ plugins {
 }
 
 // 读取签名配置：优先环境变量 (CI)，其次 local.properties (本地开发)
-val keystoreProps = Properties().apply {
-    val envStore = System.getenv("KEYSTORE_PATH")
-    if (envStore != null) {
-        put("storeFile", envStore)
-        put("storePassword", System.getenv("KEYSTORE_PASSWORD") ?: "")
-        put("keyAlias", System.getenv("KEY_ALIAS") ?: "")
-        put("keyPassword", System.getenv("KEY_PASSWORD") ?: "")
-    } else {
-        val localPropsFile = rootProject.file("local.properties")
-        if (localPropsFile.exists()) {
-            load(FileInputStream(localPropsFile))
+val keystoreProps =
+    Properties().apply {
+        val envStore = System.getenv("KEYSTORE_PATH")
+        if (envStore != null) {
+            put("storeFile", envStore)
+            put("storePassword", System.getenv("KEYSTORE_PASSWORD") ?: "")
+            put("keyAlias", System.getenv("KEY_ALIAS") ?: "")
+            put("keyPassword", System.getenv("KEY_PASSWORD") ?: "")
+        } else {
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                load(FileInputStream(localPropsFile))
+            }
         }
     }
-}
 
 android {
     namespace = "com.mediamix.android"
@@ -59,7 +60,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             val storeFile = keystoreProps.getProperty("storeFile")
             if (!storeFile.isNullOrEmpty()) {

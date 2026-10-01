@@ -30,15 +30,17 @@ actual fun VideoSurface(
     AndroidView(
         factory = { context ->
             TextureView(context).apply {
-                addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-                    override fun onViewAttachedToWindow(v: View) {
-                        onSurfaceCreated(this@apply)
-                    }
+                addOnAttachStateChangeListener(
+                    object : View.OnAttachStateChangeListener {
+                        override fun onViewAttachedToWindow(v: View) {
+                            onSurfaceCreated(this@apply)
+                        }
 
-                    override fun onViewDetachedFromWindow(v: View) {
-                        onSurfaceDestroyed()
-                    }
-                })
+                        override fun onViewDetachedFromWindow(v: View) {
+                            onSurfaceDestroyed()
+                        }
+                    },
+                )
             }
         },
         modifier = modifier,

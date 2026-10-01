@@ -1,13 +1,13 @@
 package com.mediamix.shared.spider
 
 import co.touchlab.kermit.Logger
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.net.URLClassLoader
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
 
 /**
  * Desktop actual — 使用 URLClassLoader 加载 TVBox 蜘蛛 JAR
@@ -22,7 +22,6 @@ import kotlinx.serialization.json.jsonObject
  * - player(String, String)
  */
 actual class JavaBridgeManager private constructor() {
-
     private val logger = Logger.withTag("JavaBridgeManager")
     private var classLoader: URLClassLoader? = null
     private val loadedSpiders = mutableMapOf<String, Any>()
@@ -39,10 +38,11 @@ actual class JavaBridgeManager private constructor() {
             }
 
             // 创建 URLClassLoader，父加载器为当前类加载器
-            classLoader = URLClassLoader(
-                arrayOf(jarFile.toURI().toURL()),
-                this::class.java.classLoader,
-            )
+            classLoader =
+                URLClassLoader(
+                    arrayOf(jarFile.toURI().toURL()),
+                    this::class.java.classLoader,
+                )
             logger.i { "蜘蛛 JAR 加载成功: $jarPath" }
             true
         } catch (e: Exception) {
@@ -64,11 +64,12 @@ actual class JavaBridgeManager private constructor() {
             val clazz = loader.loadClass(className)
 
             // 获取或创建蜘蛛实例（缓存）
-            val spiderInstance = loadedSpiders.getOrPut(spiderKey) {
-                clazz.getDeclaredConstructor().newInstance().also {
-                    logger.i { "蜘蛛实例已创建: $spiderKey ($className)" }
+            val spiderInstance =
+                loadedSpiders.getOrPut(spiderKey) {
+                    clazz.getDeclaredConstructor().newInstance().also {
+                        logger.i { "蜘蛛实例已创建: $spiderKey ($className)" }
+                    }
                 }
-            }
 
             // 查找方法
             val methodObj = findMethod(clazz, method)
@@ -130,56 +131,66 @@ actual class JavaBridgeManager private constructor() {
      * - searchContent(String keyword, int page) → String
      * - playerContent(String flag, String id) → String
      */
-    private fun findMethod(clazz: Class<*>, methodName: String): Method {
-        return when (methodName) {
+    private fun findMethod(
+        clazz: Class<*>,
+        methodName: String,
+    ): Method =
+        when (methodName) {
             "init" -> clazz.getMethod("init", Map::class.java)
             "home", "homeContent" -> clazz.getMethod("homeContent", Int::class.java)
-            "category", "categoryContent" -> clazz.getMethod(
-                "categoryContent",
-                String::class.java,
-                Int::class.java,
-                Map::class.java,
-            )
+            "category", "categoryContent" ->
+                clazz.getMethod(
+                    "categoryContent",
+                    String::class.java,
+                    Int::class.java,
+                    Map::class.java,
+                )
             "detail", "detailContent" -> clazz.getMethod("detailContent", String::class.java)
-            "search", "searchContent" -> clazz.getMethod(
-                "searchContent",
-                String::class.java,
-                Int::class.java,
-            )
-            "player", "playerContent" -> clazz.getMethod(
-                "playerContent",
-                String::class.java,
-                String::class.java,
-            )
+            "search", "searchContent" ->
+                clazz.getMethod(
+                    "searchContent",
+                    String::class.java,
+                    Int::class.java,
+                )
+            "player", "playerContent" ->
+                clazz.getMethod(
+                    "playerContent",
+                    String::class.java,
+                    String::class.java,
+                )
             else -> throw NoSuchMethodException("未知蜘蛛方法: $methodName")
         }
-    }
 
     /**
      * 将 Kotlin Map 参数转换为 Java 方法所需的参数数组
      */
     @Suppress("UNCHECKED_CAST")
-    private fun prepareArgs(methodName: String, args: Map<String, Any?>): Array<Any?> {
-        return when (methodName) {
+    private fun prepareArgs(
+        methodName: String,
+        args: Map<String, Any?>,
+    ): Array<Any?> =
+        when (methodName) {
             "init" -> arrayOf(args)
             "home", "homeContent" -> arrayOf(args["page"] as? Int ?: 1)
-            "category", "categoryContent" -> arrayOf(
-                args["tid"] as? String ?: "",
-                args["page"] as? Int ?: 1,
-                args["filter"] as? Map<String, String> ?: emptyMap<String, String>(),
-            )
+            "category", "categoryContent" ->
+                arrayOf(
+                    args["tid"] as? String ?: "",
+                    args["page"] as? Int ?: 1,
+                    args["filter"] as? Map<String, String> ?: emptyMap<String, String>(),
+                )
             "detail", "detailContent" -> arrayOf(args["id"] as? String ?: "")
-            "search", "searchContent" -> arrayOf(
-                args["keyword"] as? String ?: "",
-                args["page"] as? Int ?: 1,
-            )
-            "player", "playerContent" -> arrayOf(
-                args["flag"] as? String ?: "",
-                args["id"] as? String ?: "",
-            )
+            "search", "searchContent" ->
+                arrayOf(
+                    args["keyword"] as? String ?: "",
+                    args["page"] as? Int ?: 1,
+                )
+            "player", "playerContent" ->
+                arrayOf(
+                    args["flag"] as? String ?: "",
+                    args["id"] as? String ?: "",
+                )
             else -> emptyArray()
         }
-    }
 
     /**
      * 将 Java 方法返回值转换为 Map<String, Any?>
@@ -187,8 +198,8 @@ actual class JavaBridgeManager private constructor() {
      * TVBox 蜘蛛方法通常返回 JSON 字符串，需要解析为 Map。
      */
     @Suppress("UNCHECKED_CAST")
-    private fun convertToMap(result: Any?): Map<String, Any?> {
-        return when (result) {
+    private fun convertToMap(result: Any?): Map<String, Any?> =
+        when (result) {
             is Map<*, *> -> result as Map<String, Any?>
             is String -> {
                 // 尝试解析 JSON 字符串
@@ -218,15 +229,15 @@ actual class JavaBridgeManager private constructor() {
             null -> emptyMap()
             else -> mapOf("data" to result.toString())
         }
-    }
 
     actual companion object {
         @Volatile
         private var _instance: JavaBridgeManager? = null
 
         actual val instance: JavaBridgeManager
-            get() = _instance ?: synchronized(this) {
-                _instance ?: JavaBridgeManager().also { _instance = it }
-            }
+            get() =
+                _instance ?: synchronized(this) {
+                    _instance ?: JavaBridgeManager().also { _instance = it }
+                }
     }
 }

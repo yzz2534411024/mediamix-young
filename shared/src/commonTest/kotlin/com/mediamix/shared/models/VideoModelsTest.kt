@@ -6,7 +6,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlin.test.*
 
 class VideoModelsTest {
-
     private val json = Json { ignoreUnknownKeys = true }
 
     // CmsApiSite tests
@@ -139,13 +138,14 @@ class VideoModelsTest {
 
     @Test
     fun test_videoItem_fromJson() {
-        val map = mapOf(
-            "vod_id" to "42",
-            "vod_name" to "MyVideo",
-            "vod_pic" to "http://img.com/pic.jpg",
-            "vod_year" to "2025",
-            "vod_area" to "CN"
-        )
+        val map =
+            mapOf(
+                "vod_id" to "42",
+                "vod_name" to "MyVideo",
+                "vod_pic" to "http://img.com/pic.jpg",
+                "vod_year" to "2025",
+                "vod_area" to "CN",
+            )
         val item = VideoItem.fromJson(map, sourceKey = "src1")
         assertEquals("42", item.vodId)
         assertEquals("MyVideo", item.vodName)
@@ -175,15 +175,17 @@ class VideoModelsTest {
 
     @Test
     fun test_videoListResponse_fromJson() {
-        val map = mapOf(
-            "page" to "2",
-            "pagecount" to "10",
-            "total" to "100",
-            "list" to listOf(
-                mapOf("vod_id" to "1", "vod_name" to "V1"),
-                mapOf("vod_id" to "2", "vod_name" to "V2")
+        val map =
+            mapOf(
+                "page" to "2",
+                "pagecount" to "10",
+                "total" to "100",
+                "list" to
+                    listOf(
+                        mapOf("vod_id" to "1", "vod_name" to "V1"),
+                        mapOf("vod_id" to "2", "vod_name" to "V2"),
+                    ),
             )
-        )
         val response = VideoListResponse.fromJson(map)
         assertEquals(2, response.page)
         assertEquals(10, response.pageCount)
@@ -239,12 +241,13 @@ class VideoModelsTest {
 
     @Test
     fun test_videoDetail_fromJson_parsesPlaySources() {
-        val map = mapOf(
-            "vod_id" to "10",
-            "vod_name" to "TestMovie",
-            "vod_play_from" to "SourceA\$\$\$SourceB",
-            "vod_play_url" to "EP1\$http://a.com/1#EP2\$http://a.com/2\$\$\$EP3\$http://b.com/3"
-        )
+        val map =
+            mapOf(
+                "vod_id" to "10",
+                "vod_name" to "TestMovie",
+                "vod_play_from" to "SourceA\$\$\$SourceB",
+                "vod_play_url" to "EP1\$http://a.com/1#EP2\$http://a.com/2\$\$\$EP3\$http://b.com/3",
+            )
         val detail = VideoDetail.fromJson(map, sourceKey = "k")
         assertEquals("10", detail.vodId)
         assertEquals("TestMovie", detail.vodName)
@@ -324,16 +327,18 @@ class VideoModelsTest {
     @Test
     fun test_videoDetail_fromJson_stripsJsonQuotes() {
         // 注意：raw string 里写 ${'$'} 而不是 \\(dollar)，否则会生成非法 JSON 转义
-        val parsed = Json.parseToJsonElement(
-            """
-            {
-              "vod_id": 1287,
-              "vod_name": "应援团少女",
-              "vod_play_from": "liangzi${'$'}${'$'}${'$'}lzm3u8",
-              "vod_play_url": "HD中字${'$'}https://a.example/share/1${'$'}${'$'}${'$'}HD中字${'$'}https://b.example/1.m3u8"
-            }
-            """.trimIndent()
-        ).jsonObject
+        val parsed =
+            Json
+                .parseToJsonElement(
+                    """
+                    {
+                      "vod_id": 1287,
+                      "vod_name": "应援团少女",
+                      "vod_play_from": "liangzi${'$'}${'$'}${'$'}lzm3u8",
+                      "vod_play_url": "HD中字${'$'}https://a.example/share/1${'$'}${'$'}${'$'}HD中字${'$'}https://b.example/1.m3u8"
+                    }
+                    """.trimIndent(),
+                ).jsonObject
 
         val detail = VideoDetail.fromJson(parsed.toMap(), sourceKey = "lzzy")
 
@@ -349,17 +354,18 @@ class VideoModelsTest {
 
         assertEquals(
             "第1集",
-            VideoDetail.parseEpisodes("第1集${'$'}https://a.example/1.m3u8")[0].name
+            VideoDetail.parseEpisodes("第1集${'$'}https://a.example/1.m3u8")[0].name,
         )
     }
 
     @Test
     fun test_videoDetail_fromJson_defaultSourceIsRichestLine() {
-        val map = mapOf(
-            "vod_play_from" to "A${'$'}${'$'}${'$'}B",
-            "vod_play_url" to "1${'$'}https://a/1${'$'}${'$'}${'$'}1${'$'}https://b/1" +
-                "#2${'$'}https://b/2#3${'$'}https://b/3",
-        )
+        val map =
+            mapOf(
+                "vod_play_from" to "A${'$'}${'$'}${'$'}B",
+                "vod_play_url" to "1${'$'}https://a/1${'$'}${'$'}${'$'}1${'$'}https://b/1" +
+                    "#2${'$'}https://b/2#3${'$'}https://b/3",
+            )
         val detail = VideoDetail.fromJson(map)
         assertEquals(1, detail.defaultSourceIndex)
         assertTrue(detail.hasPlayableSource)
@@ -367,11 +373,12 @@ class VideoModelsTest {
 
     @Test
     fun test_videoDetail_fallbackUrlsForEpisode() {
-        val map = mapOf(
-            "vod_play_from" to "A${'$'}${'$'}${'$'}B",
-            "vod_play_url" to "1${'$'}https://a/1#2${'$'}https://a/2" +
-                "${'$'}${'$'}${'$'}1${'$'}https://b/1#2${'$'}https://b/2",
-        )
+        val map =
+            mapOf(
+                "vod_play_from" to "A${'$'}${'$'}${'$'}B",
+                "vod_play_url" to "1${'$'}https://a/1#2${'$'}https://a/2" +
+                    "${'$'}${'$'}${'$'}1${'$'}https://b/1#2${'$'}https://b/2",
+            )
         val detail = VideoDetail.fromJson(map)
         val fallbacks = detail.fallbackUrlsFor(episodeIndex = 1, currentSourceIndex = 0)
         assertEquals(listOf("https://b/2"), fallbacks)

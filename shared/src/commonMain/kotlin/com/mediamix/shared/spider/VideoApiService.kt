@@ -25,16 +25,16 @@ import kotlinx.serialization.json.Json
  * - TVBoxImageDecoder 解码（调用 Task 35 的 TvBoxImageDecoder）
  */
 class VideoApiService {
-
-
-    private val httpClient: HttpClient = HttpClientFactory.createHttpClient(
-        connectTimeoutSeconds = 3,
-        requestTimeoutSeconds = 30,
-    )
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val httpClient: HttpClient =
+        HttpClientFactory.createHttpClient(
+            connectTimeoutSeconds = 3,
+            requestTimeoutSeconds = 30,
+        )
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     // DNS 预解析缓存，5 分钟 TTL
     private val dnsCache = mutableMapOf<String, DnsCacheEntry>()
@@ -82,7 +82,8 @@ class VideoApiService {
                     }
                     hosts.add(host)
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
 
         if (hosts.isEmpty()) return
@@ -102,16 +103,20 @@ class VideoApiService {
         val addresses = resolveHostAddresses(host)
         if (addresses.isEmpty()) return
         dnsCacheMutex.withLock {
-            dnsCache[host] = DnsCacheEntry(
-                addresses = addresses,
-                timeMs = currentTimeMillis(),
-            )
+            dnsCache[host] =
+                DnsCacheEntry(
+                    addresses = addresses,
+                    timeMs = currentTimeMillis(),
+                )
         }
     }
 
     // ==================== 接口预请求 ====================
 
-    suspend fun prefetchVideoInfo(apiUrl: String, vodId: String) {
+    suspend fun prefetchVideoInfo(
+        apiUrl: String,
+        vodId: String,
+    ) {
         val cacheKey = "${apiUrl}_$vodId"
         val now = currentTimeMillis()
 
@@ -125,12 +130,14 @@ class VideoApiService {
         try {
             val detail = fetchVideoDetailInternal(apiUrl, vodId, sourceKey = "")
             prefetchCacheMutex.withLock {
-                prefetchCache[cacheKey] = PrefetchCacheEntry(
-                    data = detail,
-                    timeMs = currentTimeMillis(),
-                )
+                prefetchCache[cacheKey] =
+                    PrefetchCacheEntry(
+                        data = detail,
+                        timeMs = currentTimeMillis(),
+                    )
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
 
     // ==================== 核心 API ====================
@@ -151,7 +158,7 @@ class VideoApiService {
                             typeId = i + 1,
                             typeName = (s["name"] ?: s["key"] ?: "").toString(),
                             typePid = 0,
-                        )
+                        ),
                     )
                 }
                 tvboxSites = sites.mapNotNull { JsonSpider.asStringMap(it) }
@@ -230,13 +237,16 @@ class VideoApiService {
         val cacheKey = "${apiUrl}_$vodId"
         val now = currentTimeMillis()
 
-        val cached = prefetchCacheMutex.withLock {
-            val entry = prefetchCache[cacheKey]
-            if (entry != null && (now - entry.timeMs) < prefetchCacheTtlMs) {
-                prefetchCache.remove(cacheKey)
-                entry
-            } else null
-        }
+        val cached =
+            prefetchCacheMutex.withLock {
+                val entry = prefetchCache[cacheKey]
+                if (entry != null && (now - entry.timeMs) < prefetchCacheTtlMs) {
+                    prefetchCache.remove(cacheKey)
+                    entry
+                } else {
+                    null
+                }
+            }
 
         if (cached != null) {
             return if (sourceKey.isNotEmpty() && cached.data.sourceKey != sourceKey) {
@@ -263,15 +273,19 @@ class VideoApiService {
                 throw Exception("影片不存在")
             }
 
-            val first = JsonSpider.asStringMap(list.first())
-                ?: throw Exception("影片数据格式错误")
+            val first =
+                JsonSpider.asStringMap(list.first())
+                    ?: throw Exception("影片数据格式错误")
             return VideoDetail.fromJson(first, sourceKey = sourceKey)
         } catch (e: Exception) {
             throw Exception("加载失败: ${e.message}")
         }
     }
 
-    suspend fun searchVideos(apiUrl: String, keyword: String): VideoListResponse {
+    suspend fun searchVideos(
+        apiUrl: String,
+        keyword: String,
+    ): VideoListResponse {
         try {
             val url = buildUrl(apiUrl, mapOf("wd" to keyword))
             val data = fetchAndDecode(url)
@@ -296,11 +310,12 @@ class VideoApiService {
 
     private suspend fun fetchAndDecode(url: String): Map<String, Any> {
         try {
-            val response = httpClient.get(url) {
-                headers {
-                    append(HttpHeaders.AcceptEncoding, "identity")
+            val response =
+                httpClient.get(url) {
+                    headers {
+                        append(HttpHeaders.AcceptEncoding, "identity")
+                    }
                 }
-            }
             val statusCode = response.status.value
             if (statusCode != 200) {
                 throw Exception("HTTP $statusCode")
@@ -335,7 +350,10 @@ class VideoApiService {
      *
      * 对应 Dart 的 _buildUrl()
      */
-    fun buildUrl(apiUrl: String, params: Map<String, String>): String {
+    fun buildUrl(
+        apiUrl: String,
+        params: Map<String, String>,
+    ): String {
         var url = apiUrl.trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "http://$url"
@@ -346,9 +364,10 @@ class VideoApiService {
         val port = builder.port
         val path = builder.encodedPath
         val portStr = if (port != 0 && port != 80 && port != 443) ":$port" else ""
-        val query = params.entries.joinToString("&") { (k, v) ->
-            "$k=${JsonSpider.encodeUrlComponent(v)}"
-        }
+        val query =
+            params.entries.joinToString("&") { (k, v) ->
+                "$k=${JsonSpider.encodeUrlComponent(v)}"
+            }
 
         // 检查原始 URL 是否已有查询参数
         val existingQuery = url.substringAfter('?', "")
@@ -376,7 +395,8 @@ class VideoApiService {
                             if (result != null) return result
                         }
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                }
             }
         }
 
@@ -392,7 +412,8 @@ class VideoApiService {
                         if (result != null) return result
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
 
         return null
@@ -400,27 +421,29 @@ class VideoApiService {
 
     /** 跨平台 Base64 解码 */
     @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-    private fun decodeBase64(input: String): ByteArray? {
-        return try {
-            kotlin.io.encoding.Base64.decode(input)
+    private fun decodeBase64(input: String): ByteArray? =
+        try {
+            kotlin.io.encoding.Base64
+                .decode(input)
         } catch (_: Exception) {
             null
         }
-    }
 
     fun parseJsonWithComments(text: String): Map<String, Any>? {
         try {
             val element = json.parseToJsonElement(text)
             val result = JsonSpider.jsonElementToMap(element)
             if (result != null) return result
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         val cleaned = stripJsonComments(text)
         try {
             val element = json.parseToJsonElement(cleaned)
             val result = JsonSpider.jsonElementToMap(element)
             if (result != null) return result
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         return null
     }
@@ -496,6 +519,9 @@ class VideoApiService {
          */
         val shared: VideoApiService by lazy { VideoApiService() }
 
-        fun currentTimeMillis(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+        fun currentTimeMillis(): Long =
+            kotlinx.datetime.Clock.System
+                .now()
+                .toEpochMilliseconds()
     }
 }

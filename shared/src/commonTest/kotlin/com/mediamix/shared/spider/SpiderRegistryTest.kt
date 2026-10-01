@@ -4,7 +4,6 @@ import com.mediamix.shared.models.TvBoxSite
 import kotlin.test.*
 
 class SpiderRegistryTest {
-
     private val registry = SpiderRegistry.instance
 
     @BeforeTest
@@ -93,61 +92,68 @@ class SpiderRegistryTest {
     // ==================== 缓存实例复用 ====================
 
     @Test
-    fun testCreateFromSite_cachesInstance() = runTestAsync {
-        val site = TvBoxSite(key = "cache_test", name = "缓存站", type = 0, api = "http://api.example.com")
+    fun testCreateFromSite_cachesInstance() =
+        runTestAsync {
+            val site = TvBoxSite(key = "cache_test", name = "缓存站", type = 0, api = "http://api.example.com")
 
-        val spider1 = registry.createFromSite(site)
-        val spider2 = registry.createFromSite(site)
+            val spider1 = registry.createFromSite(site)
+            val spider2 = registry.createFromSite(site)
 
-        assertNotNull(spider1)
-        assertSame(spider1, spider2, "应返回同一缓存实例")
-    }
-
-    @Test
-    fun testGet_returnsCachedInstance() = runTestAsync {
-        val site = TvBoxSite(key = "get_test", name = "获取站", type = 0, api = "http://api.example.com")
-        assertNull(registry.get("get_test"))
-
-        val spider = registry.createFromSite(site)
-        assertNotNull(spider)
-        assertSame(spider, registry.get("get_test"))
-    }
+            assertNotNull(spider1)
+            assertSame(spider1, spider2, "应返回同一缓存实例")
+        }
 
     @Test
-    fun testAll_returnsAllCached() = runTestAsync {
-        val site1 = TvBoxSite(key = "a1", name = "站1", type = 0, api = "http://a1.com")
-        val site2 = TvBoxSite(key = "a2", name = "站2", type = 1, api = "http://a2.com")
+    fun testGet_returnsCachedInstance() =
+        runTestAsync {
+            val site = TvBoxSite(key = "get_test", name = "获取站", type = 0, api = "http://api.example.com")
+            assertNull(registry.get("get_test"))
 
-        registry.createFromSite(site1)
-        registry.createFromSite(site2)
+            val spider = registry.createFromSite(site)
+            assertNotNull(spider)
+            assertSame(spider, registry.get("get_test"))
+        }
 
-        assertEquals(2, registry.all.size)
-    }
+    @Test
+    fun testAll_returnsAllCached() =
+        runTestAsync {
+            val site1 = TvBoxSite(key = "a1", name = "站1", type = 0, api = "http://a1.com")
+            val site2 = TvBoxSite(key = "a2", name = "站2", type = 1, api = "http://a2.com")
+
+            registry.createFromSite(site1)
+            registry.createFromSite(site2)
+
+            assertEquals(2, registry.all.size)
+        }
 
     // ==================== 批量创建 ====================
 
     @Test
-    fun testCreateFromSites() = runTestAsync {
-        val sites = listOf(
-            TvBoxSite(key = "b1", name = "站1", type = 0, api = "http://b1.com"),
-            TvBoxSite(key = "b2", name = "站2", type = 1, api = "http://b2.com"),
-            TvBoxSite(key = "b3", name = "站3", type = 3, api = "http://b3.com"),
-        )
+    fun testCreateFromSites() =
+        runTestAsync {
+            val sites =
+                listOf(
+                    TvBoxSite(key = "b1", name = "站1", type = 0, api = "http://b1.com"),
+                    TvBoxSite(key = "b2", name = "站2", type = 1, api = "http://b2.com"),
+                    TvBoxSite(key = "b3", name = "站3", type = 3, api = "http://b3.com"),
+                )
 
-        val spiders = registry.createFromSites(sites)
-        assertEquals(3, spiders.size)
-    }
+            val spiders = registry.createFromSites(sites)
+            assertEquals(3, spiders.size)
+        }
 
     @Test
-    fun testCreateFromSites_skipsNull() = runTestAsync {
-        val sites = listOf(
-            TvBoxSite(key = "c1", name = "站1", type = 0, api = "http://c1.com"),
-            TvBoxSite(key = "c2", name = "站2", type = 99, api = "http://c2.com"), // unknown type
-        )
+    fun testCreateFromSites_skipsNull() =
+        runTestAsync {
+            val sites =
+                listOf(
+                    TvBoxSite(key = "c1", name = "站1", type = 0, api = "http://c1.com"),
+                    TvBoxSite(key = "c2", name = "站2", type = 99, api = "http://c2.com"), // unknown type
+                )
 
-        val spiders = registry.createFromSites(sites)
-        assertEquals(1, spiders.size)
-    }
+            val spiders = registry.createFromSites(sites)
+            assertEquals(1, spiders.size)
+        }
 
     // ==================== ext 字段解析 ====================
 
@@ -192,27 +198,30 @@ class SpiderRegistryTest {
     // ==================== 释放和移除 ====================
 
     @Test
-    fun testRemove() = runTestAsync {
-        val site = TvBoxSite(key = "rm_test", name = "移除站", type = 0, api = "http://rm.com")
-        registry.createFromSite(site)
-        assertNotNull(registry.get("rm_test"))
+    fun testRemove() =
+        runTestAsync {
+            val site = TvBoxSite(key = "rm_test", name = "移除站", type = 0, api = "http://rm.com")
+            registry.createFromSite(site)
+            assertNotNull(registry.get("rm_test"))
 
-        registry.remove("rm_test")
-        assertNull(registry.get("rm_test"))
-    }
+            registry.remove("rm_test")
+            assertNull(registry.get("rm_test"))
+        }
 
     @Test
-    fun testDisposeAll() = runTestAsync {
-        val sites = listOf(
-            TvBoxSite(key = "d1", name = "站1", type = 0, api = "http://d1.com"),
-            TvBoxSite(key = "d2", name = "站2", type = 1, api = "http://d2.com"),
-        )
-        registry.createFromSites(sites)
-        assertEquals(2, registry.all.size)
+    fun testDisposeAll() =
+        runTestAsync {
+            val sites =
+                listOf(
+                    TvBoxSite(key = "d1", name = "站1", type = 0, api = "http://d1.com"),
+                    TvBoxSite(key = "d2", name = "站2", type = 1, api = "http://d2.com"),
+                )
+            registry.createFromSites(sites)
+            assertEquals(2, registry.all.size)
 
-        registry.disposeAll()
-        assertEquals(0, registry.all.size)
-    }
+            registry.disposeAll()
+            assertEquals(0, registry.all.size)
+        }
 }
 
 /**

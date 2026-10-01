@@ -1,5 +1,6 @@
 package com.mediamix.ui.source
 
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CmsApiSite
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -7,7 +8,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import co.touchlab.kermit.Logger
 
 /**
  * 数据源仓库 —— 首页与「数据源管理」页共享的**唯一**数据源。
@@ -16,10 +16,15 @@ import co.touchlab.kermit.Logger
  * 在管理页里停用某个源，回首页它还在；在首页切了源，重启又回到第一个。
  * 这里把状态收拢到一处并落盘（multiplatform-settings），两个页面都从这里读写。
  */
-class SourceRepository(private val settings: Settings) {
-
+class SourceRepository(
+    private val settings: Settings,
+) {
     private val logger = Logger.withTag("SourceRepository")
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     private val _sites = MutableStateFlow(loadSites())
     val sites: StateFlow<List<CmsApiSite>> = _sites.asStateFlow()
@@ -56,7 +61,10 @@ class SourceRepository(private val settings: Settings) {
     }
 
     /** 记录一次实测延迟（毫秒），由「数据源管理」页测速后调用。 */
-    fun recordLatency(key: String, latencyMs: Long) {
+    fun recordLatency(
+        key: String,
+        latencyMs: Long,
+    ) {
         if (latencyMs <= 0) return
         val updated = readLatencies().toMutableMap()
         updated[key] = latencyMs
@@ -72,7 +80,8 @@ class SourceRepository(private val settings: Settings) {
 
     /** 解析 `key:ms|key:ms` 形式的延迟记录，坏数据直接跳过。 */
     private fun readLatencies(): Map<String, Long> =
-        settings.getStringOrNull(KEY_SOURCE_LATENCY)
+        settings
+            .getStringOrNull(KEY_SOURCE_LATENCY)
             .orEmpty()
             .split('|')
             .mapNotNull { part ->
@@ -80,13 +89,14 @@ class SourceRepository(private val settings: Settings) {
                 if (i <= 0) return@mapNotNull null
                 val ms = part.substring(i + 1).toLongOrNull() ?: return@mapNotNull null
                 part.substring(0, i) to ms
-            }
-            .toMap()
+            }.toMap()
 
-    fun findByKey(key: String): CmsApiSite? =
-        _sites.value.find { it.key == key } ?: CmsApiSite.findByKey(key)
+    fun findByKey(key: String): CmsApiSite? = _sites.value.find { it.key == key } ?: CmsApiSite.findByKey(key)
 
-    fun setEnabled(key: String, enabled: Boolean) {
+    fun setEnabled(
+        key: String,
+        enabled: Boolean,
+    ) {
         val site = _sites.value.find { it.key == key } ?: return
         if (site.enabled == enabled) return
         _sites.value = _sites.value.map { if (it.key == key) it.copy(enabled = enabled) else it }
@@ -114,26 +124,31 @@ class SourceRepository(private val settings: Settings) {
     // ==================== 持久化 ====================
 
     private fun loadSites(): List<CmsApiSite> {
-        val disabled = settings.getStringOrNull(KEY_DISABLED_SITES)
-            .orEmpty()
-            .split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .toSet()
+        val disabled =
+            settings
+                .getStringOrNull(KEY_DISABLED_SITES)
+                .orEmpty()
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toSet()
 
-        val custom = try {
-            settings.getStringOrNull(KEY_CUSTOM_SITES)
-                ?.takeIf { it.isNotBlank() }
-                ?.let { json.decodeFromString<List<CmsApiSite>>(it) }
-                ?: emptyList()
-        } catch (e: Exception) {
-            logger.w { "Failed to restore custom sites: ${e.message}" }
-            emptyList()
-        }
+        val custom =
+            try {
+                settings
+                    .getStringOrNull(KEY_CUSTOM_SITES)
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { json.decodeFromString<List<CmsApiSite>>(it) }
+                    ?: emptyList()
+            } catch (e: Exception) {
+                logger.w { "Failed to restore custom sites: ${e.message}" }
+                emptyList()
+            }
 
-        val builtIn = CmsApiSite.defaultSites.map { site ->
-            if (site.key in disabled) site.copy(enabled = false) else site
-        }
+        val builtIn =
+            CmsApiSite.defaultSites.map { site ->
+                if (site.key in disabled) site.copy(enabled = false) else site
+            }
         return builtIn + custom.filter { c -> builtIn.none { it.key == c.key } }
     }
 

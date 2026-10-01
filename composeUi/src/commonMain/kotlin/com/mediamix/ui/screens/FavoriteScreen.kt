@@ -22,7 +22,7 @@ import org.koin.compose.koinInject
 @Composable
 fun FavoriteScreen(
     viewModel: FavoriteViewModel = koinInject(),
-    onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> }
+    onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> },
 ) {
     val favorites by viewModel.favorites.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -50,7 +50,7 @@ fun FavoriteScreen(
                 TextButton(onClick = { itemToRemove = null }) {
                     Text("取消")
                 }
-            }
+            },
         )
     }
 
@@ -58,69 +58,73 @@ fun FavoriteScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(title = { Text("我的收藏") })
-        }
+        },
     ) { padding ->
         when {
-            isLoading -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-            favorites.isEmpty() -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FavoriteBorder,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "暂无收藏",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "在影片详情页点击心形图标收藏",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
+            isLoading ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
                 }
-            }
-            else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(favorites, key = { it.id }) { item ->
-                    Box(
-                        modifier = Modifier.combinedClickable(
-                            onClick = {
-                                onNavigateToDetail(item.vodId, item.sourceKey)
-                            },
-                            onLongClick = {
-                                itemToRemove = item
-                            }
+            favorites.isEmpty() ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.FavoriteBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         )
-                    ) {
-                        VideoCard(
-                            title = item.vodName,
-                            coverUrl = item.vodPic,
-                            subtitle = item.typeName,
-                            onClick = {
-                                onNavigateToDetail(item.vodId, item.sourceKey)
-                            }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "暂无收藏",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "在影片详情页点击心形图标收藏",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         )
                     }
                 }
-            }
+            else ->
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.padding(padding),
+                    contentPadding = PaddingValues(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(favorites, key = { it.id }) { item ->
+                        Box(
+                            modifier =
+                                Modifier.combinedClickable(
+                                    onClick = {
+                                        onNavigateToDetail(item.vodId, item.sourceKey)
+                                    },
+                                    onLongClick = {
+                                        itemToRemove = item
+                                    },
+                                ),
+                        ) {
+                            VideoCard(
+                                title = item.vodName,
+                                coverUrl = item.vodPic,
+                                subtitle = item.typeName,
+                                onClick = {
+                                    onNavigateToDetail(item.vodId, item.sourceKey)
+                                },
+                            )
+                        }
+                    }
+                }
         }
     }
 }

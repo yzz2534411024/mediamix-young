@@ -31,11 +31,12 @@ class DiskCache(
     private val indexFile: String get() = "$cacheDir${File.separator}cache_index.json"
     private val segmentDir: String get() = "$cacheDir${File.separator}segments"
 
-    private val json = Json {
-        prettyPrint = false
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    private val json =
+        Json {
+            prettyPrint = false
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
     // ===========================================================
     // Initialization
@@ -75,7 +76,7 @@ class DiskCache(
                 }
 
                 val fileSize = sourceFile.length()
-                val cacheId = hashKey("${videoId}_${quality}")
+                val cacheId = hashKey("${videoId}_$quality")
                 val ext = sourceFile.extension
                 val destPath = "$cacheDir${File.separator}$cacheId.$ext"
 
@@ -87,18 +88,19 @@ class DiskCache(
                 sourceFile.copyTo(destFile)
 
                 val now = Clock.System.now().toEpochMilliseconds()
-                val entry = CacheEntry(
-                    cacheId = cacheId,
-                    videoId = videoId,
-                    quality = quality,
-                    filePath = destPath,
-                    fileSize = fileSize,
-                    priority = priority,
-                    ttl = ttl,
-                    isComplete = true,
-                    createdAt = now,
-                    lastAccess = now,
-                )
+                val entry =
+                    CacheEntry(
+                        cacheId = cacheId,
+                        videoId = videoId,
+                        quality = quality,
+                        filePath = destPath,
+                        fileSize = fileSize,
+                        priority = priority,
+                        ttl = ttl,
+                        isComplete = true,
+                        createdAt = now,
+                        lastAccess = now,
+                    )
 
                 diskIndex[cacheId] = entry
                 cachedDiskTotalSize += fileSize
@@ -111,8 +113,11 @@ class DiskCache(
         }
     }
 
-    fun getCachePath(videoId: String, quality: String = "default"): String? {
-        val cacheId = hashKey("${videoId}_${quality}")
+    fun getCachePath(
+        videoId: String,
+        quality: String = "default",
+    ): String? {
+        val cacheId = hashKey("${videoId}_$quality")
         val entry = diskIndex[cacheId] ?: return null
 
         if (entry.isExpired(Clock.System.now().toEpochMilliseconds())) return null
@@ -124,7 +129,10 @@ class DiskCache(
         return entry.filePath
     }
 
-    fun getAnyQualityCachePath(videoId: String, preferredQuality: String? = null): Pair<String, String>? {
+    fun getAnyQualityCachePath(
+        videoId: String,
+        preferredQuality: String? = null,
+    ): Pair<String, String>? {
         val now = Clock.System.now().toEpochMilliseconds()
 
         // 1. Try preferred quality first
@@ -166,8 +174,8 @@ class DiskCache(
     ) {
         withContext(Dispatchers.IO) {
             try {
-                val cacheId = hashKey("${videoId}_${quality}")
-                val segFileName = "${cacheId}_${segmentKey}.seg"
+                val cacheId = hashKey("${videoId}_$quality")
+                val segFileName = "${cacheId}_$segmentKey.seg"
                 val segPath = "$segmentDir${File.separator}$segFileName"
 
                 File(segPath).writeBytes(data)
@@ -175,28 +183,31 @@ class DiskCache(
                 val now = Clock.System.now().toEpochMilliseconds()
                 val existing = diskIndex[cacheId]
                 if (existing != null) {
-                    val updatedSegments = if (existing.segments.contains(segmentKey)) {
-                        existing.segments
-                    } else {
-                        existing.segments + segmentKey
-                    }
-                    diskIndex[cacheId] = existing.copy(
-                        segments = updatedSegments,
-                        fileSize = existing.fileSize + data.size,
-                        lastAccess = now,
-                    )
+                    val updatedSegments =
+                        if (existing.segments.contains(segmentKey)) {
+                            existing.segments
+                        } else {
+                            existing.segments + segmentKey
+                        }
+                    diskIndex[cacheId] =
+                        existing.copy(
+                            segments = updatedSegments,
+                            fileSize = existing.fileSize + data.size,
+                            lastAccess = now,
+                        )
                 } else {
-                    diskIndex[cacheId] = CacheEntry(
-                        cacheId = cacheId,
-                        videoId = videoId,
-                        quality = quality,
-                        filePath = segPath,
-                        fileSize = data.size.toLong(),
-                        segments = listOf(segmentKey),
-                        isComplete = false,
-                        createdAt = now,
-                        lastAccess = now,
-                    )
+                    diskIndex[cacheId] =
+                        CacheEntry(
+                            cacheId = cacheId,
+                            videoId = videoId,
+                            quality = quality,
+                            filePath = segPath,
+                            fileSize = data.size.toLong(),
+                            segments = listOf(segmentKey),
+                            isComplete = false,
+                            createdAt = now,
+                            lastAccess = now,
+                        )
                 }
                 cachedDiskTotalSize += data.size
 
@@ -208,13 +219,17 @@ class DiskCache(
         }
     }
 
-    fun getSegment(videoId: String, segmentKey: String, quality: String = "default"): SegmentCacheResult? {
-        val cacheId = hashKey("${videoId}_${quality}")
+    fun getSegment(
+        videoId: String,
+        segmentKey: String,
+        quality: String = "default",
+    ): SegmentCacheResult? {
+        val cacheId = hashKey("${videoId}_$quality")
         val diskEntry = diskIndex[cacheId] ?: return null
 
         if (!diskEntry.segments.contains(segmentKey)) return null
 
-        val segPath = "$segmentDir${File.separator}${cacheId}_${segmentKey}.seg"
+        val segPath = "$segmentDir${File.separator}${cacheId}_$segmentKey.seg"
         val segFile = File(segPath)
         if (!segFile.exists()) return null
 
@@ -226,8 +241,11 @@ class DiskCache(
     // Index management
     // ===========================================================
 
-    fun hasCache(videoId: String, quality: String = "default"): Boolean {
-        val cacheId = hashKey("${videoId}_${quality}")
+    fun hasCache(
+        videoId: String,
+        quality: String = "default",
+    ): Boolean {
+        val cacheId = hashKey("${videoId}_$quality")
         val entry = diskIndex[cacheId] ?: return false
         if (entry.isExpired(Clock.System.now().toEpochMilliseconds())) return false
         return File(entry.filePath).exists()
@@ -244,7 +262,7 @@ class DiskCache(
                 File(entry.filePath).deleteRecursively()
             } else {
                 for (seg in entry.segments) {
-                    File("$segmentDir${File.separator}${key}_${seg}.seg").delete()
+                    File("$segmentDir${File.separator}${key}_$seg.seg").delete()
                 }
             }
         } catch (e: Exception) {
@@ -290,10 +308,11 @@ class DiskCache(
 
     fun updateHitInfo(key: String) {
         val entry = diskIndex[key] ?: return
-        diskIndex[key] = entry.copy(
-            hitCount = entry.hitCount + 1,
-            lastAccess = Clock.System.now().toEpochMilliseconds(),
-        )
+        diskIndex[key] =
+            entry.copy(
+                hitCount = entry.hitCount + 1,
+                lastAccess = Clock.System.now().toEpochMilliseconds(),
+            )
     }
 
     // ===========================================================
@@ -319,10 +338,11 @@ class DiskCache(
 
     private fun updateHitCount(key: String) {
         val entry = diskIndex[key] ?: return
-        diskIndex[key] = entry.copy(
-            hitCount = entry.hitCount + 1,
-            lastAccess = Clock.System.now().toEpochMilliseconds(),
-        )
+        diskIndex[key] =
+            entry.copy(
+                hitCount = entry.hitCount + 1,
+                lastAccess = Clock.System.now().toEpochMilliseconds(),
+            )
     }
 
     private fun recomputeDiskTotal() {

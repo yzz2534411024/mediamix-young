@@ -4,17 +4,17 @@ import com.mediamix.shared.models.MemoryPressureLevel
 import kotlin.test.*
 
 class MemoryCacheTest {
-
     private lateinit var memoryCache: MemoryCache
 
     @BeforeTest
     fun setup() {
-        memoryCache = MemoryCache(
-            maxL1Entries = 5,
-            maxL2Entries = 10,
-            memoryReader = { 0L },
-            maxRssBytes = 512L * 1024 * 1024,
-        )
+        memoryCache =
+            MemoryCache(
+                maxL1Entries = 5,
+                maxL2Entries = 10,
+                memoryReader = { 0L },
+                maxRssBytes = 512L * 1024 * 1024,
+            )
     }
 
     // ===========================================================
@@ -113,12 +113,13 @@ class MemoryCacheTest {
     @Test
     fun memoryPressure_criticalRejectsL1Write() {
         // Create cache with memory reader that reports critical pressure
-        val criticalCache = MemoryCache(
-            maxL1Entries = 5,
-            maxL2Entries = 10,
-            memoryReader = { 480L * 1024 * 1024 }, // >90% of 512MB
-            maxRssBytes = 512L * 1024 * 1024,
-        )
+        val criticalCache =
+            MemoryCache(
+                maxL1Entries = 5,
+                maxL2Entries = 10,
+                memoryReader = { 480L * 1024 * 1024 }, // >90% of 512MB
+                maxRssBytes = 512L * 1024 * 1024,
+            )
 
         // Trigger pressure check
         criticalCache.checkMemoryPressure()
@@ -132,12 +133,13 @@ class MemoryCacheTest {
 
     @Test
     fun memoryPressure_warningReducesCapacity() {
-        val warningCache = MemoryCache(
-            maxL1Entries = 10,
-            maxL2Entries = 20,
-            memoryReader = { 370L * 1024 * 1024 }, // ~72% of 512MB
-            maxRssBytes = 512L * 1024 * 1024,
-        )
+        val warningCache =
+            MemoryCache(
+                maxL1Entries = 10,
+                maxL2Entries = 20,
+                memoryReader = { 370L * 1024 * 1024 }, // ~72% of 512MB
+                maxRssBytes = 512L * 1024 * 1024,
+            )
 
         warningCache.checkMemoryPressure()
         assertEquals(MemoryPressureLevel.WARNING, warningCache.memoryPressure)

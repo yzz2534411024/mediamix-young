@@ -5,7 +5,6 @@ import com.mediamix.shared.models.CachePriority
 import com.mediamix.shared.models.CacheStrategySuggestion
 import com.mediamix.shared.models.ViewingHabitSnapshot
 import com.russhwolf.settings.Settings
-import kotlin.math.roundToInt
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -14,6 +13,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.math.roundToInt
 
 /**
  * 智能缓存策略管理器
@@ -95,7 +95,7 @@ class CacheStrategyManager(
                 "缓存策略管理器初始化完成，" +
                     "追踪视频: ${replayCounts.size}, " +
                     "类型: ${categoryCounts.size}, " +
-                    "总观看: $totalViewCount"
+                    "总观看: $totalViewCount",
             )
         } catch (e: Exception) {
             logger.e(e) { "缓存策略管理器初始化失败" }
@@ -114,7 +114,11 @@ class CacheStrategyManager(
      * @param category 视频类型/分类（如 "电影"、"电视剧"、"综艺" 等）
      * @param hour 观看时段（小时级别，0~23），默认使用当前时间
      */
-    fun recordViewing(videoId: String, category: String? = null, hour: Int? = null) {
+    fun recordViewing(
+        videoId: String,
+        category: String? = null,
+        hour: Int? = null,
+    ) {
         val h = hour ?: currentHour()
 
         // 更新小时直方图
@@ -167,7 +171,11 @@ class CacheStrategyManager(
      *
      * 综合考虑：当前时段、视频类型、重播频率
      */
-    fun getSuggestion(videoId: String, category: String? = null, currentHour: Int? = null): CacheStrategySuggestion {
+    fun getSuggestion(
+        videoId: String,
+        category: String? = null,
+        currentHour: Int? = null,
+    ): CacheStrategySuggestion {
         if (!initialized || totalViewCount == 0) {
             return CacheStrategySuggestion.defaultSuggestion
         }
@@ -231,7 +239,12 @@ class CacheStrategyManager(
      *
      * @param baseTtl 基础 TTL（秒）
      */
-    fun getDynamicTtl(videoId: String, category: String? = null, baseTtl: Int = 604800, currentHour: Int? = null): Int {
+    fun getDynamicTtl(
+        videoId: String,
+        category: String? = null,
+        baseTtl: Int = 604800,
+        currentHour: Int? = null,
+    ): Int {
         val suggestion = getSuggestion(videoId, category = category, currentHour = currentHour)
         return (baseTtl * suggestion.ttlMultiplier).roundToInt()
     }
@@ -239,9 +252,11 @@ class CacheStrategyManager(
     /**
      * 获取指定视频的缓存优先级
      */
-    fun getPriority(videoId: String, category: String? = null, currentHour: Int? = null): CachePriority {
-        return getSuggestion(videoId, category = category, currentHour = currentHour).priority
-    }
+    fun getPriority(
+        videoId: String,
+        category: String? = null,
+        currentHour: Int? = null,
+    ): CachePriority = getSuggestion(videoId, category = category, currentHour = currentHour).priority
 
     // ===========================================================
     // 预测性预热
@@ -275,7 +290,10 @@ class CacheStrategyManager(
      *
      * 对于预测类型中的视频，返回提升后的策略建议
      */
-    fun getPreheatSuggestion(category: String, currentHour: Int? = null): CacheStrategySuggestion {
+    fun getPreheatSuggestion(
+        category: String,
+        currentHour: Int? = null,
+    ): CacheStrategySuggestion {
         if (!isPreferredCategory(category) && !predictAndPreheat(currentHour).contains(category)) {
             return CacheStrategySuggestion.defaultSuggestion
         }
@@ -368,12 +386,11 @@ class CacheStrategyManager(
     // ===========================================================
 
     /** 获取高重播频率的 videoId 集合 */
-    internal fun getHighReplayVideoIds(): Set<String> {
-        return replayCounts.entries
+    internal fun getHighReplayVideoIds(): Set<String> =
+        replayCounts.entries
             .filter { it.value >= highReplayThreshold }
             .map { it.key }
             .toSet()
-    }
 
     /** 限制视频追踪数量（保留重播次数最高的） */
     private fun trimReplayCounts() {
@@ -436,21 +453,24 @@ class CacheStrategyManager(
     internal fun saveToSettings() {
         try {
             // 保存小时直方图
-            val hourObj = buildJsonObject {
-                hourHistogram.forEach { (k, v) -> put(k.toString(), v) }
-            }
+            val hourObj =
+                buildJsonObject {
+                    hourHistogram.forEach { (k, v) -> put(k.toString(), v) }
+                }
             settings.putString(keyHourHistogram, hourObj.toString())
 
             // 保存类型计数
-            val catObj = buildJsonObject {
-                categoryCounts.forEach { (k, v) -> put(k, v) }
-            }
+            val catObj =
+                buildJsonObject {
+                    categoryCounts.forEach { (k, v) -> put(k, v) }
+                }
             settings.putString(keyCategoryCounts, catObj.toString())
 
             // 保存重播计数
-            val replayObj = buildJsonObject {
-                replayCounts.forEach { (k, v) -> put(k, v) }
-            }
+            val replayObj =
+                buildJsonObject {
+                    replayCounts.forEach { (k, v) -> put(k, v) }
+                }
             settings.putString(keyReplayCounts, replayObj.toString())
 
             // 记录最后更新时间
@@ -465,9 +485,11 @@ class CacheStrategyManager(
     // ===========================================================
 
     /** 获取当前小时 (0~23) */
-    private fun currentHour(): Int {
-        return Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).hour
-    }
+    private fun currentHour(): Int =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+            .hour
 
     // ===========================================================
     // 测试辅助

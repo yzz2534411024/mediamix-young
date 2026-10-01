@@ -12,7 +12,6 @@ import kotlinx.serialization.json.*
  * 迁移自：lib/features/video/services/spider/json_spider.dart
  */
 class JsonSpider : SpiderAdapter {
-
     override val key: String = "json"
     override val name: String = "JSON 蜘蛛"
     override val type: SpiderType = SpiderType.JSON
@@ -41,7 +40,11 @@ class JsonSpider : SpiderAdapter {
     private var playMap: Map<String, Any> = emptyMap()
 
     // 解析器
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     override suspend fun init(config: Map<String, Any>) {
         homeUrl = config["homeUrl"] as? String ?: ""
@@ -73,13 +76,17 @@ class JsonSpider : SpiderAdapter {
         val items = extractList(data, homeListPath, homeListMap)
         return SpiderHomeResult(
             categories = emptyList(),
-            recommend = items.mapNotNull { VideoItem.fromJson(it) }
+            recommend = items.mapNotNull { VideoItem.fromJson(it) },
         )
     }
 
     // ==================== 分类 ====================
 
-    override suspend fun categoryContent(tid: String, page: Int, filter: Map<String, String>?): SpiderListResult {
+    override suspend fun categoryContent(
+        tid: String,
+        page: Int,
+        filter: Map<String, String>?,
+    ): SpiderListResult {
         val params = mutableMapOf("tid" to tid, "page" to page.toString())
         filter?.let { params.putAll(it) }
         val data = fetchJson(categoryUrl, params)
@@ -98,7 +105,10 @@ class JsonSpider : SpiderAdapter {
 
     // ==================== 搜索 ====================
 
-    override suspend fun searchContent(keyword: String, page: Int): SpiderListResult {
+    override suspend fun searchContent(
+        keyword: String,
+        page: Int,
+    ): SpiderListResult {
         val data = fetchJson(searchUrl, mapOf("keyword" to keyword, "page" to page.toString()))
         val items = extractList(data, searchListPath, searchListMap)
         return SpiderListResult(list = items.mapNotNull { VideoItem.fromJson(it) })
@@ -106,7 +116,10 @@ class JsonSpider : SpiderAdapter {
 
     // ==================== 播放 ====================
 
-    override suspend fun playerContent(flag: String, id: String): SpiderPlayResult {
+    override suspend fun playerContent(
+        flag: String,
+        id: String,
+    ): SpiderPlayResult {
         if (playUrl.isEmpty()) {
             return SpiderPlayResult(url = id, parse = "0")
         }
@@ -115,7 +128,7 @@ class JsonSpider : SpiderAdapter {
         return SpiderPlayResult(
             url = playData["url"] as? String ?: id,
             parse = playData["parse"] as? String ?: "0",
-            headers = asStringMap(playData["headers"])?.mapValues { it.value.toString() }
+            headers = asStringMap(playData["headers"])?.mapValues { it.value.toString() },
         )
     }
 
@@ -126,7 +139,10 @@ class JsonSpider : SpiderAdapter {
     /**
      * 发起 HTTP 请求并返回解析后的 JSON
      */
-    private suspend fun fetchJson(url: String, params: Map<String, String>): JsonElement {
+    private suspend fun fetchJson(
+        url: String,
+        params: Map<String, String>,
+    ): JsonElement {
         val resolvedUrl = buildUrl(url, params)
         val client = HttpClientFactory.createHttpClient()
         try {
@@ -143,20 +159,29 @@ class JsonSpider : SpiderAdapter {
      *
      * 路径格式：`data.list` 或 `$.data.list`
      */
-    fun extractByPath(root: JsonElement, path: String): JsonElement? {
+    fun extractByPath(
+        root: JsonElement,
+        path: String,
+    ): JsonElement? {
         if (path.isEmpty()) return root
-        val segments = path.trimStart('$').trimStart('.').split('.').filter { it.isNotEmpty() }
+        val segments =
+            path
+                .trimStart('$')
+                .trimStart('.')
+                .split('.')
+                .filter { it.isNotEmpty() }
         var current: JsonElement = root
         for (seg in segments) {
-            current = when (current) {
-                is JsonObject -> current[seg] ?: return null
-                is JsonArray -> {
-                    val index = seg.toIntOrNull() ?: return null
-                    if (index < 0 || index >= current.size) return null
-                    current[index]
+            current =
+                when (current) {
+                    is JsonObject -> current[seg] ?: return null
+                    is JsonArray -> {
+                        val index = seg.toIntOrNull() ?: return null
+                        if (index < 0 || index >= current.size) return null
+                        current[index]
+                    }
+                    else -> return null
                 }
-                else -> return null
-            }
         }
         return current
     }
@@ -164,7 +189,11 @@ class JsonSpider : SpiderAdapter {
     /**
      * 提取列表
      */
-    fun extractList(root: JsonElement, listPath: String, fieldMap: Map<String, Any>): List<Map<String, Any>> {
+    fun extractList(
+        root: JsonElement,
+        listPath: String,
+        fieldMap: Map<String, Any>,
+    ): List<Map<String, Any>> {
         val listElement = extractByPath(root, listPath) ?: return emptyList()
         val array = listElement as? JsonArray ?: return emptyList()
         return array.mapNotNull { element ->
@@ -176,7 +205,11 @@ class JsonSpider : SpiderAdapter {
     /**
      * 提取单条详情
      */
-    private fun extractDetail(root: JsonElement, path: String, fieldMap: Map<String, Any>): Map<String, Any> {
+    private fun extractDetail(
+        root: JsonElement,
+        path: String,
+        fieldMap: Map<String, Any>,
+    ): Map<String, Any> {
         val element = extractByPath(root, path)
         if (element is JsonObject) {
             return normalizeMap(element, fieldMap)
@@ -190,7 +223,10 @@ class JsonSpider : SpiderAdapter {
      * fieldMap 格式：`{"vod_name": "title", "vod_pic": "cover", ...}`
      * 也支持嵌套路径：`{"vod_play_url.items": "sources"}`
      */
-    fun normalizeMap(obj: JsonObject, fieldMap: Map<String, Any>): Map<String, Any> {
+    fun normalizeMap(
+        obj: JsonObject,
+        fieldMap: Map<String, Any>,
+    ): Map<String, Any> {
         if (fieldMap.isEmpty()) {
             // 无映射 — 直接转为 Map
             return jsonElementToMap(obj) ?: return emptyMap()
@@ -209,11 +245,15 @@ class JsonSpider : SpiderAdapter {
     /**
      * 构建 URL（附加查询参数）
      */
-    private fun buildUrl(base: String, params: Map<String, String>): String {
+    private fun buildUrl(
+        base: String,
+        params: Map<String, String>,
+    ): String {
         if (params.isEmpty()) return base
-        val query = params.entries.joinToString("&") { (k, v) ->
-            "${encodeUrlComponent(k)}=${encodeUrlComponent(v)}"
-        }
+        val query =
+            params.entries.joinToString("&") { (k, v) ->
+                "${encodeUrlComponent(k)}=${encodeUrlComponent(v)}"
+            }
         return if (base.contains('?')) "$base&$query" else "$base?$query"
     }
 
@@ -221,8 +261,8 @@ class JsonSpider : SpiderAdapter {
 
     companion object {
         /** URL 编码 */
-        fun encodeUrlComponent(value: String): String {
-            return buildString {
+        fun encodeUrlComponent(value: String): String =
+            buildString {
                 for (c in value) {
                     when {
                         c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || c in "-_.~" -> append(c)
@@ -238,7 +278,6 @@ class JsonSpider : SpiderAdapter {
                     }
                 }
             }
-        }
 
         /**
          * 安全地将 Any? 转为 Map<String, Any>
@@ -255,15 +294,16 @@ class JsonSpider : SpiderAdapter {
          */
         fun jsonElementToMap(element: JsonElement): Map<String, Any>? {
             val obj = element as? JsonObject ?: return null
-            return obj.entries.associate { (k, v) -> k to jsonElementToAny(v) }
+            return obj.entries
+                .associate { (k, v) -> k to jsonElementToAny(v) }
                 .filterValues { it != null } as Map<String, Any>
         }
 
         /**
          * 将 JsonElement 递归转为普通 Kotlin 对象
          */
-        fun jsonElementToAny(element: JsonElement): Any? {
-            return when (element) {
+        fun jsonElementToAny(element: JsonElement): Any? =
+            when (element) {
                 is JsonNull -> null
                 is JsonObject -> {
                     element.entries.associate { (k, v) -> k to jsonElementToAny(v) }
@@ -272,8 +312,9 @@ class JsonSpider : SpiderAdapter {
                     element.map { jsonElementToAny(it) }
                 }
                 is JsonPrimitive -> {
-                    if (element.isString) element.content
-                    else {
+                    if (element.isString) {
+                        element.content
+                    } else {
                         val content = element.content
                         content.toBooleanStrictOrNull()
                             ?: content.toIntOrNull()
@@ -284,6 +325,5 @@ class JsonSpider : SpiderAdapter {
                 }
                 else -> null
             }
-        }
     }
 }

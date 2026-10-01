@@ -30,7 +30,12 @@ internal fun String.encodeUrlComponent(): String {
 }
 
 private fun isUnreservedAscii(ch: Char): Boolean =
-    ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' ||
-        ch == '-' || ch == '_' || ch == '.' || ch == '~'
+    ch in 'a'..'z' ||
+        ch in 'A'..'Z' ||
+        ch in '0'..'9' ||
+        ch == '-' ||
+        ch == '_' ||
+        ch == '.' ||
+        ch == '~'
 
 private const val HEX_DIGITS = "0123456789ABCDEF"

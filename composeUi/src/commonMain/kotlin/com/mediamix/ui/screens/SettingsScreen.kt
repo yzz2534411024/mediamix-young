@@ -68,13 +68,14 @@ fun SettingsScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { TopAppBar(title = { Text("设置") }) },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             // ── 数据源 ──
             item { SectionHeader("数据源") }
@@ -186,7 +187,7 @@ fun SettingsScreen(
                 viewModel.setThemeMode(it)
                 showThemeSheet = false
             },
-            onDismiss = { showThemeSheet = false }
+            onDismiss = { showThemeSheet = false },
         )
     }
 
@@ -201,7 +202,7 @@ fun SettingsScreen(
                 viewModel.setDecodeMode(it)
                 showDecodeSheet = false
             },
-            onDismiss = { showDecodeSheet = false }
+            onDismiss = { showDecodeSheet = false },
         )
     }
 
@@ -215,7 +216,7 @@ fun SettingsScreen(
                 viewModel.setSkipInterval(it)
                 showSkipIntervalSheet = false
             },
-            onDismiss = { showSkipIntervalSheet = false }
+            onDismiss = { showSkipIntervalSheet = false },
         )
     }
 
@@ -227,7 +228,7 @@ fun SettingsScreen(
             text = {
                 Text(
                     "将删除已缓存的视频分片，共 ${formatFileSize(cacheStats.totalSize)}。" +
-                        "收藏与观看记录不受影响。"
+                        "收藏与观看记录不受影响。",
                 )
             },
             confirmButton = {
@@ -235,12 +236,12 @@ fun SettingsScreen(
                     onClick = {
                         viewModel.clearCache()
                         showClearCacheDialog = false
-                    }
+                    },
                 ) { Text("清除") }
             },
             dismissButton = {
                 TextButton(onClick = { showClearCacheDialog = false }) { Text("取消") }
-            }
+            },
         )
     }
 
@@ -255,19 +256,19 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "跨平台视频聚合播放器",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Kotlin Multiplatform + Compose Multiplatform",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showAboutDialog = false }) { Text("关闭") }
-            }
+            },
         )
     }
 }
@@ -296,17 +297,18 @@ private fun SettingsTile(
 ) {
     ListItem(
         headlineContent = { Text(title) },
-        supportingContent = subtitle?.let {
-            {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        },
+        supportingContent =
+            subtitle?.let {
+                {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            },
         leadingContent = {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         },
@@ -314,7 +316,7 @@ private fun SettingsTile(
             Icon(
                 Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         modifier = Modifier.clickable(onClick = onClick),
@@ -331,15 +333,16 @@ private fun SettingsSwitchTile(
 ) {
     ListItem(
         headlineContent = { Text(title) },
-        supportingContent = subtitle?.let {
-            {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
+        supportingContent =
+            subtitle?.let {
+                {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
         leadingContent = {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         },
@@ -367,30 +370,36 @@ private fun <T> OptionSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
+                modifier = Modifier.padding(start = 20.dp, bottom = 8.dp),
             )
             options.forEach { (value, label) ->
                 val isSelected = value == selected
                 Surface(
                     onClick = { onSelect(value) },
-                    color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-                    else MaterialTheme.colorScheme.surface,
+                    color =
+                        if (isSelected) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = label, style = MaterialTheme.typography.bodyLarge)
@@ -399,7 +408,7 @@ private fun <T> OptionSheet(
                                 Text(
                                     text = desc,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -407,7 +416,7 @@ private fun <T> OptionSheet(
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }

@@ -17,7 +17,6 @@ package com.mediamix.shared.cache
  * 否则 Android 侧会在运行时抛 `NoClassDefFoundError`。
  */
 interface LocalProxyServer {
-
     /** 当前监听端口；未启动时为 0。 */
     val currentPort: Int
 
@@ -39,7 +38,11 @@ interface LocalProxyServer {
      *
      * 若当前平台不支持进程内代理，实现应原样返回 [cdnUrl]。
      */
-    fun proxyUrl(cdnUrl: String, videoId: String, quality: String = "720p"): String
+    fun proxyUrl(
+        cdnUrl: String,
+        videoId: String,
+        quality: String = "720p",
+    ): String
 
     /**
      * 解析 HTTP `Range` 头，返回 `(start, end)` 闭区间；非法或无法满足时返回 null。
@@ -47,7 +50,10 @@ interface LocalProxyServer {
      * 同时支持 `bytes=start-end`、`bytes=start-`、`bytes=-suffix` 之外的常见形式，
      * 并会把 `end` 收敛到 `fileSize - 1`。属于协议层逻辑，平台实现共用。
      */
-    fun parseRange(header: String, fileSize: Long): Pair<Long, Long>? {
+    fun parseRange(
+        header: String,
+        fileSize: Long,
+    ): Pair<Long, Long>? {
         if (fileSize <= 0) return null
         return try {
             val match = Regex("""bytes=(\d+)-(\d*)""").find(header) ?: return null

@@ -7,15 +7,28 @@ package com.mediamix.shared.player
  */
 expect class PlayerEngine() {
     fun initialize()
-    fun setSource(url: String, headers: Map<String, String>? = null)
+
+    fun setSource(
+        url: String,
+        headers: Map<String, String>? = null,
+    )
+
     fun play()
+
     fun pause()
+
     fun seekTo(positionMs: Long)
+
     fun setPlaybackSpeed(speed: Float)
+
     fun setVolume(volume: Float)
+
     fun getPosition(): Long
+
     fun getDuration(): Long
+
     fun isPlaying(): Boolean
+
     fun release()
 
     /**
@@ -39,14 +52,17 @@ expect class PlayerEngine() {
 
     // 视频轨道选择（可选操作，不支持时返回 false）
     fun setVideoTrack(trackId: String): Boolean
+
     fun getVideoTracks(): List<TrackInfo>
 
     // 音频轨道选择
     fun setAudioTrack(trackId: String): Boolean
+
     fun getAudioTracks(): List<TrackInfo>
 
     // 字幕轨道选择
     fun setSubtitleTrack(trackId: String): Boolean
+
     fun getSubtitleTracks(): List<TrackInfo>
 
     // Surface 管理（视频渲染）

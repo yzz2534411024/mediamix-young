@@ -33,3 +33,34 @@ ktlint_standard_no-wildcard-imports = disabled
 # 2) @Composable 函数按官方约定用大写开头。ktlint 不会自动识别该注解，
 #    必须显式声明，否则每个 Composable 都会被判成命名违规。
 ktlint_function_naming_ignore_when_annotated_with = Composable
+# 3) 文件名规则：KMP 的 expect/actual 习惯用 `XXX.android.kt` / `XXX.desktop.kt` 区分平台，
+#    一个文件里的声明名与文件名本来就不会完全一致，这条规则对 KMP 属误报。
+ktlint_standard_filename = disabled
+# 4) 参数列表里的行尾注释：项目里大量使用 `foo, // 说明` 这种紧凑写法，
+#    比把注释单独占一行更易读（尤其是长参数列表的最后几项）。关闭该规则。
+ktlint_standard_discouraged-comment-location = disabled
+# 5) 属性命名：Kotlin 官方文档明确推荐 backing property 用 `_` 前缀
+#    （如 `private val _flow` 配合 `val flow` 对外暴露），ktlint 默认不允许下划线开头，
+#    与官方惯例冲突，关闭。
+ktlint_standard_property-naming = disabled
+# 6) backing property 的配套命名检查：ktlint 要求 `_x` 必须有**同名**的 public 成员，
+#    但实际项目里常按语义命名（`_flow` 对应 `conditionChangedFlow`），
+#    且它不识别 `override` 属性，误报偏多，关闭。
+ktlint_standard_backing-property-naming = disabled
+
+# ── Gradle Kotlin DSL 脚本 ──
+# build.gradle.kts 里大量 apply { } / configure { } 链式块，ktlint 的缩进与换行规则
+# 与 Gradle 官方风格不一致（会要求整体再缩进一级），强行套用会让构建脚本更难读。
+# 格式规范主要面向 src 下的 Kotlin 源码。
+[*.kts]
+ktlint_standard_indent = disabled
+ktlint_standard_multiline-expression-wrapping = disabled
+ktlint_standard_function-signature = disabled
+ktlint_standard_no-multi-spaces = disabled
+ktlint_standard_trailing-comma-on-call-site = disabled
+
+# ── JNA 绑定 ──
+# MpvLib 是 JNA 接口，方法名必须沿用 libmpv 的 C 风格（mpv_create 等），
+# 改成驼峰会直接断开 native 函数绑定，因此这条规则必须对它放行。
+[**/MpvLib.kt]
+ktlint_standard_function-naming = disabled

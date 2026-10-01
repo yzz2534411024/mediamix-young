@@ -12,7 +12,6 @@ import co.touchlab.kermit.Logger
  * 但蜘蛛 JAR 中的 Android 依赖需要额外处理。
  */
 actual class JavaBridgeManager private constructor() {
-
     private val logger = Logger.withTag("JavaBridgeManager")
 
     actual val isInitialized: Boolean = false
@@ -26,9 +25,7 @@ actual class JavaBridgeManager private constructor() {
         spiderKey: String,
         method: String,
         args: Map<String, Any?>,
-    ): Map<String, Any?> {
-        return mapOf<String, Any?>("code" to -1, "msg" to "Android 端 JavaBridgeManager 暂未实现")
-    }
+    ): Map<String, Any?> = mapOf<String, Any?>("code" to -1, "msg" to "Android 端 JavaBridgeManager 暂未实现")
 
     actual fun release() {
         // No-op for stub
@@ -39,8 +36,9 @@ actual class JavaBridgeManager private constructor() {
         private var _instance: JavaBridgeManager? = null
 
         actual val instance: JavaBridgeManager
-            get() = _instance ?: synchronized(this) {
-                _instance ?: JavaBridgeManager().also { _instance = it }
-            }
+            get() =
+                _instance ?: synchronized(this) {
+                    _instance ?: JavaBridgeManager().also { _instance = it }
+                }
     }
 }

@@ -65,7 +65,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = koinInject(),
     sessionStore: PlaybackSessionStore = koinInject(),
     appPreferences: AppPreferences = koinInject(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
 ) {
     // ---- 状态 ----
     val playerState by viewModel.playerState.collectAsState()
@@ -157,9 +157,10 @@ fun PlayerScreen(
     }
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
     ) {
         // 用容器宽高比判断横竖屏，而不是读平台配置 —— commonMain 拿不到
         // Android 的 LocalConfiguration，桌面端也没有"屏幕方向"这个概念。
@@ -171,17 +172,20 @@ fun PlayerScreen(
         // 让渲染面本身变成对应比例并居中，超出的部分自然留黑边。
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             VideoSurface(
-                modifier = when (aspectMode) {
-                    AspectMode.RATIO_16_9 -> Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                    AspectMode.RATIO_4_3 -> Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                    else -> Modifier.fillMaxSize()
-                },
+                modifier =
+                    when (aspectMode) {
+                        AspectMode.RATIO_16_9 ->
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                        AspectMode.RATIO_4_3 ->
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(4f / 3f)
+                        else -> Modifier.fillMaxSize()
+                    },
                 onSurfaceCreated = { surface -> viewModel.setSurface(surface) },
-                onSurfaceDestroyed = { viewModel.setSurface(null) }
+                onSurfaceDestroyed = { viewModel.setSurface(null) },
             )
         }
 
@@ -190,7 +194,10 @@ fun PlayerScreen(
             onDoubleTapLeft = { viewModel.fastSeek(position - skipInterval * 1000L) },
             onDoubleTapRight = { viewModel.fastSeek(position + skipInterval * 1000L) },
             onDoubleTapCenter = { viewModel.togglePlayPause() },
-            onHorizontalDragStart = { seekPreviewPositionMs = position; seekDeltaMs = 0L },
+            onHorizontalDragStart = {
+                seekPreviewPositionMs = position
+                seekDeltaMs = 0L
+            },
             onHorizontalDrag = { deltaFraction ->
                 val deltaMs = (deltaFraction * duration).toLong()
                 seekDeltaMs = deltaMs
@@ -215,7 +222,7 @@ fun PlayerScreen(
                 showBrightnessIndicator = false
                 showVolumeIndicator = false
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         )
 
         // ---- 覆盖层 ----
@@ -224,18 +231,20 @@ fun PlayerScreen(
         }
         if (subtitleOffsetMs != 0L && showSubtitles) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 110.dp, end = 16.dp),
-                contentAlignment = Alignment.BottomEnd
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 110.dp, end = 16.dp),
+                contentAlignment = Alignment.BottomEnd,
             ) {
                 Text(
                     text = "字幕偏移 ${if (subtitleOffsetMs > 0) "+" else ""}${subtitleOffsetMs}ms",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 11.sp,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                    modifier =
+                        Modifier
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
         }
@@ -244,19 +253,21 @@ fun PlayerScreen(
         }
         if (showSpeedIndicator && playbackSpeed != 1.0f) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 72.dp, end = 20.dp),
-                contentAlignment = Alignment.TopEnd
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = 72.dp, end = 20.dp),
+                contentAlignment = Alignment.TopEnd,
             ) {
                 Text(
                     text = "${playbackSpeed}x",
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                    modifier =
+                        Modifier
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                 )
             }
         }
@@ -264,7 +275,7 @@ fun PlayerScreen(
             SeekPreviewOverlay(
                 targetMs = seekPreviewPositionMs,
                 deltaMs = seekDeltaMs,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             )
         }
         if (showBrightnessIndicator) {
@@ -275,39 +286,45 @@ fun PlayerScreen(
         }
         if (isLocked) {
             LockIcon(
-                onUnlock = { viewModel.unlockScreen(); controlsVisible = true },
-                modifier = Modifier.fillMaxSize()
+                onUnlock = {
+                    viewModel.unlockScreen()
+                    controlsVisible = true
+                },
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
         // ---- 控制层 ----
         if (controlsVisible && !isLocked) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    // 顺序很重要：background 先铺满整屏 → clickable 覆盖全屏用于吞掉
-                    // 穿透到手势层的点击 → 最后 safeDrawingPadding 只把**内容**收进安全区。
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.6f),
-                            0.3f to Color.Transparent,
-                            0.7f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.72f)
-                        )
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { /* 吞掉点击，避免穿透到手势层 */ }
-                    // 四边安全区一次处理：横屏时状态栏/导航栏跑到侧边，
-                    // 只加 bottom 内边距是不够的。
-                    .safeDrawingPadding()
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        // 顺序很重要：background 先铺满整屏 → clickable 覆盖全屏用于吞掉
+                        // 穿透到手势层的点击 → 最后 safeDrawingPadding 只把**内容**收进安全区。
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.6f),
+                                0.3f to Color.Transparent,
+                                0.7f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.72f),
+                            ),
+                        ).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { /* 吞掉点击，避免穿透到手势层 */ }
+                        // 四边安全区一次处理：横屏时状态栏/导航栏跑到侧边，
+                        // 只加 bottom 内边距是不够的。
+                        .safeDrawingPadding(),
             ) {
                 TopControlsBar(
                     title = currentEpisodeName.ifEmpty { title },
-                    subtitle = if (episodeList.size > 1) {
-                        "第 ${currentEpisodeIndex + 1} / ${episodeList.size} 集"
-                    } else null,
+                    subtitle =
+                        if (episodeList.size > 1) {
+                            "第 ${currentEpisodeIndex + 1} / ${episodeList.size} 集"
+                        } else {
+                            null
+                        },
                     showEpisodeEntry = episodeList.size > 1,
                     hasSubtitles = subtitleTracks.isNotEmpty(),
                     speed = playbackSpeed,
@@ -326,7 +343,7 @@ fun PlayerScreen(
                         controlsVisible = true
                     },
                     onMoreClick = { showMoreSheet = true },
-                    modifier = Modifier.padding(horizontal = sidePadding)
+                    modifier = Modifier.padding(horizontal = sidePadding),
                 )
 
                 Spacer(Modifier.weight(1f))
@@ -335,8 +352,11 @@ fun PlayerScreen(
                     positionMs = position,
                     durationMs = duration,
                     bufferedPercentage = bufferedPercentage,
-                    onSeek = { pos -> viewModel.seekTo(pos); controlsVisible = true },
-                    modifier = Modifier.padding(horizontal = sidePadding)
+                    onSeek = { pos ->
+                        viewModel.seekTo(pos)
+                        controlsVisible = true
+                    },
+                    modifier = Modifier.padding(horizontal = sidePadding),
                 )
 
                 Spacer(Modifier.height(10.dp))
@@ -348,11 +368,12 @@ fun PlayerScreen(
                     hasNextEpisode = hasNextEpisode,
                     skipInterval = skipInterval,
                     onPlayModeClick = {
-                        val next = when (playMode) {
-                            PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
-                            PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
-                            PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
-                        }
+                        val next =
+                            when (playMode) {
+                                PlayMode.SEQUENTIAL -> PlayMode.LOOP_ALL
+                                PlayMode.LOOP_ALL -> PlayMode.LOOP_SINGLE
+                                PlayMode.LOOP_SINGLE -> PlayMode.SEQUENTIAL
+                            }
                         viewModel.setPlayMode(next)
                     },
                     onPrevEpisode = { viewModel.playPrevEpisode() },
@@ -360,7 +381,7 @@ fun PlayerScreen(
                     onPlayPause = { viewModel.togglePlayPause() },
                     onForward = { viewModel.fastSeek(position + skipInterval * 1000L) },
                     onNextEpisode = { viewModel.playNextEpisode() },
-                    modifier = Modifier.padding(horizontal = sidePadding)
+                    modifier = Modifier.padding(horizontal = sidePadding),
                 )
 
                 Spacer(Modifier.height(14.dp))
@@ -370,10 +391,11 @@ fun PlayerScreen(
         if (isBuffering && lastError == null && !isSeeking) {
             BufferingIndicator(
                 bufferedPercentage = bufferedPercentage,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 96.dp),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 96.dp),
+                contentAlignment = Alignment.Center,
             )
         }
 
@@ -381,10 +403,13 @@ fun PlayerScreen(
             PlaybackErrorPanel(
                 errorMessage = lastError.orEmpty(),
                 onRetry = { viewModel.retryPlayback() },
-                onPickAnother = if (episodeList.size > 1) {
-                    { showEpisodeSheet = true }
-                } else null,
-                modifier = Modifier.fillMaxSize()
+                onPickAnother =
+                    if (episodeList.size > 1) {
+                        { showEpisodeSheet = true }
+                    } else {
+                        null
+                    },
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
@@ -399,7 +424,7 @@ fun PlayerScreen(
                 viewModel.setPlaybackSpeed(speed)
                 showSpeedIndicator = true
             },
-            onDismiss = { showSpeedDialog = false }
+            onDismiss = { showSpeedDialog = false },
         )
     }
 
@@ -411,7 +436,7 @@ fun PlayerScreen(
                 onSelect = { index ->
                     viewModel.playEpisodeAt(index)
                     showEpisodeSheet = false
-                }
+                },
             )
         }
     }
@@ -426,7 +451,7 @@ fun PlayerScreen(
             onDisable = { viewModel.toggleSubtitles() },
             onAdjustOffset = { viewModel.adjustSubtitleOffset(it) },
             onResetOffset = { viewModel.resetSubtitleOffset() },
-            onDismiss = { showSubtitleDialog = false }
+            onDismiss = { showSubtitleDialog = false },
         )
     }
 
@@ -443,7 +468,7 @@ fun PlayerScreen(
                     controlsVisible = false
                     showMoreSheet = false
                 },
-                onDismiss = { showMoreSheet = false }
+                onDismiss = { showMoreSheet = false },
             )
         }
     }
@@ -465,7 +490,7 @@ private fun GestureLayer(
     onVerticalDragStart: (isLeft: Boolean) -> Unit,
     onVerticalDrag: (isLeft: Boolean, delta: Float) -> Unit,
     onVerticalDragEnd: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var dragStartPositionMs by remember { mutableStateOf(0L) }
     var isLeftSide by remember { mutableStateOf(false) }
@@ -475,67 +500,70 @@ private fun GestureLayer(
     var horizontalMode by remember { mutableStateOf(false) }
 
     Box(
-        modifier = modifier
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        isLeftSide = offset.x < size.width / 2
-                        accumulatedDx = 0f
-                        accumulatedDy = 0f
-                        axisDecided = false
-                        horizontalMode = false
-                        dragStartPositionMs = 0L
-                    },
-                    onDrag = { change, dragDelta ->
-                        accumulatedDx += abs(dragDelta.x)
-                        accumulatedDy += abs(dragDelta.y)
-                        if (!axisDecided) {
-                            if (accumulatedDx > 12f || accumulatedDy > 12f) {
-                                axisDecided = true
-                                horizontalMode = accumulatedDx > accumulatedDy
-                                if (horizontalMode) onHorizontalDragStart()
-                                else onVerticalDragStart(isLeftSide)
+        modifier =
+            modifier
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            isLeftSide = offset.x < size.width / 2
+                            accumulatedDx = 0f
+                            accumulatedDy = 0f
+                            axisDecided = false
+                            horizontalMode = false
+                            dragStartPositionMs = 0L
+                        },
+                        onDrag = { change, dragDelta ->
+                            accumulatedDx += abs(dragDelta.x)
+                            accumulatedDy += abs(dragDelta.y)
+                            if (!axisDecided) {
+                                if (accumulatedDx > 12f || accumulatedDy > 12f) {
+                                    axisDecided = true
+                                    horizontalMode = accumulatedDx > accumulatedDy
+                                    if (horizontalMode) {
+                                        onHorizontalDragStart()
+                                    } else {
+                                        onVerticalDragStart(isLeftSide)
+                                    }
+                                }
                             }
-                        }
-                        if (!axisDecided) return@detectDragGestures
+                            if (!axisDecided) return@detectDragGestures
 
-                        if (horizontalMode) {
-                            val screenWidth = size.width.toFloat().coerceAtLeast(1f)
-                            // 用「当前累计位移占屏宽的比例」换算，而不是每次都拿绝对值算，
-                            // 否则拖动过程中会反复基于起点计算，预览位置对不上手指
-                            val fraction = (change.position.x - size.width / 2f) / screenWidth * 1.5f
-                            onHorizontalDrag(fraction)
-                        } else {
-                            val screenHeight = size.height.toFloat().coerceAtLeast(1f)
-                            onVerticalDrag(isLeftSide, -dragDelta.y / screenHeight)
-                        }
-                        change.consume()
-                    },
-                    onDragEnd = {
-                        if (horizontalMode) onHorizontalDragEnd()
-                        onVerticalDragEnd()
-                        axisDecided = false
-                    },
-                    onDragCancel = {
-                        if (horizontalMode) onHorizontalDragEnd()
-                        onVerticalDragEnd()
-                        axisDecided = false
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { onTap() },
-                    onDoubleTap = { offset ->
-                        val w = size.width.toFloat()
-                        when {
-                            offset.x < w * DOUBLE_TAP_ZONE_FRACTION -> onDoubleTapLeft()
-                            offset.x > w * (1f - DOUBLE_TAP_ZONE_FRACTION) -> onDoubleTapRight()
-                            else -> onDoubleTapCenter()
-                        }
-                    }
-                )
-            }
+                            if (horizontalMode) {
+                                val screenWidth = size.width.toFloat().coerceAtLeast(1f)
+                                // 用「当前累计位移占屏宽的比例」换算，而不是每次都拿绝对值算，
+                                // 否则拖动过程中会反复基于起点计算，预览位置对不上手指
+                                val fraction = (change.position.x - size.width / 2f) / screenWidth * 1.5f
+                                onHorizontalDrag(fraction)
+                            } else {
+                                val screenHeight = size.height.toFloat().coerceAtLeast(1f)
+                                onVerticalDrag(isLeftSide, -dragDelta.y / screenHeight)
+                            }
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            if (horizontalMode) onHorizontalDragEnd()
+                            onVerticalDragEnd()
+                            axisDecided = false
+                        },
+                        onDragCancel = {
+                            if (horizontalMode) onHorizontalDragEnd()
+                            onVerticalDragEnd()
+                            axisDecided = false
+                        },
+                    )
+                }.pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onTap() },
+                        onDoubleTap = { offset ->
+                            val w = size.width.toFloat()
+                            when {
+                                offset.x < w * DOUBLE_TAP_ZONE_FRACTION -> onDoubleTapLeft()
+                                offset.x > w * (1f - DOUBLE_TAP_ZONE_FRACTION) -> onDoubleTapRight()
+                                else -> onDoubleTapCenter()
+                            }
+                        },
+                    )
+                },
     )
 }
 
@@ -544,26 +572,31 @@ private fun GestureLayer(
 // ============================================================================
 
 @Composable
-private fun SeekPreviewOverlay(targetMs: Long, deltaMs: Long, modifier: Modifier = Modifier) {
+private fun SeekPreviewOverlay(
+    targetMs: Long,
+    deltaMs: Long,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.82f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 22.dp, vertical = 14.dp)
+            modifier =
+                Modifier
+                    .background(Color.Black.copy(alpha = 0.82f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
         ) {
             Text(
                 text = formatDuration(targetMs),
                 color = Color.White,
                 fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
             if (deltaMs != 0L) {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = (if (deltaMs > 0) "+" else "-") + formatDuration(abs(deltaMs)),
                     color = Color(0xFF80CBC4),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
                 )
             }
         }
@@ -578,21 +611,21 @@ private fun SeekPreviewOverlay(targetMs: Long, deltaMs: Long, modifier: Modifier
 private fun BufferingIndicator(
     bufferedPercentage: Int,
     modifier: Modifier = Modifier,
-    contentAlignment: Alignment = Alignment.Center
+    contentAlignment: Alignment = Alignment.Center,
 ) {
     Box(modifier = modifier, contentAlignment = contentAlignment) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
                 modifier = Modifier.size(34.dp),
                 color = Color.White,
-                strokeWidth = 3.dp
+                strokeWidth = 3.dp,
             )
             if (bufferedPercentage > 0) {
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text = "缓冲中 $bufferedPercentage%",
                     color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
                 )
             }
         }
@@ -604,27 +637,28 @@ private fun PlaybackErrorPanel(
     errorMessage: String,
     onRetry: () -> Unit,
     onPickAnother: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.72f))
-            .padding(horizontal = 32.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .background(Color.Black.copy(alpha = 0.72f))
+                .padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = Icons.Default.ErrorOutline,
                 contentDescription = null,
                 tint = Color(0xFFFF7043),
-                modifier = Modifier.size(46.dp)
+                modifier = Modifier.size(46.dp),
             )
             Spacer(Modifier.height(14.dp))
             Text(
                 text = "播放失败",
                 color = Color.White,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -633,16 +667,18 @@ private fun PlaybackErrorPanel(
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = onRetry,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp, Color.White.copy(alpha = 0.4f)
-                    )
+                    border =
+                        androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Color.White.copy(alpha = 0.4f),
+                        ),
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
@@ -661,27 +697,29 @@ private fun PlaybackErrorPanel(
 }
 
 /** 把 ExoPlayer 的英文原始错误转成用户能看懂的一句话 */
-private fun disguiseError(raw: String): String = when {
-    raw.contains("Source error", ignoreCase = true) ->
-        "视频源拒绝了播放请求（可能是地址失效或防盗链）。"
-    raw.contains("Unable to connect", ignoreCase = true) ||
-        raw.contains("Failed to connect", ignoreCase = true) ->
-        "网络连接失败，请检查网络后重试。"
-    raw.contains("timeout", ignoreCase = true) -> "连接超时，稍后重试。"
-    raw.contains("UnrecognizedInputFormat", ignoreCase = true) ||
-        raw.contains("ParserException", ignoreCase = true) ->
-        "这个地址不是可播放的视频流格式。"
-    raw.length > 90 -> raw.take(90) + "…"
-    else -> raw
-}
+private fun disguiseError(raw: String): String =
+    when {
+        raw.contains("Source error", ignoreCase = true) ->
+            "视频源拒绝了播放请求（可能是地址失效或防盗链）。"
+        raw.contains("Unable to connect", ignoreCase = true) ||
+            raw.contains("Failed to connect", ignoreCase = true) ->
+            "网络连接失败，请检查网络后重试。"
+        raw.contains("timeout", ignoreCase = true) -> "连接超时，稍后重试。"
+        raw.contains("UnrecognizedInputFormat", ignoreCase = true) ||
+            raw.contains("ParserException", ignoreCase = true) ->
+            "这个地址不是可播放的视频流格式。"
+        raw.length > 90 -> raw.take(90) + "…"
+        else -> raw
+    }
 
 /** 给播放地址补上默认 Referer —— 部分 CDN 用 Referer 做防盗链校验 */
 private fun buildPlaybackHeaders(url: String): Map<String, String>? {
     if (!url.startsWith("http", ignoreCase = true)) return null
-    val origin = runCatching {
-        val schemeEnd = url.indexOf("://")
-        val hostEnd = url.indexOf('/', schemeEnd + 3)
-        if (schemeEnd < 0 || hostEnd < 0) null else url.substring(0, hostEnd) + "/"
-    }.getOrNull() ?: return null
+    val origin =
+        runCatching {
+            val schemeEnd = url.indexOf("://")
+            val hostEnd = url.indexOf('/', schemeEnd + 3)
+            if (schemeEnd < 0 || hostEnd < 0) null else url.substring(0, hostEnd) + "/"
+        }.getOrNull() ?: return null
     return mapOf("Referer" to origin)
 }

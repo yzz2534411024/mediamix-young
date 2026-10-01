@@ -1,15 +1,8 @@
 package com.mediamix.shared.services
 
-import com.mediamix.shared.services.NetworkCondition
-import com.mediamix.shared.services.PreloadDepthCalculator
-import com.mediamix.shared.services.PreloadPriority
-import com.mediamix.shared.services.PreloadStrategy
-import com.mediamix.shared.services.PreloadTaskStatus
-import com.mediamix.shared.services.PreloadStatusInfo
 import kotlin.test.*
 
 class PreloadDepthCalculatorTest {
-
     private val calc = PreloadDepthCalculator
 
     // ---- OFFLINE / POOR edge cases ----
@@ -106,7 +99,7 @@ class PreloadDepthCalculatorTest {
                 avgDwellTimeSec = 60.0,
                 bounceRate = 0.8,
                 availableDiskMB = 100L,
-            )
+            ),
         )
     }
 
@@ -120,7 +113,7 @@ class PreloadDepthCalculatorTest {
                 avgDwellTimeSec = 900.0,
                 bounceRate = 0.1,
                 availableDiskMB = 2000L,
-            )
+            ),
         )
     }
 
@@ -131,7 +124,6 @@ class PreloadDepthCalculatorTest {
 }
 
 class PreloadStrategyTest {
-
     @Test
     fun wifi_returnsFullVideoStrategy() {
         val s = PreloadStrategy.getStrategy(NetworkCondition.WIFI)
@@ -177,7 +169,6 @@ class PreloadStrategyTest {
 }
 
 class PreloadPriorityTest {
-
     @Test
     fun priorityOrdering() {
         assertTrue(PreloadPriority.CURRENT_PLAYBACK.value < PreloadPriority.NEXT_EPISODE.value)
@@ -188,13 +179,14 @@ class PreloadPriorityTest {
 
     @Test
     fun sortingByPriority() {
-        val priorities = listOf(
-            PreloadPriority.HISTORY_REPLAY,
-            PreloadPriority.CURRENT_PLAYBACK,
-            PreloadPriority.PLAYLIST_ITEM,
-            PreloadPriority.NEXT_EPISODE,
-            PreloadPriority.ADJACENT_ITEM,
-        )
+        val priorities =
+            listOf(
+                PreloadPriority.HISTORY_REPLAY,
+                PreloadPriority.CURRENT_PLAYBACK,
+                PreloadPriority.PLAYLIST_ITEM,
+                PreloadPriority.NEXT_EPISODE,
+                PreloadPriority.ADJACENT_ITEM,
+            )
         val sorted = priorities.sortedBy { it.value }
         assertEquals(
             listOf(
@@ -210,17 +202,17 @@ class PreloadPriorityTest {
 }
 
 class PreloadStatusInfoTest {
-
     @Test
     fun totalCount_sumsAll() {
-        val info = PreloadStatusInfo(
-            pendingCount = 2,
-            downloadingCount = 1,
-            completedCount = 3,
-            cancelledCount = 0,
-            failedCount = 1,
-            currentDepth = 2,
-        )
+        val info =
+            PreloadStatusInfo(
+                pendingCount = 2,
+                downloadingCount = 1,
+                completedCount = 3,
+                cancelledCount = 0,
+                failedCount = 1,
+                currentDepth = 2,
+            )
         assertEquals(7, info.totalCount)
     }
 

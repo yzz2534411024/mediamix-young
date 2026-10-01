@@ -30,9 +30,9 @@ class MemoryCache(
     // ----------------------------------------------------------
     // TTL configuration (millis)
     // ----------------------------------------------------------
-    private val l1ActiveTtlMs = 5L * 60 * 1000   // 5 minutes
-    private val l1InactiveTtlMs = 1L * 60 * 1000  // 1 minute
-    private val l2TtlMs = 5L * 60 * 1000          // 5 minutes
+    private val l1ActiveTtlMs = 5L * 60 * 1000 // 5 minutes
+    private val l1InactiveTtlMs = 1L * 60 * 1000 // 1 minute
+    private val l2TtlMs = 5L * 60 * 1000 // 5 minutes
 
     // ----------------------------------------------------------
     // Memory pressure thresholds
@@ -66,7 +66,11 @@ class MemoryCache(
     // L1 Frame Buffer API
     // ===========================================================
 
-    fun putFrameBuffer(videoId: String, frameBuffer: Map<String, Any>, quality: String) {
+    fun putFrameBuffer(
+        videoId: String,
+        frameBuffer: Map<String, Any>,
+        quality: String,
+    ) {
         periodicMemoryPressureCheck()
 
         if (currentPressure == MemoryPressureLevel.CRITICAL) {
@@ -76,16 +80,20 @@ class MemoryCache(
 
         activeVideoIds.add(videoId)
         val key = l1Key(videoId, quality)
-        l1Cache[key] = L1Entry(
-            videoId = videoId,
-            quality = quality,
-            frameBuffer = frameBuffer,
-            estimatedBytes = estimateFrameBufferSize(frameBuffer),
-        )
+        l1Cache[key] =
+            L1Entry(
+                videoId = videoId,
+                quality = quality,
+                frameBuffer = frameBuffer,
+                estimatedBytes = estimateFrameBufferSize(frameBuffer),
+            )
         evictL1IfNeeded()
     }
 
-    fun getFrameBuffer(videoId: String, quality: String): Map<String, Any>? {
+    fun getFrameBuffer(
+        videoId: String,
+        quality: String,
+    ): Map<String, Any>? {
         val key = l1Key(videoId, quality)
         val entry = l1Cache[key] ?: return null
 
@@ -105,7 +113,12 @@ class MemoryCache(
     // L2 Segment Cache API
     // ===========================================================
 
-    fun putSegment(videoId: String, segmentKey: String, data: ByteArray, quality: String) {
+    fun putSegment(
+        videoId: String,
+        segmentKey: String,
+        data: ByteArray,
+        quality: String,
+    ) {
         periodicMemoryPressureCheck()
 
         if (currentPressure == MemoryPressureLevel.CRITICAL) {
@@ -114,16 +127,21 @@ class MemoryCache(
         }
 
         val key = l2Key(videoId, segmentKey, quality)
-        l2Cache[key] = L2Entry(
-            videoId = videoId,
-            segmentKey = segmentKey,
-            quality = quality,
-            data = data,
-        )
+        l2Cache[key] =
+            L2Entry(
+                videoId = videoId,
+                segmentKey = segmentKey,
+                quality = quality,
+                data = data,
+            )
         evictL2IfNeeded()
     }
 
-    fun getSegment(videoId: String, segmentKey: String, quality: String): SegmentCacheResult? {
+    fun getSegment(
+        videoId: String,
+        segmentKey: String,
+        quality: String,
+    ): SegmentCacheResult? {
         val key = l2Key(videoId, segmentKey, quality)
         val entry = l2Cache[key] ?: return null
 
@@ -226,28 +244,35 @@ class MemoryCache(
     // Internal - Key generation
     // ===========================================================
 
-    private fun l1Key(videoId: String, quality: String): String = "${videoId}_${quality}"
+    private fun l1Key(
+        videoId: String,
+        quality: String,
+    ): String = "${videoId}_$quality"
 
-    private fun l2Key(videoId: String, segmentKey: String, quality: String): String =
-        "${videoId}_${segmentKey}_${quality}"
+    private fun l2Key(
+        videoId: String,
+        segmentKey: String,
+        quality: String,
+    ): String = "${videoId}_${segmentKey}_$quality"
 
     // ===========================================================
     // Internal - TTL checks
     // ===========================================================
 
-    private fun isL1Expired(entry: L1Entry, ttlMs: Long): Boolean {
-        return Clock.System.now().toEpochMilliseconds() - entry.lastAccessMs > ttlMs
-    }
+    private fun isL1Expired(
+        entry: L1Entry,
+        ttlMs: Long,
+    ): Boolean = Clock.System.now().toEpochMilliseconds() - entry.lastAccessMs > ttlMs
 
-    private fun isL2Expired(entry: L2Entry): Boolean {
-        return Clock.System.now().toEpochMilliseconds() - entry.lastAccessMs > l2TtlMs
-    }
+    private fun isL2Expired(entry: L2Entry): Boolean = Clock.System.now().toEpochMilliseconds() - entry.lastAccessMs > l2TtlMs
 
     private fun evictExpiredL1(): Int {
-        val expiredKeys = l1Cache.entries.filter { entry ->
-            val ttl = if (activeVideoIds.contains(entry.value.videoId)) l1ActiveTtlMs else l1InactiveTtlMs
-            isL1Expired(entry.value, ttl)
-        }.map { it.key }
+        val expiredKeys =
+            l1Cache.entries
+                .filter { entry ->
+                    val ttl = if (activeVideoIds.contains(entry.value.videoId)) l1ActiveTtlMs else l1InactiveTtlMs
+                    isL1Expired(entry.value, ttl)
+                }.map { it.key }
         expiredKeys.forEach { l1Cache.remove(it) }
         if (expiredKeys.isNotEmpty()) {
             logger.d("L1 TTL evicted: ${expiredKeys.size}")
@@ -288,22 +313,22 @@ class MemoryCache(
     // Internal - Dynamic capacity
     // ===========================================================
 
-    internal fun getL1MaxEntries(): Int {
-        return when (currentPressure) {
+    internal fun getL1MaxEntries(): Int =
+        when (currentPressure) {
             MemoryPressureLevel.NORMAL -> maxL1Entries
             MemoryPressureLevel.WARNING -> maxL1Entries / 2
             MemoryPressureLevel.CRITICAL -> 0
             else -> maxL1Entries
         }
-    }
 
     internal fun getL2MaxEntries(): Int {
-        val base = when (currentPressure) {
-            MemoryPressureLevel.NORMAL -> maxL2Entries
-            MemoryPressureLevel.WARNING -> maxL2Entries / 2
-            MemoryPressureLevel.CRITICAL -> minL2Entries
-            else -> maxL2Entries
-        }
+        val base =
+            when (currentPressure) {
+                MemoryPressureLevel.NORMAL -> maxL2Entries
+                MemoryPressureLevel.WARNING -> maxL2Entries / 2
+                MemoryPressureLevel.CRITICAL -> minL2Entries
+                else -> maxL2Entries
+            }
         return base.coerceAtLeast(minL2Entries)
     }
 
@@ -323,11 +348,12 @@ class MemoryCache(
         val rss = memoryReader()
         val ratio = if (maxRssBytes > 0) rss.toDouble() / maxRssBytes else 0.0
 
-        val newLevel = when {
-            ratio >= memoryCriticalThreshold -> MemoryPressureLevel.CRITICAL
-            ratio >= memoryWarningThreshold -> MemoryPressureLevel.WARNING
-            else -> MemoryPressureLevel.NORMAL
-        }
+        val newLevel =
+            when {
+                ratio >= memoryCriticalThreshold -> MemoryPressureLevel.CRITICAL
+                ratio >= memoryWarningThreshold -> MemoryPressureLevel.WARNING
+                else -> MemoryPressureLevel.NORMAL
+            }
 
         if (newLevel != currentPressure) {
             logger.w("Memory pressure changed: $currentPressure -> $newLevel (RSS: ${rss / 1024 / 1024}MB)")

@@ -2,6 +2,7 @@ package com.mediamix.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.mediamix.shared.database.WatchHistoryDao
 import com.mediamix.shared.database.WatchHistoryItemEntity
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import co.touchlab.kermit.Logger
 
 /**
  * 观看历史数据模型
@@ -37,7 +37,6 @@ data class WatchHistoryItem(
 class HistoryViewModel(
     private val watchHistoryDao: WatchHistoryDao,
 ) : ViewModel() {
-
     private val logger = Logger.withTag("HistoryViewModel")
 
     private val _histories = MutableStateFlow<List<WatchHistoryItem>>(emptyList())
@@ -52,15 +51,14 @@ class HistoryViewModel(
 
     /** 监听数据库变化，实时更新历史列表 */
     private fun observeHistories() {
-        watchHistoryDao.observeAll()
+        watchHistoryDao
+            .observeAll()
             .flowOn(Dispatchers.Default)
             .onEach { entities ->
                 _histories.value = entities.map { it.toUiModel() }
-            }
-            .catch { e ->
+            }.catch { e ->
                 logger.e { "Observe history failed: ${e.message}" }
-            }
-            .launchIn(viewModelScope)
+            }.launchIn(viewModelScope)
     }
 
     fun loadHistories() {
@@ -121,8 +119,8 @@ class HistoryViewModel(
     }
 }
 
-private fun WatchHistoryItemEntity.toUiModel(): WatchHistoryItem {
-    return WatchHistoryItem(
+private fun WatchHistoryItemEntity.toUiModel(): WatchHistoryItem =
+    WatchHistoryItem(
         id = vodId,
         vodId = vodId,
         vodName = vodName,
@@ -131,4 +129,3 @@ private fun WatchHistoryItemEntity.toUiModel(): WatchHistoryItem {
         episodeName = episodeName,
         lastWatchTime = lastWatchTime,
     )
-}

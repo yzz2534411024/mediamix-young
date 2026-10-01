@@ -22,7 +22,6 @@ import co.touchlab.kermit.Logger
 class AndroidLocalProxyServer(
     @Suppress("UNUSED_PARAMETER") private val cacheService: VideoCacheService,
 ) : LocalProxyServer {
-
     private val logger = Logger.withTag("LocalProxyServer")
     private var warned = false
 
@@ -38,8 +37,11 @@ class AndroidLocalProxyServer(
 
     override fun stop() = Unit
 
-    override fun proxyUrl(cdnUrl: String, videoId: String, quality: String): String = cdnUrl
+    override fun proxyUrl(
+        cdnUrl: String,
+        videoId: String,
+        quality: String,
+    ): String = cdnUrl
 }
 
-actual fun createLocalProxyServer(cacheService: VideoCacheService): LocalProxyServer =
-    AndroidLocalProxyServer(cacheService)
+actual fun createLocalProxyServer(cacheService: VideoCacheService): LocalProxyServer = AndroidLocalProxyServer(cacheService)

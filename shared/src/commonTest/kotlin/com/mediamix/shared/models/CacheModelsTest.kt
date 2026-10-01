@@ -5,7 +5,6 @@ import kotlinx.serialization.json.Json
 import kotlin.test.*
 
 class CacheModelsTest {
-
     private val json = Json { ignoreUnknownKeys = true }
 
     // CachePolicy tests
@@ -79,30 +78,45 @@ class CacheModelsTest {
 
     @Test
     fun test_cacheEntry_isExpired_notExpired() {
-        val entry = CacheEntry(
-            cacheId = "c1", videoId = "v1", quality = "720p", filePath = "/f",
-            createdAt = 1000000L, ttl = 604800
-        )
+        val entry =
+            CacheEntry(
+                cacheId = "c1",
+                videoId = "v1",
+                quality = "720p",
+                filePath = "/f",
+                createdAt = 1000000L,
+                ttl = 604800,
+            )
         // currentTimeMillis within TTL
         assertFalse(entry.isExpired(1000000L + 604800L * 1000L - 1))
     }
 
     @Test
     fun test_cacheEntry_isExpired_expired() {
-        val entry = CacheEntry(
-            cacheId = "c1", videoId = "v1", quality = "720p", filePath = "/f",
-            createdAt = 1000000L, ttl = 604800
-        )
+        val entry =
+            CacheEntry(
+                cacheId = "c1",
+                videoId = "v1",
+                quality = "720p",
+                filePath = "/f",
+                createdAt = 1000000L,
+                ttl = 604800,
+            )
         // currentTimeMillis beyond TTL
         assertTrue(entry.isExpired(1000000L + 604800L * 1000L + 1))
     }
 
     @Test
     fun test_cacheEntry_isExpired_exactBoundary() {
-        val entry = CacheEntry(
-            cacheId = "c1", videoId = "v1", quality = "720p", filePath = "/f",
-            createdAt = 0L, ttl = 100
-        )
+        val entry =
+            CacheEntry(
+                cacheId = "c1",
+                videoId = "v1",
+                quality = "720p",
+                filePath = "/f",
+                createdAt = 0L,
+                ttl = 100,
+            )
         // Exactly at expiresAt = 0 + 100*1000 = 100000; currentTime > expiresAt => expired
         assertFalse(entry.isExpired(100000L), "At exact boundary should NOT be expired (> required)")
         assertTrue(entry.isExpired(100001L), "Just past boundary should be expired")
@@ -127,11 +141,19 @@ class CacheModelsTest {
 
     @Test
     fun test_cacheEntry_serialization() {
-        val entry = CacheEntry(
-            cacheId = "c1", videoId = "v1", quality = "1080p", filePath = "/cache/v1.mp4",
-            fileSize = 1024L, segments = listOf("seg1", "seg2"), hitCount = 3,
-            createdAt = 1000L, ttl = 3600, isComplete = true
-        )
+        val entry =
+            CacheEntry(
+                cacheId = "c1",
+                videoId = "v1",
+                quality = "1080p",
+                filePath = "/cache/v1.mp4",
+                fileSize = 1024L,
+                segments = listOf("seg1", "seg2"),
+                hitCount = 3,
+                createdAt = 1000L,
+                ttl = 3600,
+                isComplete = true,
+            )
         val encoded = json.encodeToString(entry)
         val decoded = json.decodeFromString<CacheEntry>(encoded)
         assertEquals(entry, decoded)
@@ -170,10 +192,15 @@ class CacheModelsTest {
 
     @Test
     fun test_memoryUsageInfo_withValues() {
-        val info = MemoryUsageInfo(
-            l1Bytes = 1024L, l2Bytes = 2048L, processRssBytes = 4096L,
-            pressureLevel = MemoryPressureLevel.WARNING, l1MaxEntries = 100, l2MaxEntries = 500
-        )
+        val info =
+            MemoryUsageInfo(
+                l1Bytes = 1024L,
+                l2Bytes = 2048L,
+                processRssBytes = 4096L,
+                pressureLevel = MemoryPressureLevel.WARNING,
+                l1MaxEntries = 100,
+                l2MaxEntries = 500,
+            )
         assertEquals(1024L, info.l1Bytes)
         assertEquals(MemoryPressureLevel.WARNING, info.pressureLevel)
     }
@@ -193,10 +220,15 @@ class CacheModelsTest {
 
     @Test
     fun test_cacheStats_withValues() {
-        val stats = CacheStats(
-            totalSize = 1024L * 1024L, entryCount = 50,
-            hitCount = 800L, missCount = 200L, hitRate = 0.8, diskUsagePercent = 45.5
-        )
+        val stats =
+            CacheStats(
+                totalSize = 1024L * 1024L,
+                entryCount = 50,
+                hitCount = 800L,
+                missCount = 200L,
+                hitRate = 0.8,
+                diskUsagePercent = 45.5,
+            )
         assertEquals(1024L * 1024L, stats.totalSize)
         assertEquals(50, stats.entryCount)
         assertEquals(0.8, stats.hitRate)
@@ -214,13 +246,14 @@ class CacheModelsTest {
 
     @Test
     fun test_viewingHabitSnapshot_creation() {
-        val snapshot = ViewingHabitSnapshot(
-            isPeakHour = true,
-            currentHourFrequency = 0.85,
-            preferredCategories = listOf("Action", "Drama"),
-            highReplayVideoIds = listOf("v1", "v2"),
-            predictedCategories = listOf("Action")
-        )
+        val snapshot =
+            ViewingHabitSnapshot(
+                isPeakHour = true,
+                currentHourFrequency = 0.85,
+                preferredCategories = listOf("Action", "Drama"),
+                highReplayVideoIds = listOf("v1", "v2"),
+                predictedCategories = listOf("Action"),
+            )
         assertTrue(snapshot.isPeakHour)
         assertEquals(0.85, snapshot.currentHourFrequency)
         assertEquals(2, snapshot.preferredCategories.size)
@@ -230,11 +263,14 @@ class CacheModelsTest {
 
     @Test
     fun test_viewingHabitSnapshot_serialization() {
-        val snapshot = ViewingHabitSnapshot(
-            isPeakHour = false, currentHourFrequency = 0.5,
-            preferredCategories = emptyList(), highReplayVideoIds = emptyList(),
-            predictedCategories = emptyList()
-        )
+        val snapshot =
+            ViewingHabitSnapshot(
+                isPeakHour = false,
+                currentHourFrequency = 0.5,
+                preferredCategories = emptyList(),
+                highReplayVideoIds = emptyList(),
+                predictedCategories = emptyList(),
+            )
         val encoded = json.encodeToString(snapshot)
         val decoded = json.decodeFromString<ViewingHabitSnapshot>(encoded)
         assertEquals(snapshot, decoded)
@@ -260,9 +296,12 @@ class CacheModelsTest {
 
     @Test
     fun test_cacheStrategySuggestion_customValues() {
-        val suggestion = CacheStrategySuggestion(
-            ttlMultiplier = 2.0, capacityMultiplier = 0.5, priority = CachePriority.HIGH
-        )
+        val suggestion =
+            CacheStrategySuggestion(
+                ttlMultiplier = 2.0,
+                capacityMultiplier = 0.5,
+                priority = CachePriority.HIGH,
+            )
         assertEquals(2.0, suggestion.ttlMultiplier)
         assertEquals(0.5, suggestion.capacityMultiplier)
         assertEquals(CachePriority.HIGH, suggestion.priority)
