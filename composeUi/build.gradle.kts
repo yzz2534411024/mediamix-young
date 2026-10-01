@@ -40,9 +40,10 @@ kotlin {
             // 排除其 compose 传递依赖，统一走本文件上面锁定的 1.7.1。
             // Android 端不受影响（androidx.compose 是不同 group）。
             implementation("org.jetbrains.androidx.navigation:navigation-compose:2.8.0-alpha13") {
-                exclude(group = "org.jetbrains.compose.runtime")
-                exclude(group = "org.jetbrains.compose.annotation-internal")
-                exclude(group = "org.jetbrains.compose.collection-internal")
+                // 整组排除：navigation 的传递依赖曾把 ui/runtime/foundation 等升到
+                // 1.8.0-alpha03（gradle 冲突解析取最高版本），与 1.7.1 的 skiko 0.8.4
+                // 混用导致启动即崩（RenderNodeContext CNF，实测）。
+                exclude(group = "org.jetbrains.compose")
                 exclude(group = "org.jetbrains.skiko")
             }
             implementation(libs.androidx.lifecycle.viewmodel.compose)
