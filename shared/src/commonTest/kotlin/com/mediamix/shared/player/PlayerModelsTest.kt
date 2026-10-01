@@ -292,8 +292,8 @@ class PlayerModelsTest {
 
     @Test
     fun aspectMode_allValues() {
-        // FILL / COVER 已删除：两端引擎都没有对应实现（见 AspectMode 注释），
-        // UI 也从未暴露过这两个选项 —— 留着只会让「调整比例无效」被误判为 bug。
-        assertEquals(3, AspectMode.entries.size)
+        // 7 种模式全部有真实实现：手机端 Compose 按视频宽高比约束 TextureView，
+        // 桌面端映射 mpv 的 keepaspect / panscan / video-aspect-override
+        assertEquals(7, AspectMode.entries.size)
     }
 }
