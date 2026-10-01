@@ -215,8 +215,15 @@ class SpiderService(
      *
      * 链路：`homeContent → categoryContent → detailContent → playerContent`。
      * 前一步没数据就停下来，并把原因写清楚 —— 后面的步骤依赖前面的产出。
+     *
+     * @param configKey 所属 TVBox 配置源的 key（即 `CmsApiSite.key`）。
+     *   传入真实值而不是从 URL 猜一个 —— 蜘蛛实例是按「配置源 + 站点」缓存的，
+     *   猜出来的 key 会另建一套实例，探测结果与首页实际走的不是同一个对象。
      */
-    suspend fun probeTvBoxPipeline(configUrl: String): List<String> {
+    suspend fun probeTvBoxPipeline(
+        configUrl: String,
+        configKey: String = "",
+    ): List<String> {
         val lines = mutableListOf<String>()
 
         fun add(line: String) = lines.add(line)
@@ -235,7 +242,7 @@ class SpiderService(
 
         val spiders =
             try {
-                initFromConfig(config, configKey = sourceKeyOf(configUrl))
+                initFromConfig(config, configKey = configKey)
             } catch (e: Exception) {
                 add("建蜘蛛: 异常 —— ${e.message ?: "未知错误"}")
                 return lines
@@ -356,14 +363,6 @@ class SpiderService(
             "playerContent 未给出地址（站点侧限制或该线路需额外参数）"
         }
     }
-
-    /**
-     * 探测用的配置源 key。
-     *
-     * 这里只需要一个稳定标识（用于构造 `配置源::站点` 复合 sourceKey），
-     * 直接取配置 URL 的 host 部分，避免为了探测再去反查源仓库。
-     */
-    private fun sourceKeyOf(configUrl: String): String = configUrl.substringAfter("//").substringBefore('/').ifEmpty { "tvbox" }
 
     // ==================== 生命周期 ====================
 

@@ -139,15 +139,18 @@ fun PlayerScreen(
     }
 
     // 会话在解析出结果后会被改写（写入 resolved），从而触发重组。
-    // 若不记住「已经装载过的地址」，这个 effect 会再跑一遍 openVideo ——
+    // 若不记住「已经装载过的目标」，这个 effect 会再跑一遍 openVideo ——
     // 那等于把播放器重新 initialize 一次（重建协程作用域、重置指标与计时器），
-    // 用户看到的是「刚开始播就闪一下重来」。用 key 去重，只在**目标集真正变化**时装一次。
+    // 用户看到的是「刚开始播就闪一下重来」。
+    //
+    // ⚠️ key 只能用**本页不变**的值（导航参数）：不能用 session.resolveKey ——
+    // 它会随解析结果回写而变化，反而会让同一次导航被当成「新目标」再装一次。
     var openedKey by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(url, episodeIndex) {
         if (url.isEmpty()) return@LaunchedEffect
         val s = session
-        val openKey = "${s?.resolveKey ?: url}#$episodeIndex"
+        val openKey = "$url#$episodeIndex"
         if (openedKey == openKey) return@LaunchedEffect
         // TVBox 会话：先确保「要播的这一集」已解析出真实地址与请求头，再交给播放器。
         val startResolved =

@@ -41,20 +41,34 @@ class SpiderRegistry private constructor() {
     }
 
     /**
-     * 根据站点配置创建或返回缓存的蜘蛛实例
+     * 根据站点配置创建或返回缓存的蜘蛛实例。
      *
      * 查找顺序：缓存 -> 已注册工厂 -> 内置类型映射。
      * 创建成功后会调用 [SpiderAdapter.init] 并传入 [parseExt] 解析后的配置。
+     *
+     * ⚠️ **缓存键必须是「配置源 + 站点」复合键**，不能只用站点 key。
+     * 实例里固定持有构造时的 [configKey]（用于产出 `配置源::站点` 复合标识），
+     * 只按站点 key 缓存会让**构造参数被静默忽略**：
+     * 只要有一条路径先用空 configKey 建过实例（例如「数据源管理 → 检查」），
+     * 之后首页/详情拿到的就是它 —— 产出的 sourceKey 是裸 key，
+     * 详情页随即反查失败，表现又是「点进详情报找不到数据源」。
      */
     suspend fun createFromSite(
         site: TvBoxSite,
         configKey: String = "",
     ): SpiderAdapter? {
-        instances[site.key]?.let { return it }
+        val cacheKey = instanceKey(configKey, site.key)
+        instances[cacheKey]?.let { return it }
+
+        // 同一站点若已按**裸 key** 缓存过（旧路径或调用方未传 configKey），
+        // 且现在拿到了真正的配置源 key —— 换成带源标识的实例，否则标识会一直是错的。
+        if (configKey.isNotBlank()) {
+            instances.remove(site.key)?.dispose()
+        }
 
         val spider = buildSpider(site, configKey) ?: return null
         spider.init(parseExt(site.ext))
-        instances[site.key] = spider
+        instances[cacheKey] = spider
         return spider
     }
 
@@ -68,15 +82,29 @@ class SpiderRegistry private constructor() {
         configKey: String = "",
     ): List<SpiderAdapter> = sites.mapNotNull { createFromSite(it, configKey) }
 
-    /** 获取指定 key 的蜘蛛实例 */
-    fun get(key: String): SpiderAdapter? = instances[key]
+    /**
+     * 获取指定 key 的蜘蛛实例。
+     *
+     * 同时接受 [configKey] 复合键与**裸站点 key**（调用方常常只有后者），
+     * 避免「明明建出来了却取不到」。
+     */
+    fun get(key: String): SpiderAdapter? =
+        instances[key]
+            ?: instances.entries.firstOrNull { (instanceKey, _) -> instanceKey.substringAfterLast(SEPARATOR) == key }?.value
 
     /** 获取所有已缓存的蜘蛛实例 */
     val all: List<SpiderAdapter> get() = instances.values.toList()
 
-    /** 移除并释放指定 key 的蜘蛛实例 */
+    /** 移除并释放指定 key 的蜘蛛实例（同样接受复合键与裸站点 key）。 */
     fun remove(key: String) {
-        instances.remove(key)?.dispose()
+        val entry =
+            instances.entries.firstOrNull { (instanceKey, _) ->
+                instanceKey == key ||
+                    instanceKey.substringAfterLast(SEPARATOR) == key
+            }
+        if (entry != null) {
+            instances.remove(entry.key)?.dispose()
+        }
     }
 
     /** 释放所有蜘蛛实例并清空缓存 */
@@ -158,6 +186,20 @@ class SpiderRegistry private constructor() {
     companion object {
         /** 全局单例 */
         val instance = SpiderRegistry()
+
+        /** 实例缓存键分隔符（与 [com.mediamix.shared.models.SourceRef] 保持一致）。 */
+        private const val SEPARATOR = "::"
+
+        /**
+         * 实例缓存键：有配置源时用 `配置源::站点`，否则退回裸站点 key。
+         *
+         * 用复合键是为了让「同一站点被不同配置源引用」不至于互相串味，
+         * 更关键的是**不能忽略构造参数**（见 [createFromSite] 的说明）。
+         */
+        private fun instanceKey(
+            configKey: String,
+            siteKey: String,
+        ): String = if (configKey.isBlank()) siteKey else "$configKey$SEPARATOR$siteKey"
 
         /** 将 [JsonObject] 递归转换为 [Map]<String, Any> */
         internal fun jsonObjectToMap(obj: JsonObject): Map<String, Any> = obj.entries.associate { (k, v) -> k to jsonElementToAny(v) }

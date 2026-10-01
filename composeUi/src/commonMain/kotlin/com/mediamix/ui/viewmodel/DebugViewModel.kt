@@ -82,7 +82,9 @@ class DebugViewModel(
                 _probeReport.value = listOf("探测中…（首次可能需下载蜘蛛包与等待壳解密，最长约 60 秒）")
                 _probeReport.value =
                     try {
-                        spiderService.probeTvBoxPipeline(site.apiUrl)
+                        // 传真实 configKey：蜘蛛按「配置源 + 站点」缓存，
+                        // 猜一个 key 会另建一套实例，探测的就不是首页实际用的那些。
+                        spiderService.probeTvBoxPipeline(site.apiUrl, configKey = site.key)
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
