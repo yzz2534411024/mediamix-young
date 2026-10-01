@@ -63,6 +63,18 @@ interface MpvLib : Library {
 
     fun mpv_error_string(error: Int): String?
 
+    /**
+     * 开启 mpv 内部日志（等级：no/error/warn/info/v1/v2/trace）。
+     *
+     * 打开的日志会以 `MPV_EVENT_LOG_MESSAGE` 事件推送 —— 排查播放问题时，
+     * mpv 的原始报错（找不到解码器、vo 初始化失败、网络错误）都在这里，
+     * 而 GUI 程序的 stderr 是抓不到的（jpackage 启动器无控制台）。
+     */
+    fun mpv_request_log_messages(
+        handle: Pointer,
+        minLevel: String,
+    ): Int
+
     fun mpv_client_name(handle: Pointer): String?
 
     fun mpv_free(data: Pointer?)
