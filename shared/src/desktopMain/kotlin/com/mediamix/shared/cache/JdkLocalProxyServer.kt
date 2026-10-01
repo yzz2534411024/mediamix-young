@@ -8,6 +8,7 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.utils.io.*
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
@@ -387,6 +388,25 @@ class JdkLocalProxyServer(
                 }
                 exchange.responseHeaders.set("Accept-Ranges", "bytes")
 
+                // ★ HLS 播放列表必须**重写**：m3u8 里的分片/子列表是相对路径，
+                // 播放器会按「播放列表所在目录」拼出 CDN 路径，但主机是代理 ——
+                // 于是请求变成 http://127.0.0.1:port/2026.../seg1.ts（不是 /vod/ 前缀）
+                // → 代理 404 → 播放黑屏（实测用户日志）。
+                // 做法：把每条 URL 解析成绝对地址后再包成代理地址，播放器后续
+                // 请求就都回到代理，缓存/转发链路才成立。
+                if (isPlaylist(cdnUrl, contentType)) {
+                    val raw = response.bodyAsChannel().readRemaining().readByteArray()
+                    val rewritten = rewritePlaylist(raw.decodeToString(), cdnUrl)
+                    val bytes = rewritten.encodeToByteArray()
+                    exchange.responseHeaders.set("Content-Type", contentType ?: "application/vnd.apple.mpegurl")
+                    exchange.responseHeaders.set("Content-Length", bytes.size.toString())
+                    exchange.sendResponseHeaders(200, bytes.size.toLong())
+                    exchange.responseBody.write(bytes)
+                    exchange.close()
+                    logger.d { "Playlist rewritten: $videoId (${bytes.size} bytes)" }
+                    return@runBlocking
+                }
+
                 val contentLen = contentLength?.toLongOrNull() ?: -1L
                 exchange.sendResponseHeaders(statusCode, contentLen)
 
@@ -441,6 +461,53 @@ class JdkLocalProxyServer(
             return
         }
         exchange.close()
+    }
+
+    // ----------------------------------------------------------
+    // HLS playlist rewriting
+    // ----------------------------------------------------------
+
+    /** 判定是否为 HLS 播放列表（按扩展名或 Content-Type）。 */
+    internal fun isPlaylist(
+        url: String,
+        contentType: String?,
+    ): Boolean =
+        url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) ||
+            contentType?.contains("mpegurl", ignoreCase = true) == true
+
+    /**
+     * 把 m3u8 里的所有 URL 改写成走本地代理。
+     *
+     * 处理三类出现位置：
+     *  - 裸 URL 行（分片 .ts / 子播放列表 .m3u8）
+     *  - `#EXT-X-KEY:URI="..."`（加密密钥）
+     *  - `#EXT-X-MAP:URI="..."`（初始化段，fMP4 常见）
+     *
+     * 相对路径按**播放列表自身所在目录**解析成绝对地址（HLS 规范），
+     * 已是绝对地址的原样包装。包装后播放器后续请求都会回到代理。
+     */
+    internal fun rewritePlaylist(
+        text: String,
+        playlistUrl: String,
+    ): String {
+        val base = playlistUrl.substringBefore('?').substringBeforeLast('/', "") + "/"
+        val uriRegex = Regex("URI=\"([^\"]+)\"")
+
+        fun wrap(raw: String): String {
+            val abs = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else base + raw
+            // videoId 用分片绝对地址的哈希：避免所有分片挤在同一 videoId 下互相覆盖
+            return proxyUrl(abs, "seg_${abs.hashCode().toUInt()}", "default")
+        }
+
+        return text.lines().joinToString("\n") { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.isEmpty() -> line
+                trimmed.startsWith("#") ->
+                    uriRegex.replace(line) { m -> "URI=\"${wrap(m.groupValues[1])}\"" }
+                else -> wrap(trimmed)
+            }
+        }
     }
 
     // ----------------------------------------------------------
