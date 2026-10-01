@@ -16,7 +16,6 @@ import kotlin.test.assertTrue
  * 做回归，防止解码器对真实世界的杂格式（随机标识、padding、注释行）失配。
  */
 class TvBoxImageDecoderRealDataTest {
-
     private fun loadFixture(): ByteArray {
         val stream =
             javaClass.getResourceAsStream("/tvbox/fantaiying.bin")
@@ -32,9 +31,10 @@ class TvBoxImageDecoderRealDataTest {
         val json = TvBoxImageDecoder.decode(bytes)
         assertNotNull(json, "解码不应返回 null —— 真实饭太硬响应必须能解出配置")
 
-        val sites = json["sites"]?.let {
-            (it as? kotlinx.serialization.json.JsonArray)?.size
-        } ?: 0
+        val sites =
+            json["sites"]?.let {
+                (it as? kotlinx.serialization.json.JsonArray)?.size
+            } ?: 0
         assertEquals(47, sites, "饭太硬当前配置应为 47 个站点")
     }
 

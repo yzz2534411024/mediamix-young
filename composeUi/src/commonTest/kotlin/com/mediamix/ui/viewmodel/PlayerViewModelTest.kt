@@ -1,4 +1,4 @@
-﻿package com.mediamix.ui.viewmodel
+package com.mediamix.ui.viewmodel
 
 import com.mediamix.shared.player.AspectMode
 import com.mediamix.shared.player.PlayMode
@@ -34,13 +34,12 @@ class PlayerViewModelTest {
 
     @Test
     fun aspectMode_hasAllExpectedValues() {
+        // FILL / COVER 已删除：两端引擎都没有实现，UI 也没暴露过。
         val modes = AspectMode.entries
-        assertEquals(5, modes.size)
+        assertEquals(3, modes.size)
         assertTrue(modes.contains(AspectMode.ORIGINAL))
         assertTrue(modes.contains(AspectMode.RATIO_16_9))
         assertTrue(modes.contains(AspectMode.RATIO_4_3))
-        assertTrue(modes.contains(AspectMode.FILL))
-        assertTrue(modes.contains(AspectMode.COVER))
     }
 
     @Test

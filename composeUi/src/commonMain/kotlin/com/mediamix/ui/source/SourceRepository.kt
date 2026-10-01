@@ -68,9 +68,13 @@ class SourceRepository(
         if (latencyMs <= 0) return
         val updated = readLatencies().toMutableMap()
         updated[key] = latencyMs
+        // ⚠️ 这里必须是真正的模板字符串。此前写成 `"${'$'}{it.key}:${'$'}{it.value}"`，
+        // `${'$'}` 是**转义后的字面美元符**，落盘的是一模一样的常量串
+        // "${it.key}:${it.value}" —— readLatencies() 永远反解不出，
+        // 于是「按实测延迟挑最快源」这条分支从未生效过。
         settings.putString(
             KEY_SOURCE_LATENCY,
-            updated.entries.joinToString("|") { "${'$'}{it.key}:${'$'}{it.value}" },
+            updated.entries.joinToString("|") { "${it.key}:${it.value}" },
         )
     }
 
@@ -114,6 +118,24 @@ class SourceRepository(
         persistCustomSites()
     }
 
+    /**
+     * 把某个源切换到新的接口地址（备用线路探测成功后调用）。
+     *
+     * 只改 URL 不动其它字段 —— 用户的启用状态、自定义名称都保留。
+     * 内置源与自定义源都要持久化：内置源的最初 URL 是写死在代码里的，
+     * 不落盘的话下次启动又会回到已失效的域名。
+     */
+    fun updateApiUrl(
+        key: String,
+        apiUrl: String,
+    ) {
+        val site = _sites.value.find { it.key == key } ?: return
+        if (site.apiUrl == apiUrl) return
+        _sites.value = _sites.value.map { if (it.key == key) it.copy(apiUrl = apiUrl) else it }
+        persistApiOverrides()
+        logger.i { "源「${site.name}」切换到接口地址: $apiUrl" }
+    }
+
     fun remove(key: String) {
         val site = _sites.value.find { it.key == key } ?: return
         if (site.isBuiltIn) return
@@ -147,9 +169,35 @@ class SourceRepository(
 
         val builtIn =
             CmsApiSite.defaultSites.map { site ->
-                if (site.key in disabled) site.copy(enabled = false) else site
+                val overridden = apiOverrides[site.key]
+                val withUrl = if (overridden != null) site.copy(apiUrl = overridden) else site
+                if (site.key in disabled) withUrl.copy(enabled = false) else withUrl
             }
         return builtIn + custom.filter { c -> builtIn.none { it.key == c.key } }
+    }
+
+    /** 读回内置源的接口地址覆写（备用线路切换后的结果）。 */
+    private val apiOverrides: Map<String, String>
+        get() =
+            settings
+                .getStringOrNull(KEY_API_OVERRIDES)
+                .orEmpty()
+                .split('|')
+                .mapNotNull { part ->
+                    val i = part.indexOf('=')
+                    if (i <= 0) return@mapNotNull null
+                    part.substring(0, i) to part.substring(i + 1)
+                }.toMap()
+
+    private fun persistApiOverrides() {
+        val overrides =
+            _sites.value
+                .filter { it.isBuiltIn }
+                .mapNotNull { site ->
+                    val original = CmsApiSite.defaultSites.find { it.key == site.key } ?: return@mapNotNull null
+                    if (original.apiUrl == site.apiUrl) null else "${site.key}=${site.apiUrl}"
+                }.joinToString("|")
+        settings.putString(KEY_API_OVERRIDES, overrides)
     }
 
     private fun persistDisabledKeys() {
@@ -167,5 +215,6 @@ class SourceRepository(
         const val KEY_CUSTOM_SITES = "source_custom_sites"
         const val KEY_CURRENT_SITE = "source_current_key"
         const val KEY_SOURCE_LATENCY = "source_latency"
+        const val KEY_API_OVERRIDES = "source_api_overrides"
     }
 }

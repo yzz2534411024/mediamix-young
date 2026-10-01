@@ -16,6 +16,7 @@ class TvBoxConfigParser {
 
         return TvBoxConfig(
             spiderUrl = spiderUrl,
+            spiderSpec = parseSpiderSpec(json["spider"]),
             sites = sites,
             lives = lives,
             flags = flags,
@@ -31,10 +32,22 @@ class TvBoxConfigParser {
 
         return TvBoxConfig(
             spiderUrl = spiderUrl,
+            spiderSpec = parseSpiderSpec(json["spider"]?.toAnyValue()),
             sites = sites,
             lives = lives,
             flags = flags,
         )
+    }
+
+    /**
+     * 取 spider 字段**原文**（含 `;md5;<hash>` 后缀）。
+     *
+     * [parseSpiderUrl] 负责给出可下载的裸 URL，这里保留原文是为了让
+     * `loadSpiderJar` 能拿到 md5 做校验与缓存键 —— 只留 URL 会让校验静默失效。
+     */
+    internal fun parseSpiderSpec(raw: Any?): String? {
+        if (raw !is String) return null
+        return raw.trim().ifEmpty { null }
     }
 
     // / spider 字段支持 "jar_url;md5" 格式，只取 jar_url

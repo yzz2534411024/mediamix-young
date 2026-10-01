@@ -5,16 +5,20 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.database.FavoriteDao
 import com.mediamix.shared.models.CmsApiSite
+import com.mediamix.shared.models.SourceRef
 import com.mediamix.shared.models.SourceUnavailableException
 import com.mediamix.shared.models.VideoDetail
 import com.mediamix.shared.models.VideoItem
+import com.mediamix.shared.services.PlaybackResolver
 import com.mediamix.shared.services.PreloadService
-import com.mediamix.shared.spider.SpiderService
+import com.mediamix.shared.services.ResolvedPlay
+import com.mediamix.shared.services.SourceContentGateway
 import com.mediamix.ui.source.SourceRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,10 +36,11 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class VideoDetailViewModel(
     private val httpClient: HttpClient,
-    private val spiderService: SpiderService,
     private val favoriteDao: FavoriteDao,
     private val sourceRepository: SourceRepository,
     private val preloadService: PreloadService,
+    private val gateway: SourceContentGateway,
+    private val resolver: PlaybackResolver,
 ) : ViewModel() {
     private val logger = Logger.withTag("VideoDetailViewModel")
     private val json =
@@ -64,28 +69,26 @@ class VideoDetailViewModel(
 
     private var loadedVodId: String? = null
 
+    /** 正在进行的播放地址解析任务 —— 连点同一集时复用，避免重复请求。 */
+    private var inFlightResolve: kotlinx.coroutines.Deferred<ResolvedPlay?>? = null
+
     fun loadDetail(
         vodId: String,
         sourceKey: String,
     ) {
         if (loadedVodId == vodId && _detail.value != null) return
-        val site = sourceRepository.findByKey(sourceKey) ?: CmsApiSite.findByKey(sourceKey)
+        // TVBox 影片的 sourceKey 是 `配置源::站点` 复合形式，反查时必须先取配置源那一段；
+        // 直接拿整串去查会查不到（那正是「点进详情报找不到数据源」的原因）。
+        val configKey = SourceRef.configKey(sourceKey)
+        val site = sourceRepository.findByKey(configKey) ?: CmsApiSite.findByKey(configKey)
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
                 if (site == null) {
-                    throw SourceUnavailableException("找不到数据源「$sourceKey」，请在设置 → 数据源管理里检查。")
+                    throw SourceUnavailableException("找不到数据源「$configKey」，请在设置 → 数据源管理里检查。")
                 }
-                if (site.isTvBox) {
-                    // TVBox 源的详情要通过 csp 蜘蛛在 TVBox 内核里执行，本项目不具备该能力；
-                    // 早点给出明确原因，比让用户对着空白详情页猜要好。
-                    throw SourceUnavailableException(
-                        "「${site.name}」需要 TVBox 蜘蛛内核才能取到播放地址，当前版本无法支持，" +
-                            "请切换到其它 CMS 数据源。",
-                    )
-                }
-                val loaded = fetchCmsDetail(site, vodId, sourceKey)
+                val loaded = gateway.loadDetail(site = site, vodId = vodId, sourceKey = sourceKey)
                 _detail.value = loaded
                 loadedVodId = vodId
                 _selectedSourceIndex.value = loaded.defaultSourceIndex
@@ -109,28 +112,54 @@ class VideoDetailViewModel(
         loadDetail(vodId, sourceKey)
     }
 
-    private suspend fun fetchCmsDetail(
-        site: CmsApiSite,
-        vodId: String,
+    /**
+     * 解析某一集的真实播放地址与请求头。
+     *
+     * CMS 源直通（剧集 url 本身就是地址）；**TVBox 源必须走这一步** ——
+     * 它的 `vod_play_url` 里存的是待解析的标识，只有 `playerContent` 才能换成
+     * 真实地址和防盗链头。少这一步，点播放必然失败。
+     *
+     * 失败时写入 [error] 并返回 null，由界面提示用户。
+     */
+    suspend fun resolveEpisode(
+        sourceIndex: Int,
+        episodeIndex: Int,
         sourceKey: String,
-    ): VideoDetail {
-        val url = "${site.apiUrl}?ac=detail&ids=$vodId"
-        val text = httpClient.get(url).bodyAsText()
-        val jsonObj = json.parseToJsonElement(text).jsonObject
-        val listArr = jsonObj["list"]?.jsonArray
-        if (listArr.isNullOrEmpty()) {
-            throw SourceUnavailableException("「${site.name}」没有返回这部影片的详情。")
+    ): ResolvedPlay? {
+        val d = _detail.value ?: return null
+        val playSource = d.playSources.getOrNull(sourceIndex) ?: return null
+        val episode = playSource.episodes.getOrNull(episodeIndex) ?: return null
+
+        // 连点去重：同一集正在解析时直接复用同一个任务，避免重复打 playerContent
+        inFlightResolve?.let { return it.await() }
+        val job = viewModelScope.async { doResolve(playSource.name, episode.url, sourceKey) }
+        inFlightResolve = job
+        return try {
+            job.await()
+        } finally {
+            inFlightResolve = null
         }
-        val detail =
-            VideoDetail.fromJson(
-                listArr[0].jsonObject.toMap(),
-                sourceKey = sourceKey,
-            )
-        if (!detail.hasPlayableSource) {
-            throw SourceUnavailableException("「${site.name}」这部影片没有可用的播放地址。")
-        }
-        return detail
     }
+
+    private suspend fun doResolve(
+        flag: String,
+        episodeId: String,
+        sourceKey: String,
+    ): ResolvedPlay? =
+        try {
+            resolver.resolve(
+                sourceKey = sourceKey,
+                flag = flag,
+                episodeId = episodeId,
+                siteResolver = { key -> sourceRepository.findByKey(key) },
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.e { "Resolve play failed: ${e.message}" }
+            _error.value = e.message ?: "解析播放地址失败，换一条线路试试。"
+            null
+        }
 
     /**
      * 切换收藏状态并**持久化到数据库**。
@@ -177,6 +206,9 @@ class VideoDetailViewModel(
      * 让首帧更快出来。失败无副作用，因此不做任何提示。
      */
     private fun warmUpFirstEpisode(detail: VideoDetail) {
+        // TVBox 的剧集 url 是**待解析的标识**（要经 playerContent 才能变成地址），
+        // 拿它去预热只会打出一串必然失败的请求。
+        if (SourceRef.isTvBox(detail.sourceKey)) return
         val firstUrl =
             detail.playSources
                 .firstOrNull { it.episodes.isNotEmpty() }
@@ -218,7 +250,8 @@ class VideoDetailViewModel(
         typeId: Int?,
         excludeVodId: String,
     ) {
-        if (typeId == null) return
+        // TVBox 源没有「相关推荐」这种接口，typeId 也拿不到（站内分类是 String），直接跳过
+        if (site.isTvBox || typeId == null) return
         viewModelScope.launch {
             try {
                 val url = "${site.apiUrl}?ac=detail&t=$typeId&pg=1"

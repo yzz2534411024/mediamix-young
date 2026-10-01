@@ -15,7 +15,11 @@ enum class PlayerState {
 enum class PlayMode { SEQUENTIAL, LOOP_SINGLE, LOOP_ALL }
 
 // 画面比例模式
-enum class AspectMode { ORIGINAL, RATIO_16_9, RATIO_4_3, FILL, COVER }
+// ⚠️ 已删除 FILL / COVER：两端引擎都没有对应实现（ExoPlayer 侧用的是 TextureView
+// 等比适配，mpv 侧没有 resize 模式开关），UI 也从没暴露过这两个选项 ——
+// 留着只会让「调整画面比例无效」被误判为 bug。真要支持需要接
+// ExoPlayer 的 RESIZE_MODE_FILL / RESIZE_MODE_ZOOM，属独立改动。
+enum class AspectMode { ORIGINAL, RATIO_16_9, RATIO_4_3 }
 
 // 画质等级
 enum class QualityLevel(
@@ -35,6 +39,17 @@ data class TrackInfo(
     val mimeType: String? = null,
     val bitrate: Int? = null,
     val isSelected: Boolean = false,
+)
+
+/**
+ * 一集「可播放」的形态：真实地址 + 必需请求头。
+ *
+ * TVBox 源的剧集标识（`playerContent` 入参）不是地址，必须解析后才是这个形态；
+ * CMS 源两者相同。由 [PlayerCoreManager.episodeResolver] 回调产出。
+ */
+data class EpisodeSource(
+    val url: String,
+    val headers: Map<String, String> = emptyMap(),
 )
 
 // 播放器事件监听接口

@@ -4,62 +4,75 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CmsApiSite
-import com.mediamix.shared.models.TvBoxConfig
-import com.mediamix.shared.models.TvBoxSite
+import com.mediamix.shared.models.SpiderCategory
 import com.mediamix.shared.models.VideoCategory
 import com.mediamix.shared.models.VideoItem
-import com.mediamix.shared.models.VideoListResponse
-import com.mediamix.shared.spider.SpiderService
-import com.mediamix.shared.spider.VideoApiService
+import com.mediamix.shared.services.HomeCatalog
+import com.mediamix.shared.services.SiteNode
+import com.mediamix.shared.services.SourceContentGateway
 import com.mediamix.ui.source.SourceRepository
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * 首页 ViewModel。
  *
- * 这里只在「CMS 接口协议」层面做编排：源 → 分类 → 影片列表 → 分页。
+ * 只做「源 → 目录 → 影片列表 → 分页」的编排，**具体协议由
+ * [SourceContentGateway] 分流**。此前这里散落着三处 `if (site.isTvBox)`，
+ * 而且 TVBox 分支用「站点下标 + 1」伪装成 CMS 的 `typeId`，从没真正进入
+ * 站内 class 层级 —— 用户点任何一个分类都只会看到该站点的首页推荐。
+ * 现在 TVBox 走**两层**目录：
  *
- * ⚠️ TVBox 源（如饭太硬）走的是另一套东西：它的配置里全是 `csp_*` Java 蜘蛛，
- * 需要在 TVBox 内核（jar + JS 引擎）里执行，本项目跑不了。碰到这种情况
- * 不再默默给一个空列表，而是把原因写进 [notice] 让界面明确告诉用户，
- * 并提供一键切换到可用源。
+ * 1. 一级 = 配置里的站点（[siteNodes]，由网关建立蜘蛛后给出）；
+ * 2. 二级 = 站点的站内 class（[siteClasses]，点进站点时才拉，带缓存）。
  */
 class VideoHomeViewModel(
-    private val spiderService: SpiderService,
-    private val httpClient: HttpClient,
     private val sourceRepository: SourceRepository,
-    private val videoApiService: VideoApiService,
+    private val gateway: SourceContentGateway,
 ) : ViewModel() {
     private val logger = Logger.withTag("VideoHomeViewModel")
-    private val json =
-        Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-        }
 
     val sites: StateFlow<List<CmsApiSite>> = sourceRepository.sites
 
     private val _currentSite = MutableStateFlow<CmsApiSite?>(null)
     val currentSite: StateFlow<CmsApiSite?> = _currentSite.asStateFlow()
 
+    // ==================== 目录 ====================
+
+    /** CMS 源的一级分类 */
     private val _categories = MutableStateFlow<List<VideoCategory>>(emptyList())
     val categories: StateFlow<List<VideoCategory>> = _categories.asStateFlow()
 
+    /** CMS 源当前选中的分类 */
     private val _selectedCategory = MutableStateFlow<VideoCategory?>(null)
     val selectedCategory: StateFlow<VideoCategory?> = _selectedCategory.asStateFlow()
+
+    /** TVBox 源的一级目录：配置里的站点 */
+    private val _siteNodes = MutableStateFlow<List<SiteNode>>(emptyList())
+    val siteNodes: StateFlow<List<SiteNode>> = _siteNodes.asStateFlow()
+
+    /** TVBox 源当前选中的站点 */
+    private val _selectedSiteNode = MutableStateFlow<SiteNode?>(null)
+    val selectedSiteNode: StateFlow<SiteNode?> = _selectedSiteNode.asStateFlow()
+
+    /** TVBox 源当前站点的站内分类 */
+    private val _siteClasses = MutableStateFlow<List<SpiderCategory>>(emptyList())
+    val siteClasses: StateFlow<List<SpiderCategory>> = _siteClasses.asStateFlow()
+
+    /** 当前选中的站内分类；null 表示「该站点首页推荐」 */
+    private val _selectedClass = MutableStateFlow<SpiderCategory?>(null)
+    val selectedClass: StateFlow<SpiderCategory?> = _selectedClass.asStateFlow()
+
+    private val _isTvBoxSource = MutableStateFlow(false)
+    val isTvBoxSource: StateFlow<Boolean> = _isTvBoxSource.asStateFlow()
+
+    /** 当前源在当前架构下无法解析 */
+    private val _isSourceUnsupported = MutableStateFlow(false)
+    val isSourceUnsupported: StateFlow<Boolean> = _isSourceUnsupported.asStateFlow()
+
+    // ==================== 列表 ====================
 
     private val _videos = MutableStateFlow<List<VideoItem>>(emptyList())
     val videos: StateFlow<List<VideoItem>> = _videos.asStateFlow()
@@ -69,13 +82,6 @@ class VideoHomeViewModel(
 
     private val _hasMore = MutableStateFlow(false)
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
-
-    private val _isTvBoxSource = MutableStateFlow(false)
-    val isTvBoxSource: StateFlow<Boolean> = _isTvBoxSource.asStateFlow()
-
-    /** 当前源在当前架构下无法解析（TVBox csp 蜘蛛）*/
-    private val _isSourceUnsupported = MutableStateFlow(false)
-    val isSourceUnsupported: StateFlow<Boolean> = _isSourceUnsupported.asStateFlow()
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -104,31 +110,35 @@ class VideoHomeViewModel(
         sourceRepository.currentSiteKey = site.key
         _currentSite.value = site
         _isTvBoxSource.value = site.isTvBox
-        _selectedCategory.value = null
-        _categories.value = emptyList()
-        _videos.value = emptyList()
+        resetCatalogState()
         _error.value = null
         _notice.value = null
-        currentPage = 1
-        pageCount = 1
-        _hasMore.value = false
-        // 切源必须清 TVBox 缓存，否则沿用上一个源的配置/站点列表
-        tvBoxConfigCache = null
-        tvBoxPlayable = emptyList()
 
         loadJob?.cancel()
         loadJob =
             viewModelScope.launch {
-                loadCategoriesInternal(site)
+                loadCatalog(site)
                 loadVideosInternal(site)
             }
+    }
+
+    private fun resetCatalogState() {
+        _selectedCategory.value = null
+        _categories.value = emptyList()
+        _siteNodes.value = emptyList()
+        _selectedSiteNode.value = null
+        _siteClasses.value = emptyList()
+        _selectedClass.value = null
+        _videos.value = emptyList()
+        currentPage = 1
+        pageCount = 1
+        _hasMore.value = false
     }
 
     /**
      * 切到第一个「能用」的源。
      *
-     * 用于 TVBox 源解析不了、或当前源整体挂掉时给用户一个一键出口，
-     * 不用自己去源列表里一个个试。
+     * 用于当前源整体挂掉时给用户一个一键出口，不用自己去源列表里一个个试。
      */
     fun switchToAvailableSource(): CmsApiSite? {
         val candidate =
@@ -143,61 +153,78 @@ class VideoHomeViewModel(
         _notice.value = null
     }
 
-    // ==================== 分类 ====================
+    // ==================== 目录加载 ====================
 
-    fun selectCategory(category: VideoCategory?) {
-        val site = _currentSite.value ?: return
-        _selectedCategory.value = category
-        _videos.value = emptyList()
-        currentPage = 1
-        _hasMore.value = false
-        loadJob?.cancel()
-        loadJob = viewModelScope.launch { loadVideosInternal(site) }
+    private suspend fun loadCatalog(site: CmsApiSite) {
+        _isSourceUnsupported.value = false
+        try {
+            when (val catalog = gateway.loadCatalog(site)) {
+                is HomeCatalog.Flat -> {
+                    _categories.value = catalog.categories
+                }
+
+                is HomeCatalog.Tree -> {
+                    _siteNodes.value = catalog.sites
+                    // 站点选好之前先不下拉任何列表 —— 两层目录的第二层要靠用户点选，
+                    // 每站一次 homeContent 的并发聚合只会在首屏白等几十秒。
+                    if (catalog.sites.isEmpty()) {
+                        _isSourceUnsupported.value = true
+                        _notice.value = "「${site.name}」配置里没有可用站点。"
+                    }
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.e { "Load catalog failed: ${e.message}" }
+            _categories.value = emptyList()
+            _siteNodes.value = emptyList()
+            if (site.isTvBox) {
+                _isSourceUnsupported.value = true
+                _notice.value = e.message ?: "「${site.name}」目录加载失败。"
+            }
+        }
     }
 
-    private suspend fun loadCategoriesInternal(site: CmsApiSite) {
-        try {
-            if (site.isTvBox) {
-                val config = spiderService.fetchTvBoxConfig(site.apiUrl)
-                tvBoxConfigCache = config
-                // 以「是否建出了蜘蛛」为可用判据：jar 桥就绪时 csp_* 会建出
-                // JavaBridgeSpider（反射调用 TVBox 蜘蛛包），桥不可用时 buildSpider
-                // 对 JAR 返回 null 自动排除 —— 不再用 isJavaSpider 一刀切。
-                val spiders = spiderService.initFromConfig(config)
-                val playable = config.sites.filter { s -> spiders.any { it.key == s.key } }
-                tvBoxPlayable = playable
-                _isSourceUnsupported.value = playable.isEmpty()
-                if (playable.isEmpty()) {
-                    _notice.value =
-                        "「${site.name}」的 ${config.sites.size} 个分类全部依赖 TVBox 蜘蛛内核，" +
-                            "当前版本无法解析。已保留其它可用的 CMS 源。"
-                    _categories.value = emptyList()
-                    return
-                }
-                _categories.value =
-                    playable.mapIndexed { index, tvboxSite ->
-                        VideoCategory(typeId = index + 1, typePid = 0, typeName = tvboxSite.name)
+    // ==================== TVBox 两层目录 ====================
+
+    /** 点击一级目录里的站点：拉该站点的站内 class，并展示首页推荐 */
+    fun selectSiteNode(node: SiteNode) {
+        val site = _currentSite.value ?: return
+        if (!site.isTvBox) return
+        _selectedSiteNode.value = node
+        _selectedClass.value = null
+        _siteClasses.value = emptyList()
+        _notice.value = null
+        loadJob?.cancel()
+        loadJob =
+            viewModelScope.launch {
+                try {
+                    _siteClasses.value = gateway.loadSiteClasses(site, node.key)
+                    if (_siteClasses.value.isEmpty()) {
+                        _notice.value = "「${node.name}」没有上报站内分类，只能看它的首页推荐。"
                     }
-            } else {
-                _isSourceUnsupported.value = false
-                val text = httpClient.get(site.apiUrl).bodyAsText()
-                val classArr = json.parseToJsonElement(text).jsonObject["class"]?.jsonArray ?: return
-                _categories.value =
-                    classArr
-                        .mapNotNull { elem ->
-                            val obj = elem.jsonObject
-                            val id = obj["type_id"]?.jsonPrimitive?.int ?: return@mapNotNull null
-                            VideoCategory(
-                                typeId = id,
-                                typePid = obj["type_pid"]?.jsonPrimitive?.int ?: 0,
-                                typeName = obj["type_name"]?.jsonPrimitive?.content ?: "",
-                            )
-                        }.filter { it.typePid == 0 || it.typePid < 0 }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.w { "Load site classes failed: ${e.message}" }
+                    _notice.value = "「${node.name}」的站内分类读取失败：${e.message ?: "未知错误"}"
+                }
             }
-        } catch (e: Exception) {
-            logger.e { "Load categories failed: ${e.message}" }
-            _categories.value = emptyList()
-        }
+        loadVideos()
+    }
+
+    /** 点击二级目录里的站内分类 */
+    fun selectClass(category: SpiderCategory?) {
+        _selectedClass.value = category
+        loadVideos()
+    }
+
+    // ==================== CMS 分类 ====================
+
+    fun selectCategory(category: VideoCategory?) {
+        _selectedCategory.value = category
+        loadVideos()
     }
 
     // ==================== 影片列表 ====================
@@ -212,11 +239,21 @@ class VideoHomeViewModel(
         _isLoading.value = true
         _error.value = null
         try {
-            if (site.isTvBox) {
-                loadSpiderVideos(site)
-            } else {
+            if (!site.isTvBox) {
                 loadCmsVideos(site)
+                return
             }
+            // TVBox 必须先选中站点 —— 43 个站点并发聚合会让首屏等几十秒，
+            // 而且用户根本看不出「为什么慢」。选中哪个站点就只拉哪个。
+            val node = _selectedSiteNode.value
+            if (node == null) {
+                _videos.value = emptyList()
+                _hasMore.value = false
+                return
+            }
+            loadSpiderVideos(site, node, page = 1, append = false)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.e { "Load videos failed: ${e.message}" }
             _error.value = friendlyError(site, e)
@@ -227,7 +264,7 @@ class VideoHomeViewModel(
 
     private suspend fun loadCmsVideos(site: CmsApiSite) {
         val typeId = _selectedCategory.value?.typeId
-        val page1 = fetchCmsPage(site.apiUrl, 1, typeId)
+        val page1 = gateway.loadList(site = site, siteKey = "", tid = typeId?.toString(), page = 1)
         val first = mergeVideoItems(page1.list)
         _videos.value = first
         currentPage = 1
@@ -237,7 +274,7 @@ class VideoHomeViewModel(
         // 首页默认多抓一页，避免一屏还没填满就到底了；分类页保持一页，滚动更快
         if (typeId == null && _hasMore.value && first.isNotEmpty()) {
             try {
-                val page2 = fetchCmsPage(site.apiUrl, 2, typeId)
+                val page2 = gateway.loadList(site = site, siteKey = "", tid = null, page = 2)
                 _videos.value = mergeVideoItems(first + page2.list)
                 currentPage = 2
                 _hasMore.value = page2.pageCount > 2
@@ -251,89 +288,62 @@ class VideoHomeViewModel(
         }
     }
 
-    /** 最近一次 TVBox 配置解析出的可用站点（与首页分类下标对齐）。 */
-    private var tvBoxPlayable: List<TvBoxSite> = emptyList()
+    /**
+     * TVBox 列表。
+     *
+     * [tid] 为 null 时是站点首页推荐（`homeContent`），否则是该站内分类
+     * （`categoryContent(tid, page)`）—— 这正是 A2 修复点：旧实现点分类仍然调
+     * `homeContent`，站内 class 层级从来没被用过。
+     */
+    private suspend fun loadSpiderVideos(
+        site: CmsApiSite,
+        node: SiteNode,
+        page: Int,
+        append: Boolean,
+    ) {
+        val tid = _selectedClass.value?.typeId
+        val result = gateway.loadList(site = site, siteKey = node.key, tid = tid, page = page)
+        val incoming = result.list.filter { it.vodId.isNotEmpty() }
+        _videos.value = if (append) mergeVideoItems(_videos.value + incoming) else mergeVideoItems(incoming)
+        currentPage = result.page.coerceAtLeast(page)
+        pageCount = result.pageCount.coerceAtLeast(1)
+        _hasMore.value = currentPage < pageCount && incoming.isNotEmpty()
 
-    /** 最近一次拉取的 TVBox 配置缓存 —— 分类点击复用，避免每次重新走网络。 */
-    private var tvBoxConfigCache: TvBoxConfig? = null
-
-    private suspend fun loadSpiderVideos(site: CmsApiSite) {
-        val config = tvBoxConfigCache ?: spiderService.fetchTvBoxConfig(site.apiUrl)
-        val category = _selectedCategory.value
-
-        if (category != null) {
-            // 分类下标与 loadCategoriesInternal 里缓存的 playable 列表对齐
-            val tvboxSite =
-                tvBoxPlayable
-                    .getOrNull(category.typeId - 1)
-            if (tvboxSite == null) {
-                _isSourceUnsupported.value = true
-                _notice.value = "该分类来自 TVBox 蜘蛛内核，当前版本无法解析。"
-                _videos.value = emptyList()
-                return
-            }
-            val spider =
-                spiderService.getSpider(tvboxSite.key)
-                    ?: spiderService.initFromConfig(config).find { it.key == tvboxSite.key }
-            if (spider == null) {
-                _videos.value = emptyList()
-                _notice.value = "分类「${tvboxSite.name}」的解析器不可用。"
-                return
-            }
-            _videos.value = spider.homeContent(page = 1).recommend
-            _hasMore.value = false
-            return
+        if (_videos.value.isEmpty()) {
+            _notice.value =
+                if (tid == null) {
+                    "「${node.name}」没有返回影片，换一个站点试试。"
+                } else {
+                    "「${node.name}」的这个分类没有返回影片，换一个分类试试。"
+                }
         }
-
-        val spiders =
-            spiderService
-                .initFromConfig(config)
-                .filter { spider -> config.sites.any { it.key == spider.key } }
-        if (spiders.isEmpty()) {
-            _isSourceUnsupported.value = true
-            _notice.value = "「${site.name}」的 ${config.sites.size} 个分类全部依赖 TVBox 蜘蛛内核，" +
-                "当前版本无法解析。已保留其它可用的 CMS 源。"
-            _videos.value = emptyList()
-            return
-        }
-
-        // 并发聚合：43 个 jar 站点串行逐个 homeContent 会非常慢
-        // （每个站点独立网络请求 + 壳反射调用），并发把首屏时间压到原来的 1/6 左右。
-        val allItems =
-            kotlinx.coroutines.coroutineScope {
-                spiders
-                    .map { spider ->
-                        async {
-                            try {
-                                spider.homeContent(page = 1).recommend
-                            } catch (e: kotlinx.coroutines.CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                logger.w { "Spider ${spider.key} home load failed: ${e.message}" }
-                                emptyList()
-                            }
-                        }
-                    }.awaitAll()
-            }.flatten()
-                .distinctBy { it.vodId }
-        _videos.value = allItems
-        _hasMore.value = false
     }
 
     fun loadMore() {
         if (_isLoading.value || !_hasMore.value) return
         val site = _currentSite.value ?: return
-        if (site.isTvBox) return
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 val nextPage = currentPage + 1
-                val typeId = _selectedCategory.value?.typeId
-                val response = fetchCmsPage(site.apiUrl, nextPage, typeId)
-                _videos.value = mergeVideoItems(_videos.value + response.list)
-                currentPage = response.page
-                pageCount = response.pageCount
-                _hasMore.value = response.page < response.pageCount
+                if (site.isTvBox) {
+                    val node = _selectedSiteNode.value ?: return@launch
+                    loadSpiderVideos(site, node, page = nextPage, append = true)
+                } else {
+                    val response =
+                        gateway.loadList(
+                            site = site,
+                            siteKey = "",
+                            tid = _selectedCategory.value?.typeId?.toString(),
+                            page = nextPage,
+                        )
+                    _videos.value = mergeVideoItems(_videos.value + response.list)
+                    currentPage = response.page
+                    pageCount = response.pageCount
+                    _hasMore.value = response.page < response.pageCount
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.e { "Load more failed: ${e.message}" }
                 _hasMore.value = false
@@ -346,10 +356,11 @@ class VideoHomeViewModel(
     fun refresh() {
         val site = _currentSite.value ?: return
         _notice.value = null
+        gateway.invalidateTvBoxCache()
         loadJob?.cancel()
         loadJob =
             viewModelScope.launch {
-                loadCategoriesInternal(site)
+                loadCatalog(site)
                 loadVideosInternal(site)
             }
     }
@@ -358,8 +369,7 @@ class VideoHomeViewModel(
     fun refreshList() {
         val site = _currentSite.value ?: return
         _notice.value = null
-        loadJob?.cancel()
-        loadJob = viewModelScope.launch { loadVideosInternal(site) }
+        loadVideos()
     }
 
     // ==================== 内部 ====================
@@ -378,18 +388,6 @@ class VideoHomeViewModel(
                 "「${site.name}」域名解析失败，该源可能已下线。"
             else -> "「${site.name}」加载失败：${e.message ?: "未知错误"}"
         }
-
-    /**
-     * 拉取一页 CMS 列表。
-     *
-     * 统一委托给 [VideoApiService]：它自带 `ac=detail`、5 分钟列表缓存与 DNS 预解析，
-     * 首页不必再自己拼 URL、自己解析 JSON（这套逻辑原先在 UI 层重复实现了一份）。
-     */
-    private suspend fun fetchCmsPage(
-        apiUrl: String,
-        page: Int,
-        typeId: Int?,
-    ): VideoListResponse = videoApiService.fetchVideoList(apiUrl = apiUrl, page = page, typeId = typeId)
 
     private fun mergeVideoItems(items: List<VideoItem>): List<VideoItem> {
         val seen = mutableSetOf<String>()

@@ -127,6 +127,28 @@ class PlayerCoreManager(
      */
     var onProgress: ((positionMs: Long, durationMs: Long, bufferedPercent: Int) -> Unit)? = null
 
+    /**
+     * 剧集变化（切集 / 自动连播）。
+     *
+     * 此前没有这个回调，UI 只能靠 500ms 轮询 [getCurrentEpisodeIndex] 猜测 ——
+     * 上/下一集与自动连播后标题、选集高亮会迟滞半秒。改为事件驱动后即时同步。
+     */
+    var onEpisodeChanged: ((index: Int, name: String) -> Unit)? = null
+
+    /** 音轨 / 视频轨列表变化（引擎上报轨道后触发）。 */
+    var onTracksChanged: ((audio: List<TrackInfo>, video: List<TrackInfo>) -> Unit)? = null
+
+    /**
+     * 按需解析「本集真实播放地址」。
+     *
+     * TVBox 源的 `episodeUrls` 存的是**待解析标识**（`playerContent` 的入参），
+     * 不是地址。切集/连播/失败回退前都要先过这里换成可直接播放的 URL 与请求头；
+     * CMS 源由调用方直通返回（标识即地址），因此不会多花时间。
+     *
+     * 返回 null 表示解析失败 —— 此时不装载，避免拿着无效标识去请求。
+     */
+    var episodeResolver: (suspend (index: Int) -> EpisodeSource?)? = null
+
     // External callbacks
     var progressSaveCallback: ProgressSaveCallback? = null
     var throughputProvider: (() -> ThroughputPrediction)? = null
@@ -159,6 +181,9 @@ class PlayerCoreManager(
     private var volume = 1.0f
     private var brightness = 0.5f
 
+    /** 省电模式下禁用「预加载下一集」（由 [applyPowerMode] 维护）。 */
+    private var preloadDisabled = false
+
     // Init params
     private var title = ""
     private var url = ""
@@ -168,6 +193,15 @@ class PlayerCoreManager(
 
     /** 播放请求头（UA / Referer 等），切集时同样会带上 */
     private var requestHeaders: Map<String, String>? = null
+
+    /**
+     * 按集请求头：`剧集下标 -> headers`。
+     *
+     * TVBox 蜘蛛对不同的集/线路可能给出不同的防盗链头，`:requestHeaders`
+     * 只放「初始那一集」的头；切集后若继续用它们，很容易 403。
+     * 由播放页在解析出结果时通过 [setEpisodeHeaders] 登记。
+     */
+    private val episodeHeaders = mutableMapOf<Int, Map<String, String>>()
 
     /** 同一集在其它播放线路里的候选地址，当前线路失败时按序回退 */
     private var fallbackUrls: List<String>? = null
@@ -221,7 +255,12 @@ class PlayerCoreManager(
     // Error / cache
     private var lastError: String? = null
     private var fallbackQuality: String? = null
-    private var resolvedUrl = ""
+
+    /** 当前媒体真正装载的地址（"下载本集"与诊断展示用）。 */
+    val resolvedUrl: String
+        get() = resolvedMediaUrl
+
+    private var resolvedMediaUrl = ""
 
     // Surface lifecycle — pending surface for race condition handling
     private var pendingSurface: Any? = null
@@ -305,6 +344,66 @@ class PlayerCoreManager(
     fun getHasPrevEpisode(): Boolean = episodeUrls != null && currentEpisodeIndex > 0
 
     fun getHasNextEpisode(): Boolean = episodeUrls != null && currentEpisodeIndex < (episodeUrls?.size ?: 0) - 1
+
+    // ========================================================================
+    // 音视频轨（引擎侧已实现，此前中间层没有透传方法 → UI 无入口）
+    // ========================================================================
+
+    /** 取当前媒体可选的音轨；引擎不可用时返回空列表而不是抛异常。 */
+    fun getAudioTracks(): List<TrackInfo> =
+        if (isDisposed) {
+            emptyList()
+        } else {
+            runCatching { playerEngine.getAudioTracks() }.getOrDefault(emptyList())
+        }
+
+    /** 取当前媒体可选的视频轨（画质档位）。 */
+    fun getVideoTracks(): List<TrackInfo> =
+        if (isDisposed) {
+            emptyList()
+        } else {
+            runCatching { playerEngine.getVideoTracks() }.getOrDefault(emptyList())
+        }
+
+    /** 切换音轨；成功返回 true。 */
+    fun setAudioTrack(trackId: String): Boolean {
+        if (isDisposed) return false
+        val ok = runCatching { playerEngine.setAudioTrack(trackId) }.getOrDefault(false)
+        if (ok) notifyTracksChanged()
+        return ok
+    }
+
+    /** 切换视频轨；成功返回 true。 */
+    fun setVideoTrack(trackId: String): Boolean {
+        if (isDisposed) return false
+        val ok = runCatching { playerEngine.setVideoTrack(trackId) }.getOrDefault(false)
+        if (ok) notifyTracksChanged()
+        return ok
+    }
+
+    /** 登记某一集的请求头（切集 / 重新装载时按当前集取用）。 */
+    fun setEpisodeHeaders(
+        index: Int,
+        headers: Map<String, String>,
+    ) {
+        if (headers.isEmpty()) {
+            episodeHeaders.remove(index)
+        } else {
+            episodeHeaders[index] = headers
+        }
+    }
+
+    /** 当前这一集应该用的请求头：优先按集登记的，其次初始集。 */
+    private fun headersForCurrentEpisode(): Map<String, String>? =
+        episodeHeaders[currentEpisodeIndex]?.takeIf { it.isNotEmpty() } ?: requestHeaders
+
+    private fun notifyEpisodeChanged() {
+        onEpisodeChanged?.invoke(currentEpisodeIndex, currentEpisodeName)
+    }
+
+    private fun notifyTracksChanged() {
+        onTracksChanged?.invoke(getAudioTracks(), getVideoTracks())
+    }
 
     fun getIsInitialized(): Boolean = isInitialized
 
@@ -600,7 +699,7 @@ class PlayerCoreManager(
             episodeNames = episodeNames,
             episodeUrls = episodeUrls,
             subtitleUrls = subtitleUrls,
-            headers = requestHeaders,
+            headers = headersForCurrentEpisode(),
             preferSoftwareDecoding = preferSoftwareDecoding,
             fallbackUrls = fallbackUrls,
         )
@@ -619,7 +718,7 @@ class PlayerCoreManager(
         if (target.isBlank()) return
         // 引擎重建后 Surface 可能已失效，补绑一次再装载
         pendingSurface?.let { playerEngine.setSurface(it) }
-        playerEngine.setSource(target, requestHeaders)
+        playerEngine.setSource(target, headersForCurrentEpisode())
     }
 
     fun seekTo(positionMs: Long) {
@@ -716,25 +815,51 @@ class PlayerCoreManager(
         if (index < 0 || index >= urls.size) return
         if (index >= names.size) return
 
-        val videoId = "${title}_$index"
-        // 让 url 指向当前这一集：之后的重试 / 换线 / 首帧超时兜底都必须以
-        // 当前集为准，否则切集失败后会莫名其妙跳回第一集。
-        url = urls[index]
-        fallbackIndex = 0
-        hasTriedDirectUrl = false
-        scope.launch {
-            openVideoWithCacheCheck(urls[index], videoId)
-        }
+        // 切集即通知 UI：等 500ms 轮询会让标题和选集高亮迟滞半拍
         currentEpisodeIndex = index
         currentEpisodeName = names[index]
+        fallbackIndex = 0
+        hasTriedDirectUrl = false
         hasTriggeredNextEpisodePreload = false
         isLoading = true
         loadingText = "Loading..."
         errorHandler.resetRetryCount()
         errorHandler.clearTriedQualityIndices()
-        metricsEngine.startSession(videoId)
+        metricsEngine.startSession("${title}_$index")
         metricsEngine.recordEvent(MetricsEvent.PLAY_START)
-        savePlaybackProgress()
+        notifyEpisodeChanged()
+
+        scope.launch {
+            // TVBox：先把标识换成真实地址与请求头，再装载（见 [episodeResolver]）
+            val source =
+                if (episodeResolver != null) {
+                    try {
+                        episodeResolver?.invoke(index)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logger.e("Episode $index resolve failed: ${e.message}")
+                        null
+                    }
+                } else {
+                    null
+                }
+            if (isDisposed) return@launch
+            if (source == null && episodeResolver != null) {
+                // 解析失败：不要拿待解析的标识去播放（必然失败，还会把排查方向带偏）
+                isLoading = false
+                onError?.invoke(
+                    ErrorEvent(message = "这一集的播放地址解析失败，换一集或换条线路试试。", hasNextEpisode = getHasNextEpisode()),
+                )
+                return@launch
+            }
+            val playableUrl = source?.url ?: urls[index]
+            // url 始终指向「当前这一集的可播放地址」，重试/换线/首帧兜底都依赖它
+            url = playableUrl
+            source?.headers?.let { episodeHeaders[index] = it }
+            openVideoWithCacheCheck(playableUrl, "${title}_$index", source?.headers ?: headersForCurrentEpisode())
+            savePlaybackProgress()
+        }
     }
 
     // ========================================================================
@@ -905,6 +1030,7 @@ class PlayerCoreManager(
     private suspend fun openVideoWithCacheCheck(
         videoUrl: String,
         videoId: String,
+        headers: Map<String, String>? = requestHeaders,
     ) {
         if (isDisposed) return
         val effectiveUrl = applyParser(videoUrl)
@@ -921,15 +1047,15 @@ class PlayerCoreManager(
                 logger.i("Quality fallback hit: requested $currentQualityLabel, using ${result.fallbackQuality}")
                 onQualityAutoSwitch?.invoke(QualityAutoSwitchEvent("${result.fallbackQuality}(cache)"))
             }
-            resolvedUrl = result.url
+            resolvedMediaUrl = result.url
             val sourceLabel = if (cacheEngine.isUsingCache) "local cache" else "network"
             val parserLabel = activeParser?.let { ", parser: ${it.name}" }.orEmpty()
             logger.i("Video URL resolved: $sourceLabel$parserLabel")
-            playerEngine.setSource(resolvedUrl, requestHeaders)
+            playerEngine.setSource(resolvedMediaUrl, headers)
         } catch (e: Exception) {
             logger.w("Video URL resolution failed, using original URL: $e")
-            resolvedUrl = effectiveUrl
-            playerEngine.setSource(effectiveUrl, requestHeaders)
+            resolvedMediaUrl = effectiveUrl
+            playerEngine.setSource(effectiveUrl, headers)
         }
     }
 
@@ -996,14 +1122,14 @@ class PlayerCoreManager(
                 switchQualityInternal(idx)
             }
             ErrorAction.SHOW_ERROR_DIALOG -> {
-                if (!hasTriedDirectUrl && url.isNotEmpty() && url != resolvedUrl) {
+                if (!hasTriedDirectUrl && url.isNotEmpty() && url != resolvedMediaUrl) {
                     hasTriedDirectUrl = true
                     logger.w("Proxy chain failed, trying direct CDN URL")
                     playerEngine.stop()
                     scope.launch {
                         delay(REOPEN_DELAY_MS)
                         if (isDisposed) return@launch
-                        playerEngine.setSource(url, requestHeaders)
+                        playerEngine.setSource(url, headersForCurrentEpisode())
                     }
                     return
                 }
@@ -1283,7 +1409,8 @@ class PlayerCoreManager(
     }
 
     private fun checkPreloadTrigger(positionMs: Long) {
-        if (isDisposed || hasTriggeredNextEpisodePreload || !getHasNextEpisode()) return
+        // 省电模式下不预加载下一集（见 applyPowerMode）—— 否则「省电」只是个空承诺。
+        if (isDisposed || preloadDisabled || hasTriggeredNextEpisodePreload || !getHasNextEpisode()) return
         val duration = playerEngine.getDuration()
         if (duration <= 0) return
         if (positionMs.toFloat() / duration.toFloat() >= PRELOAD_TRIGGER_POSITION) {
@@ -1409,9 +1536,10 @@ class PlayerCoreManager(
     }
 
     private fun applyPowerMode() {
-        if (powerMode == PowerMode.POWER_SAVING) {
-            logger.d("Power saving mode: disabling preload")
-        }
+        // 省电模式的实际动作是「关掉预加载」—— 之前这里只打了一行日志，
+        // 于是省电模式在观感上完全不存在。现在把开关真正下发给 preload 触发点。
+        preloadDisabled = powerMode == PowerMode.POWER_SAVING
+        logger.i("Power mode applied: $powerMode, preload=${if (preloadDisabled) "off" else "on"}")
     }
 
     // ========================================================================

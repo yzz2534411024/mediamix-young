@@ -1,5 +1,6 @@
-﻿package com.mediamix.ui.viewmodel
+package com.mediamix.ui.viewmodel
 
+import com.mediamix.shared.cache.CacheManager
 import com.mediamix.shared.cache.VideoCacheService
 import com.mediamix.shared.database.FavoriteDao
 import com.mediamix.shared.database.WatchHistoryDao
@@ -27,7 +28,7 @@ class SettingsViewModelTest {
         val vm =
             SettingsViewModel(
                 preferences = AppPreferences(mapSettings),
-                videoCacheService = videoCacheService,
+                cacheManager = CacheManager(videoCacheService),
                 watchHistoryDao = watchHistoryDao,
                 favoriteDao = favoriteDao,
                 metricsEngine = mockk<MetricsEngine>(relaxed = true),
@@ -110,7 +111,7 @@ class SettingsViewModelTest {
         val vm =
             SettingsViewModel(
                 AppPreferences(mapSettings),
-                videoCacheService,
+                CacheManager(videoCacheService),
                 watchHistoryDao,
                 favoriteDao,
                 mockk<MetricsEngine>(relaxed = true),
@@ -139,7 +140,7 @@ class SettingsViewModelTest {
         val vm =
             SettingsViewModel(
                 AppPreferences(mapSettings),
-                videoCacheService,
+                CacheManager(videoCacheService),
                 watchHistoryDao,
                 favoriteDao,
                 mockk<MetricsEngine>(relaxed = true),
@@ -164,7 +165,7 @@ class SettingsViewModelTest {
         val vm =
             SettingsViewModel(
                 AppPreferences(mapSettings),
-                videoCacheService,
+                CacheManager(videoCacheService),
                 watchHistoryDao,
                 favoriteDao,
                 mockk<MetricsEngine>(relaxed = true),
@@ -196,7 +197,7 @@ class SettingsViewModelTest {
         val vm =
             SettingsViewModel(
                 AppPreferences(mapSettings),
-                videoCacheService,
+                CacheManager(videoCacheService),
                 watchHistoryDao,
                 favoriteDao,
                 mockk<MetricsEngine>(relaxed = true),

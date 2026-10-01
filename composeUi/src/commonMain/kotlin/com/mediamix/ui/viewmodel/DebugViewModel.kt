@@ -3,7 +3,8 @@ package com.mediamix.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
-import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.cache.CacheManager
+import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.player.engines.MetricsEngine
 import com.mediamix.shared.spider.SpiderService
 import com.mediamix.ui.source.SourceRepository
@@ -30,7 +31,7 @@ data class DebugEntry(
  */
 class DebugViewModel(
     private val metricsEngine: MetricsEngine,
-    private val videoCacheService: VideoCacheService,
+    private val cacheManager: CacheManager,
     private val sourceRepository: SourceRepository,
     private val spiderService: SpiderService,
 ) : ViewModel() {
@@ -47,6 +48,53 @@ class DebugViewModel(
 
     private val _bridge = MutableStateFlow<List<DebugEntry>>(emptyList())
     val bridge: StateFlow<List<DebugEntry>> = _bridge.asStateFlow()
+
+    /** 一键探测的报告文本（可复制） */
+    private val _probeReport = MutableStateFlow<List<String>>(emptyList())
+    val probeReport: StateFlow<List<String>> = _probeReport.asStateFlow()
+
+    private val _isProbing = MutableStateFlow(false)
+    val isProbing: StateFlow<Boolean> = _isProbing.asStateFlow()
+
+    /** 最近一次探测用的 TVBox 源（决定探测哪个配置） */
+    val tvBoxSites: List<CmsApiSite> get() = sourceRepository.sites.value.filter { it.isTvBox }
+
+    private var probeJob: Job? = null
+
+    /**
+     * 一键探测：按真实链路跑 homeContent → categoryContent → detailContent → playerContent。
+     *
+     * 「TVBox 源为什么不可用」此前只能靠翻 logcat 逐条比对，且 `homeContent` 的
+     * 返回内容一直没定论 —— 这是判断「壳/站点侧无数据」还是「映射层丢数据」的唯一依据。
+     */
+    fun runProbe() {
+        if (_isProbing.value) return
+        val site =
+            sourceRepository.sites.value.firstOrNull { it.isTvBox }
+                ?: run {
+                    _probeReport.value = listOf("没有可探测的 TVBox 源。先在数据源管理里启用「饭太硬」。")
+                    return
+                }
+        probeJob?.cancel()
+        probeJob =
+            viewModelScope.launch {
+                _isProbing.value = true
+                _probeReport.value = listOf("探测中…（首次可能需下载蜘蛛包与等待壳解密，最长约 60 秒）")
+                _probeReport.value =
+                    try {
+                        spiderService.probeTvBoxPipeline(site.apiUrl)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        listOf("探测异常: ${e.message ?: "未知错误"}")
+                    }
+                _isProbing.value = false
+            }
+    }
+
+    fun clearProbeReport() {
+        _probeReport.value = emptyList()
+    }
 
     private var pollingJob: Job? = null
 
@@ -95,13 +143,14 @@ class DebugViewModel(
         viewModelScope.launch(Dispatchers.Default) {
             _cacheStats.value =
                 try {
-                    val stats = videoCacheService.getStats()
-                    val mem = videoCacheService.getMemoryUsage()
+                    // 统一从 CacheManager 门面读，避免诊断页与设置页读数不一致
+                    val snapshot = cacheManager.snapshot()
                     listOf(
-                        DebugEntry("内存缓存(L1+L2)", formatBytes(mem.l1Bytes + mem.l2Bytes)),
-                        DebugEntry("磁盘缓存", formatBytes(stats.totalSize)),
-                        DebugEntry("缓存条目数", stats.entryCount.toString()),
-                        DebugEntry("命中率", "${(stats.hitRate * 100).toInt()}%"),
+                        DebugEntry("内存缓存(L1+L2)", formatBytes(snapshot.memory.l1Bytes + snapshot.memory.l2Bytes)),
+                        DebugEntry("磁盘缓存", formatBytes(snapshot.stats.totalSize)),
+                        DebugEntry("合计", formatBytes(snapshot.totalBytes)),
+                        DebugEntry("缓存条目数", snapshot.stats.entryCount.toString()),
+                        DebugEntry("命中率", "${(snapshot.stats.hitRate * 100).toInt()}%"),
                     )
                 } catch (e: Exception) {
                     listOf(DebugEntry("错误", e.message ?: "读取缓存失败"))
@@ -138,7 +187,9 @@ class DebugViewModel(
                     DebugEntry("蜘蛛桥", spiderService.spiderBridgeStatus),
                     DebugEntry(
                         "TVBox 源",
-                        sourceRepository.sites.value.count { it.isTvBox }.toString() + " 个",
+                        sourceRepository.sites.value
+                            .count { it.isTvBox }
+                            .toString() + " 个",
                     ),
                 )
             } catch (e: Exception) {

@@ -66,6 +66,11 @@ fun VideoHomeScreen(
     val currentSite by viewModel.currentSite.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val siteNodes by viewModel.siteNodes.collectAsState()
+    val selectedSiteNode by viewModel.selectedSiteNode.collectAsState()
+    val siteClasses by viewModel.siteClasses.collectAsState()
+    val selectedClass by viewModel.selectedClass.collectAsState()
+    val isTvBoxSource by viewModel.isTvBoxSource.collectAsState()
     val videos by viewModel.videos.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
@@ -126,7 +131,25 @@ fun VideoHomeScreen(
                 onSelect = { viewModel.selectSite(it) },
             )
 
-            if (categories.isNotEmpty()) {
+            // TVBox 源：两级目录（站点 → 站内分类）。旧实现把 47 个站点当成
+            // CMS 的「分类」并以下标伪装 typeId，导致点任何一项都只看到首页推荐。
+            if (isTvBoxSource && siteNodes.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                SiteNodeRow(
+                    sites = siteNodes,
+                    selectedKey = selectedSiteNode?.key,
+                    onSelect = { viewModel.selectSiteNode(it) },
+                )
+                if (selectedSiteNode != null && siteClasses.isNotEmpty()) {
+                    ClassRow(
+                        classes = siteClasses,
+                        selectedId = selectedClass?.typeId,
+                        onSelect = { viewModel.selectClass(it) },
+                    )
+                }
+            }
+
+            if (!isTvBoxSource && categories.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 CategoryRow(
                     categories = categories,
@@ -160,7 +183,9 @@ fun VideoHomeScreen(
                 onSwitchSource = { viewModel.switchToAvailableSource() },
                 onLoadMore = { viewModel.loadMore() },
                 onOpenDetail = { item ->
-                    onNavigateToDetail(item.vodId, currentSite?.key.orEmpty())
+                    // 优先用条目自带 sourceKey（TVBox 是 `配置源::站点` 复合标识，
+                    // 详情页据此找回蜘蛛）；缺失时退回当前源 key。
+                    onNavigateToDetail(item.vodId, item.sourceKey ?: currentSite?.key.orEmpty())
                 },
             )
         }
@@ -205,6 +230,70 @@ private fun SourceRow(
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
             )
+        }
+    }
+}
+
+// ============================================================================
+// TVBox 两级目录
+// ============================================================================
+
+/**
+ * 一级目录：TVBox 配置里的站点。
+ *
+ * 与 CMS 分类分开渲染 —— 站点的 `key` 是字符串（`csp_DouDouGuard`），
+ * 不能塞进 `VideoCategory(typeId: Int)`，旧实现正是用下标伪造 Int 才丢失层级。
+ */
+@Composable
+private fun SiteNodeRow(
+    sites: List<com.mediamix.shared.services.SiteNode>,
+    selectedKey: String?,
+    onSelect: (com.mediamix.shared.services.SiteNode) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(sites, key = { it.key }) { node ->
+            val selected = selectedKey == node.key
+            FilterChip(
+                selected = selected,
+                onClick = { onSelect(node) },
+                label = { Text(node.name, fontSize = 12.sp, maxLines = 1) },
+                shape = RoundedCornerShape(8.dp),
+                colors =
+                    FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+            )
+        }
+    }
+}
+
+/**
+ * 二级目录：选中站点内部的 class。
+ *
+ * `typeId` 是 String（`"1"` / `"dianying"`），第一个 chip「首页」对应
+ * `tid = null` —— 即该站点的 `homeContent` 推荐。
+ */
+@Composable
+private fun ClassRow(
+    classes: List<com.mediamix.shared.models.SpiderCategory>,
+    selectedId: String?,
+    onSelect: (com.mediamix.shared.models.SpiderCategory?) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        item {
+            CategoryChip("首页", selectedId == null) { onSelect(null) }
+        }
+        items(classes, key = { it.typeId }) { cat ->
+            CategoryChip(cat.typeName, selectedId == cat.typeId) { onSelect(cat) }
         }
     }
 }

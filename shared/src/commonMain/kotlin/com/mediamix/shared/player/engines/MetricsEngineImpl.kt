@@ -20,11 +20,6 @@ class MetricsEngineImpl : MetricsEngine {
     private val logger = Logger.withTag("MetricsEngine")
 
     /**
-     * 是否收集指标 —— 由设置页的「使用数据分享」开关控制。
-     *
-     * 此前该开关只被写进偏好存储、没有任何消费方，属于「存了却不生效」的假功能。
-     */
-    /**
      * 「使用数据分享」开关 —— 只控制**对外上报/分享**的语义。
      *
      * ⚠️ 此前它同时 gate 了本地记录（startSession/recordEvent 直接 return），

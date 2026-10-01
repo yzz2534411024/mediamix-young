@@ -46,17 +46,27 @@ class SpiderRegistry private constructor() {
      * 查找顺序：缓存 -> 已注册工厂 -> 内置类型映射。
      * 创建成功后会调用 [SpiderAdapter.init] 并传入 [parseExt] 解析后的配置。
      */
-    suspend fun createFromSite(site: TvBoxSite): SpiderAdapter? {
+    suspend fun createFromSite(
+        site: TvBoxSite,
+        configKey: String = "",
+    ): SpiderAdapter? {
         instances[site.key]?.let { return it }
 
-        val spider = buildSpider(site) ?: return null
+        val spider = buildSpider(site, configKey) ?: return null
         spider.init(parseExt(site.ext))
         instances[site.key] = spider
         return spider
     }
 
-    /** 批量根据站点配置创建蜘蛛实例 */
-    suspend fun createFromSites(sites: List<TvBoxSite>): List<SpiderAdapter> = sites.mapNotNull { createFromSite(it) }
+    /**
+     * 批量根据站点配置创建蜘蛛实例。
+     *
+     * [configKey] 是所属 TVBox 配置源的 key，会透传给 jar 蜘蛛用于构造 [SourceRef]。
+     */
+    suspend fun createFromSites(
+        sites: List<TvBoxSite>,
+        configKey: String = "",
+    ): List<SpiderAdapter> = sites.mapNotNull { createFromSite(it, configKey) }
 
     /** 获取指定 key 的蜘蛛实例 */
     fun get(key: String): SpiderAdapter? = instances[key]
@@ -84,7 +94,10 @@ class SpiderRegistry private constructor() {
      * 通常写作 `type:3, api:"csp_XPath"` —— 若按 csp_ 前缀判定为 jar 蜘蛛，
      * 会在没有 JavaBridge 时直接返回 null，把能跑的站点全杀掉。
      */
-    internal fun buildSpider(site: TvBoxSite): SpiderAdapter? {
+    internal fun buildSpider(
+        site: TvBoxSite,
+        configKey: String = "",
+    ): SpiderAdapter? {
         // 1. 检查自定义工厂
         factories[site.key]?.let { return it(site) }
 
@@ -92,7 +105,7 @@ class SpiderRegistry private constructor() {
         return when (site.kind) {
             SiteKind.JAR ->
                 // 真 jar 蜘蛛：需要 TVBox 内核（JavaBridge）；内核未就绪则建不出来
-                if (javaBridgeManager != null) JavaBridgeSpider(site = site) else null
+                if (javaBridgeManager != null) JavaBridgeSpider(site = site, configKey = configKey) else null
 
             SiteKind.XPATH -> {
                 // XPath 蜘蛛的解析规则全在 ext 里；ext 为空就没法工作

@@ -3,6 +3,7 @@ package com.mediamix.shared.cache
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.models.CacheEntry
 import com.mediamix.shared.models.SegmentCacheResult
+import com.mediamix.shared.player.QualityLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -142,7 +143,13 @@ class DiskCache(
         }
 
         // 2. Quality priority order
-        val qualityPriority = listOf("瓒呮竻", "楂樻竻", "鏍囨竻", "娴佺晠")
+        //
+        // ⚠️ 这里原来是一串 **GBK 乱码**（`瓒呮竻/楂樻竻/鏍囨竻/娴佺晠`），
+        // 是「超清/高清/标清/流畅」被按 GBK 解码 UTF-8 字节后的产物。
+        // 缓存条目的 quality 字段实际由 [QualityLevel.label] 写入（正常 UTF-8），
+        // 两边永远对不上 —— 该分支**从未命中过**。现在改成引用同一份枚举，
+        // 从类型上杜绝再次写错。
+        val qualityPriority = QualityLevel.entries.sortedByDescending { it.ordinal }.map { it.label }
         for (q in qualityPriority) {
             if (q == preferredQuality) continue
             val path = getCachePath(videoId, q)

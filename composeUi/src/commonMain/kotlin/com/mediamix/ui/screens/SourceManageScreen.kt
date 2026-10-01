@@ -1,4 +1,4 @@
-﻿package com.mediamix.ui.screens
+package com.mediamix.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -29,6 +29,10 @@ fun SourceManageScreen(
     val sites by viewModel.sites.collectAsState()
     val sourceStatuses by viewModel.sourceStatuses.collectAsState()
     val isChecking by viewModel.isChecking.collectAsState()
+    val isImporting by viewModel.isImporting.collectAsState()
+    val importMessage by viewModel.importMessage.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<CmsApiSite?>(null) }
@@ -37,6 +41,7 @@ fun SourceManageScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("数据源管理") },
@@ -114,15 +119,23 @@ fun SourceManageScreen(
     // ── 添加源对话框 ──
     if (showAddDialog) {
         AddSourceDialog(
+            isImporting = isImporting,
             onDismiss = { showAddDialog = false },
             onConfirm = { name, url ->
-                val key = "custom_${name.hashCode()}"
-                val site = CmsApiSite(key = key, name = name, apiUrl = url)
-                viewModel.addSource(site)
-                viewModel.checkSource(site)
+                // 地址可能是 CMS 接口，也可能是 TVBox 配置（图片伪装的 JSON）——
+                // 由 ViewModel 探测后再决定按哪种源导入并给出结论。
+                viewModel.importSource(name, url)
                 showAddDialog = false
             },
         )
+    }
+
+    // 导入结果（成功/失败原因）用 Snackbar 形式提示一次
+    importMessage?.let { message ->
+        LaunchedEffect(message) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeImportMessage()
+        }
     }
 }
 
@@ -213,12 +226,12 @@ private fun SourceTile(
 
 @Composable
 private fun AddSourceDialog(
+    isImporting: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (name: String, url: String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
-    var isValidating by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -237,25 +250,32 @@ private fun AddSourceDialog(
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("API 地址") },
-                    placeholder = { Text("如：https://example.com/api.php/provide/vod/") },
+                    label = { Text("地址") },
+                    placeholder = { Text("CMS 接口或 TVBox 配置地址") },
                     maxLines = 2,
                     modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    // 两种地址都从同一个入口进：先探测再决定按 CMS 还是 TVBox 导入，
+                    // 用户不需要先知道自己的地址属于哪一类。
+                    text =
+                        "CMS 接口（…/api.php/provide/vod/）与 TVBox 配置（图片伪装的 JSON）都支持，" +
+                            "导入前会先探测一次确认可用。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            if (isValidating) {
+            if (isImporting) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
                 Button(
                     onClick = {
-                        if (name.isNotBlank() && url.isNotBlank()) {
-                            isValidating = true
-                            onConfirm(name.trim(), url.trim())
-                        }
+                        if (url.isNotBlank()) onConfirm(name.trim(), url.trim())
                     },
-                    enabled = name.isNotBlank() && url.isNotBlank(),
+                    enabled = url.isNotBlank(),
                 ) { Text("验证并添加") }
             }
         },

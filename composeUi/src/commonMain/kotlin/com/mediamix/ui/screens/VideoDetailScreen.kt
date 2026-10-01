@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mediamix.shared.models.SourceRef
 import com.mediamix.shared.models.VideoDetail
 import com.mediamix.shared.models.VideoEpisode
 import com.mediamix.shared.models.VideoItem
@@ -30,6 +31,8 @@ import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.LoadingScreen
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.viewmodel.VideoDetailViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -52,6 +55,8 @@ fun VideoDetailScreen(
 
     var isContentExpanded by remember { mutableStateOf(false) }
     var lastPlayedIndex by remember { mutableStateOf(0) }
+    // 点集要先解析播放地址（TVBox 必须走 playerContent），因此需要一个协程作用域
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(vodId, sourceKey) { viewModel.loadDetail(vodId, sourceKey) }
 
@@ -104,7 +109,7 @@ fun VideoDetailScreen(
                     Button(
                         onClick = {
                             val index = lastPlayedIndex.coerceIn(0, episodes.lastIndex)
-                            playEpisode(d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
+                            playEpisode(scope, viewModel, d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
                         },
                         modifier =
                             Modifier
@@ -224,7 +229,7 @@ fun VideoDetailScreen(
                                         selected = index == lastPlayedIndex,
                                         onClick = {
                                             lastPlayedIndex = index
-                                            playEpisode(d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
+                                            playEpisode(scope, viewModel, d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
                                         },
                                     )
                                 }
@@ -255,6 +260,8 @@ fun VideoDetailScreen(
 }
 
 private fun playEpisode(
+    scope: CoroutineScope,
+    viewModel: VideoDetailViewModel,
     detail: VideoDetail?,
     sourceIndex: Int,
     episodeIndex: Int,
@@ -262,14 +269,30 @@ private fun playEpisode(
     onNavigateToPlayer: (url: String, title: String, index: Int) -> Unit,
 ) {
     val d = detail ?: return
-    val episode =
-        d.playSources
-            .getOrNull(sourceIndex)
-            ?.episodes
-            ?.getOrNull(episodeIndex) ?: return
-    // 先把整份剧集列表交给会话仓库，播放页才能支持选集 / 上下集 / 失败换线
-    sessionStore.start(d, sourceIndex, episodeIndex)
-    onNavigateToPlayer(episode.url, episode.name, episodeIndex)
+    val playSource = d.playSources.getOrNull(sourceIndex) ?: return
+    val episode = playSource.episodes.getOrNull(episodeIndex) ?: return
+
+    scope.launch {
+        // TVBox 的剧集标识必须经 playerContent 解析成真实地址与请求头才能播；
+        // CMS 源这一步是直通（原样返回），不会多花时间。
+        val resolved = viewModel.resolveEpisode(sourceIndex, episodeIndex, d.sourceKey) ?: return@launch
+
+        if (SourceRef.isTvBox(d.sourceKey)) {
+            // TVBox：写入**完整剧集列表** + 已解析的这一集。其余集在播放页切到时
+            // 按需解析（见 PlaybackResolver）—— 旧实现只写单集，「下一集」永远灰着。
+            sessionStore.startResolved(
+                detail = d,
+                sourceIndex = sourceIndex,
+                episodeIndex = episodeIndex,
+                resolvedUrl = resolved.url,
+                headers = resolved.headers,
+            )
+        } else {
+            // 先把整份剧集列表交给会话仓库，播放页才能支持选集 / 上下集 / 失败换线
+            sessionStore.start(d, sourceIndex, episodeIndex)
+        }
+        onNavigateToPlayer(resolved.url, episode.name, episodeIndex)
+    }
 }
 
 // ============================================================================

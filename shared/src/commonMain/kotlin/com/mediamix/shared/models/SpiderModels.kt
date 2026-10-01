@@ -2,6 +2,9 @@ package com.mediamix.shared.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // ============================================================
 // 蜘蛛类型
@@ -69,12 +72,43 @@ data class SpiderDetailResult(
 @Serializable
 data class SpiderPlayResult(
     val url: String = "",
+    /**
+     * TVBox/CatVod 约定的 `header` 字段原文。
+     *
+     * ⚠️ 是**单数** `header`，值是 **JSON 字符串**（不是对象），需要二次解析。
+     * 只读 `headers`（复数）会把这些防盗链头整段丢掉 —— 表现就是播放直接 403。
+     */
+    val header: String? = null,
     val headers: Map<String, String>? = null,
     val parse: String? = null,
+    /** 解析器标识，对应 [VideoParser.key]（`parse=1` 时用来挑解析线路）。 */
+    val jx: String? = null,
     val playUrl: String? = null,
+    val format: String? = null,
 ) {
     /** "0"=直连, "1"=需二次解析 */
     val needsParse: Boolean get() = parse == "1"
+
+    /**
+     * 取可用的请求头。
+     *
+     * `headers`（对象，部分蜘蛛会直接给）优先；否则解析 `header`（JSON 字符串）。
+     * 两种形态都兼容，解析失败返回空表而不是抛异常 —— 播放头不是关键路径，
+     * 缺了顶多 403，不该因此崩掉调用链。
+     */
+    fun headerMap(): Map<String, String> {
+        headers?.takeIf { it.isNotEmpty() }?.let { return it }
+        val raw = header?.trim().orEmpty()
+        if (raw.isEmpty()) return emptyMap()
+        val obj =
+            runCatching {
+                Json.parseToJsonElement(raw) as? JsonObject
+            }.getOrNull() ?: return emptyMap()
+        return obj.entries
+            .mapNotNull { (key, value) ->
+                (value as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }?.let { key to it }
+            }.toMap()
+    }
 }
 
 // ============================================================
@@ -119,7 +153,16 @@ data class SpiderFilterValue(
 /** TVBox 配置 */
 @Serializable
 data class TvBoxConfig(
+    /** 蜘蛛包地址（已去掉 `;md5;<hash>` 后缀的裸 URL） */
     val spiderUrl: String? = null,
+    /**
+     * 蜘蛛字段原文，形如 `url;md5;<hash>`（饭太硬实测为 3 段）。
+     *
+     * **为什么不复用 [spiderUrl]**：`parseSpiderUrl` 会按分号截断，只留 URL ——
+     * 于是 `loadSpiderJar` 再也拿不到 md5，md5 校验与「按 md5 缓存」双双失效，
+     * 每次冷启都要重下 1.1MB 的蜘蛛包。这里保留原文供加载器提取校验值。
+     */
+    val spiderSpec: String? = null,
     val sites: List<TvBoxSite> = emptyList(),
     val lives: List<TvBoxLive> = emptyList(),
     val flags: List<String> = emptyList(),

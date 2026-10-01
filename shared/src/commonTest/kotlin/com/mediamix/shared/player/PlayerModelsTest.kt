@@ -292,6 +292,8 @@ class PlayerModelsTest {
 
     @Test
     fun aspectMode_allValues() {
-        assertEquals(5, AspectMode.entries.size)
+        // FILL / COVER 已删除：两端引擎都没有对应实现（见 AspectMode 注释），
+        // UI 也从未暴露过这两个选项 —— 留着只会让「调整比例无效」被误判为 bug。
+        assertEquals(3, AspectMode.entries.size)
     }
 }

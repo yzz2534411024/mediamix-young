@@ -21,6 +21,39 @@ class SourceUnavailableException(
 ) : Exception(message)
 
 // ============================================================
+// 源标识
+// ============================================================
+
+/**
+ * 复合源标识 —— 形如 `<配置源key>::<TVBox站点key>`；普通 CMS 源就是裸 key。
+ *
+ * **为什么需要它**：TVBox 配置源（饭太硬）本身是一个 [CmsApiSite]，但它内部的每部影片
+ * 来自配置里某一个具体站点（`csp_XxxGuard`）。此前 [VideoItem.sourceKey] 直接塞的是
+ * **TVBox 站点 key**（如 `douDou`），而详情页拿它去 `CmsApiSite.findByKey()` 反查 ——
+ * 两边都对不上，于是「点进详情报找不到数据源」。
+ *
+ * 用 `::` 连接两个 key，详情页据此即可判定「这是 TVBox 影片」并找回蜘蛛实例。
+ * 选择 `::` 是因为它不会出现在 TVBox 的站点 key 里（站点 key 常含 `.`、`_`、`-`）。
+ */
+object SourceRef {
+    private const val SEPARATOR = "::"
+
+    fun compose(
+        configKey: String,
+        siteKey: String,
+    ): String = "$configKey$SEPARATOR$siteKey"
+
+    /** 是否指向 TVBox 配置源里的某个站点。 */
+    fun isTvBox(ref: String): Boolean = ref.contains(SEPARATOR)
+
+    /** 配置源 key（即 [CmsApiSite.key]）。非 TVBox 时原样返回。 */
+    fun configKey(ref: String): String = ref.substringBefore(SEPARATOR)
+
+    /** TVBox 站点 key；非 TVBox 时为空串。 */
+    fun siteKey(ref: String): String = ref.substringAfter(SEPARATOR, "")
+}
+
+// ============================================================
 // JSON 取值工具
 // ============================================================
 
@@ -74,7 +107,19 @@ data class CmsApiSite(
     val enabled: Boolean = true,
     val isBuiltIn: Boolean = false,
     val isTvBox: Boolean = false,
+    /**
+     * 备用接口地址（**不含** [apiUrl] 本身）。
+     *
+     * 采集站的域名经常整体失效 —— 例如饭太硬的官方域名只有 `.net` 还活着，
+     * `.com`/`.top` 已不可达。只写死一个地址时，域名一挂整个源就彻底不可用，
+     * 而实际上换个后缀就能恢复。网关会按 [apiUrl] → 备用 顺序探测，
+     * 首个成功的会写回仓库作为后续默认（见 `SourceContentGateway.resolveEndpoint`）。
+     */
+    val apiUrlCandidates: List<String> = emptyList(),
 ) {
+    /** 全部待尝试的接口地址：主地址优先，去重后依次给备用。 */
+    val allApiUrls: List<String> get() = (listOf(apiUrl) + apiUrlCandidates).distinct()
+
     companion object {
         /**
          * 内置源列表。
@@ -127,6 +172,13 @@ data class CmsApiSite(
                     apiUrl = "http://www.xn--sss604efuw.net/tv",
                     isBuiltIn = true,
                     isTvBox = true,
+                    // 官方域名按「.com / .top / .net」三条并列发布，实测只有 .net 可达。
+                    // 写死单条时域名轮换就会整源失效，因此把另外两条作为备用线路。
+                    apiUrlCandidates =
+                        listOf(
+                            "http://www.xn--sss604efuw.com/tv",
+                            "http://www.xn--sss604efuw.top/tv",
+                        ),
                 ),
             )
 

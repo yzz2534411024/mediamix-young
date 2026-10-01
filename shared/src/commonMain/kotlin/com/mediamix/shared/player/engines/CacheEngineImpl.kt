@@ -3,6 +3,7 @@ package com.mediamix.shared.player.engines
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.cache.LocalProxyServer
 import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.core.PlatformInfo
 import com.mediamix.shared.core.PowerMode
 import com.mediamix.shared.services.PreloadPriority
 import com.mediamix.shared.services.PreloadService
@@ -39,6 +40,10 @@ class CacheEngineImpl(
     // Preloaded but unused videoId set (for recycling)
     private val preloadedVideoIds = mutableSetOf<String>()
 
+    /** 播放器是否正在缓冲 —— 真时不再发起新的预加载（见 [notifyPreloadBuffering]）。 */
+    @Volatile
+    private var isPlayerBuffering = false
+
     // ========================================================================
     // URL resolution
     // ========================================================================
@@ -58,6 +63,11 @@ class CacheEngineImpl(
             }
 
             _isUsingCache = false
+
+            // Android 没有进程内代理（见 AndroidLocalProxyServer 的说明）：播放缓存
+            // 由 Media3 的 CacheDataSource 在数据源层完成，这里原样放行即可 ——
+            // 之前仍然去 start() + proxyUrl()，等于每次播放都绕一圈恒等调用。
+            if (PlatformInfo.isAndroid) return url
 
             // Start local proxy for stream-and-cache mode
             try {
@@ -109,8 +119,10 @@ class CacheEngineImpl(
                 )
             }
 
-            // 3. Miss: go through proxy
+            // 3. Miss: Android 直连（缓存由 Media3 CacheDataSource 在数据源层完成），
+            //    Desktop 走进程内代理边播边存。
             _isUsingCache = false
+            if (PlatformInfo.isAndroid) return CacheResolveResult(url = url, isUsingCache = false)
             try {
                 proxyServer.start()
                 val proxyUrl = proxyServer.proxyUrl(url, videoId)
@@ -130,8 +142,16 @@ class CacheEngineImpl(
     // Preload management
     // ========================================================================
 
+    /**
+     * 播放器进入/退出缓冲。
+     *
+     * 此前是个空实现 —— 于是「缓冲中还在抢带宽预加载下一集」这件事完全没被抑制，
+     * 弱网下会让本来就慢的当前集更慢。现在用这个标志位挡住**新的**预加载，
+     * 但不取消已在途的任务（取消会让已下载的部分白费）。
+     */
     override fun notifyPreloadBuffering(isBuffering: Boolean) {
-        // Delegated to external preload service via callback if needed
+        isPlayerBuffering = isBuffering
+        logger.d("Preload gating: player buffering=$isBuffering")
     }
 
     override fun preloadNextEpisode(
@@ -140,6 +160,10 @@ class CacheEngineImpl(
     ) {
         preloadedVideoIds.add(videoId)
         if (url.isBlank()) return
+        if (isPlayerBuffering) {
+            logger.d("Player is buffering, skipping preload of next episode: $videoId")
+            return
+        }
         scope.launch {
             try {
                 preloadService.preloadNextEpisode(videoId, url)

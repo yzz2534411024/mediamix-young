@@ -6,7 +6,6 @@ import com.mediamix.shared.network.HttpClientFactory
 import dalvik.system.DexClassLoader
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -37,13 +36,19 @@ import java.security.MessageDigest
  */
 actual class JavaBridgeManager private constructor() {
     private val logger = Logger.withTag("JavaBridgeManager")
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val httpClient by lazy { HttpClientFactory.createHttpClient(requestTimeoutSeconds = 60) }
 
     private var classLoader: DexClassLoader? = null
     private val loadedSpiders = mutableMapOf<String, Any>()
 
-    /** 壳的 Init 单例（提供 getSpider 入口），首次调用时创建。 */
+    /**
+     * 壳的 `Init` 单例（提供 `getSpider` 入口）。
+     *
+     * ⚠️ **必须全进程唯一**：此前 `loadSpiderJar` 与 `invokeMethod` 各 `newInstance()` 一次，
+     * 壳被实例化了两次。当前没炸只是侥幸（native 层可能用静态句柄），
+     * 但重复初始化随时可能让两级状态不一致 —— 统一收敛到 [ensureShellInit]。
+     */
+    @Volatile
     private var shellInitInstance: Any? = null
 
     /** 已完成 init(Context, ext) 的站点 key。 */
@@ -51,11 +56,34 @@ actual class JavaBridgeManager private constructor() {
 
     actual val isInitialized: Boolean get() = classLoader != null
 
-    actual suspend fun loadSpiderJar(jarPath: String): Boolean {
-        val ctx = appContext() ?: run {
-            logger.w { "loadSpiderJar 前必须 attach(context)：蜘蛛壳普遍需要 Context 读写解密产物" }
-            return false
+    /**
+     * 取壳的 `Init` 实例，必要时创建并调用 `init(Context)`。
+     *
+     * 幂等：同一进程内只会真正 `newInstance()` 一次。
+     */
+    private fun ensureShellInit(
+        loader: ClassLoader,
+        ctx: Context,
+    ): Any {
+        shellInitInstance?.let { return it }
+        synchronized(this) {
+            shellInitInstance?.let { return it }
+            val initCls = loader.loadClass(SHELL_INIT_CLASS)
+            val inst = initCls.getDeclaredConstructor().newInstance()
+            runCatching {
+                initCls.getMethod("init", Context::class.java).invoke(inst, ctx.applicationContext)
+            }.onFailure { logger.w { "壳 Init.init(Context) 调用失败: ${it.message}" } }
+            logger.i { "蜘蛛壳 Init 已实例化" }
+            return inst.also { shellInitInstance = it }
         }
+    }
+
+    actual suspend fun loadSpiderJar(jarPath: String): Boolean {
+        val ctx =
+            appContext() ?: run {
+                logger.w { "loadSpiderJar 前必须 attach(context)：蜘蛛壳普遍需要 Context 读写解密产物" }
+                return false
+            }
 
         return try {
             // 1. 解析 `url;md5;hash` 语法（实测饭太硬：url;md5;<hash>）
@@ -65,7 +93,10 @@ actual class JavaBridgeManager private constructor() {
                 logger.w { "spider 字段中无有效 URL: $jarPath" }
                 return false
             }
-            val expectedMd5 = parts.getOrNull(2)?.takeIf { it.length == 32 }
+            // 兼容两种写法：`url;md5;<hash>`（饭太硬实测是这种三段式）与 `url;<hash>`。
+            // 不能用固定下标 —— 旧实现取 getOrNull(2)，遇到两段式会直接落空，
+            // 一旦落空就同时失去「完整性校验」与「按 md5 缓存命中」两项能力。
+            val expectedMd5 = parts.drop(1).firstOrNull { it.length == 32 && it.all(::isHexDigit) }
 
             // 2. 下载（按 md5 缓存，命中跳过）
             val spiderDir = File(ctx.filesDir, "spiders").apply { mkdirs() }
@@ -108,31 +139,36 @@ actual class JavaBridgeManager private constructor() {
 
             // 4. 触发壳初始化（饭太硬壳有 Init 类，负责解密 assets 里的真实代码）
             runCatching {
-                val initCls = classLoader!!.loadClass(SHELL_INIT_CLASS)
-                val initInstance = initCls.getDeclaredConstructor().newInstance()
-                runCatching {
-                    initCls.getMethod("init", Context::class.java).invoke(initInstance, ctx.applicationContext)
-                }
-                logger.i { "蜘蛛壳 Init 已执行" }
+                val initInstance = ensureShellInit(classLoader!!, ctx)
 
                 // 5. 全局解密等待（只做一次，所有站点共享）：
                 //    壳解密在后台线程异步进行，未完成时 getSpider 拿不到实例。
                 //    用壳 dex 里已知存在的站点类当探针轮询，最多约 15 秒；
                 //    超时也继续（让具体站点调用时自行报错，不阻塞整个源）。
-                val getSpider = initCls.getMethod("getSpider", String::class.java)
+                val getSpider = initInstance.javaClass.getMethod("getSpider", String::class.java)
                 var backoffMs = 1500L
                 var decrypted = false
                 repeat(5) { attempt ->
-                    try {
-                        if (getSpider.invoke(initInstance, PROBE_SITE_KEY) != null) {
+                    if (!decrypted) {
+                        val probe =
+                            try {
+                                getSpider.invoke(initInstance, PROBE_SITE_KEY)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (_: Throwable) {
+                                null
+                            }
+                        if (probe != null) {
                             decrypted = true
                             logger.i { "壳解密完成（第 ${attempt + 1} 轮探针命中）" }
                         }
-                    } catch (_: Throwable) {
                     }
-                    if (decrypted) return@repeat
-                    kotlinx.coroutines.delay(backoffMs)
-                    backoffMs *= 2
+                    // 命中后不再继续 sleep —— 旧写法用 return@repeat 只跳出「本轮」，
+                    // 仍会把后续 4 轮间隔全部睡完。
+                    if (!decrypted) {
+                        kotlinx.coroutines.delay(backoffMs)
+                        backoffMs *= 2
+                    }
                 }
                 if (!decrypted) {
                     logger.w { "壳解密探针未命中（可能仍在解密或站点 key 形式不同，继续加载流程）" }
@@ -158,41 +194,40 @@ actual class JavaBridgeManager private constructor() {
         return try {
             // 饭太硬壳的公开 API：Init.getSpider(String) 直接返回蜘蛛实例（native 层管理）。
             // 走壳入口而不是自己 loadClass —— Guard 类的定义在解密产物里，直接 loadClass 会失败。
-            val initCls = loader.loadClass(SHELL_INIT_CLASS)
-            val initInstance = shellInitInstance ?: initCls.getDeclaredConstructor().newInstance().also { inst ->
-                runCatching {
-                    initCls.getMethod("init", Context::class.java).invoke(inst, ctx.applicationContext)
-                }
-                shellInitInstance = inst
-            }
+            val initInstance = ensureShellInit(loader, ctx)
 
             // getSpider 的 key 形式做两个候选：csp_ 原文 / 去前缀
             val keyCandidates =
                 listOf(spiderKey, spiderKey.removePrefix("csp_")).filter { it.isNotBlank() }.distinct()
-            val getSpider = initCls.getMethod("getSpider", String::class.java)
+            val getSpider = initInstance.javaClass.getMethod("getSpider", String::class.java)
 
-            var spiderObj: Any? = null
             var lastErr: Throwable? = null
+            var spiderObj: Any? = null
 
-            // 解密等待已集中在 loadSpiderJar（全局探针）；这里只做 2 轮短重试兜底
-            var backoffMs = 0L
-            repeat(3) { attempt ->
-                if (backoffMs > 0) kotlinx.coroutines.delay(backoffMs)
-                backoffMs = 2000L
-                for (k in keyCandidates) {
-                    try {
-                        spiderObj = getSpider.invoke(initInstance, k)
-                    } catch (e: InvocationTargetException) {
-                        lastErr = e.targetException ?: e
-                    } catch (e: Throwable) {
-                        lastErr = e
-                    }
-                    if (spiderObj != null) {
-                        if (attempt > 0) {
-                            logger.i { "getSpider 在第 ${attempt + 1} 轮成功: $k" }
+            // 解密等待已集中在 loadSpiderJar（全局探针）；这里只做短重试兜底。
+            // ⚠️ 重试条件是「整轮候选都没命中」—— 旧实现在内层把两个候选**无条件都问一遍**，
+            // 于是后一个候选返回 null 时会覆盖掉前一个已经拿到手的实例，
+            // 明明成功也会被判定成「未取到实例」。pickSpiderInstance 用
+            // firstNotNullOfOrNull 从结构上保证「取到即停」。
+            for (attempt in 0..2) {
+                if (attempt > 0) kotlinx.coroutines.delay(attempt * 2000L)
+                spiderObj =
+                    pickSpiderInstance(keyCandidates) { key ->
+                        try {
+                            getSpider.invoke(initInstance, key)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: InvocationTargetException) {
+                            lastErr = e.targetException ?: e
+                            null
+                        } catch (e: Throwable) {
+                            lastErr = e
+                            null
                         }
-                        return@repeat
                     }
+                if (spiderObj != null) {
+                    if (attempt > 0) logger.i { "getSpider 在第 ${attempt + 1} 轮成功" }
+                    break
                 }
             }
 
@@ -210,7 +245,8 @@ actual class JavaBridgeManager private constructor() {
             siteInited.getOrPut(spiderKey) {
                 val ext = args["ext"] as? String ?: ""
                 runCatching {
-                    sCls.getMethod("init", Context::class.java, String::class.java)
+                    sCls
+                        .getMethod("init", Context::class.java, String::class.java)
                         .invoke(spiderObj, ctx.applicationContext, ext)
                 }.onFailure {
                     logger.d { "init(Context, ext) 失败，尝试 init(Context): ${it.message}" }
@@ -230,8 +266,19 @@ actual class JavaBridgeManager private constructor() {
             val raw = m.invoke(spiderObj, *values.toTypedArray())
             val result = convertResult(raw)
             if (result["code"] != -1) {
-                // 成功路径也留痕：结果 JSON 的顶层 key 摘要，排查「返回成功但内容为空」
-                logger.i { "蜘蛛方法成功: $spiderKey.$method → keys=${result.keys.take(8)}" }
+                // 成功路径也留痕 —— 这是判断「壳返回空」还是「映射丢了」的**唯一**依据：
+                //   keys 含 list 且长度 > 0 → 数据回来了，问题在映射层；
+                //   list 缺失或长度为 0 → 站点自身没吐数据，不是 app 的缺陷。
+                // 原文前若干字符用于确认返回的是 JSON 还是别的形态（少数蜘蛛返回纯文本）。
+                val listSize = (result["list"] as? List<*>)?.size
+                val preview =
+                    (raw as? String)?.take(RAW_PREVIEW_CHARS)
+                        ?: raw?.javaClass?.simpleName
+                        ?: "null"
+                logger.i {
+                    "蜘蛛方法成功: $spiderKey.$method → keys=${result.keys.take(8)} " +
+                        "list=${listSize ?: "-"} | 原文: $preview"
+                }
             }
             result
         } catch (e: ClassNotFoundException) {
@@ -255,8 +302,13 @@ actual class JavaBridgeManager private constructor() {
     actual fun release() {
         // DexClassLoader 无 close；释放实例缓存即可。
         // 缓存目录随应用卸载清理，重复加载同一 md5 时按缓存命中跳过。
+        //
+        // ⚠️ 壳实例与站点「已 init」标记都必须一起清 —— 它们持有解密产物的引用，
+        // 只清 classLoader 会让下一次 loadSpiderJar 复用已失效的 Init 实例。
         classLoader = null
         loadedSpiders.clear()
+        siteInited.clear()
+        shellInitInstance = null
         logger.i { "JavaBridgeManager 已释放" }
     }
 
@@ -359,8 +411,7 @@ actual class JavaBridgeManager private constructor() {
             is JsonArray -> e.map { jsonToAny(it) }
         }
 
-    private fun ByteArray.md5(): String =
-        MessageDigest.getInstance("MD5").digest(this).joinToString("") { "%02x".format(it) }
+    private fun ByteArray.md5(): String = MessageDigest.getInstance("MD5").digest(this).joinToString("") { "%02x".format(it) }
 
     private fun File.md5(): String = readBytes().md5()
 
@@ -372,6 +423,9 @@ actual class JavaBridgeManager private constructor() {
 
         /** 解密探针用的站点 key：壳 dex 字符串表里确认存在 DouDouGuard（对应配置 csp_DouDouGuard）。 */
         private const val PROBE_SITE_KEY = "csp_DouDouGuard"
+
+        /** 成功日志里附带的返回原文预览长度（够看清是 JSON 还是别的形态即可）。 */
+        private const val RAW_PREVIEW_CHARS = 400
 
         @Volatile
         private var appContextRef: Context? = null
@@ -396,3 +450,6 @@ actual class JavaBridgeManager private constructor() {
         internal fun appContext(): Context? = appContextRef
     }
 }
+
+/** 是否是十六进制字符（用于从 `url;md5;<hash>` 里识别 32 位 md5 段）。 */
+private fun isHexDigit(c: Char): Boolean = c.isDigit() || c in 'a'..'f' || c in 'A'..'F'

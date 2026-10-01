@@ -1,22 +1,31 @@
 package com.mediamix.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -47,6 +56,8 @@ fun DebugScreen(
     val cacheStats by viewModel.cacheStats.collectAsState()
     val sources by viewModel.sources.collectAsState()
     val bridge by viewModel.bridge.collectAsState()
+    val probeReport by viewModel.probeReport.collectAsState()
+    val isProbing by viewModel.isProbing.collectAsState()
 
     // 只在页面可见时轮询
     DisposableEffect(Unit) {
@@ -99,6 +110,15 @@ fun DebugScreen(
             item { SectionTitle("TVBox 蜘蛛桥") }
             items(bridge.size) { i -> EntryRow(bridge[i]) }
 
+            item {
+                ProbePanel(
+                    report = probeReport,
+                    isProbing = isProbing,
+                    onRun = { viewModel.runProbe() },
+                    onClear = { viewModel.clearProbeReport() },
+                )
+            }
+
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 
             item { SectionTitle("数据源延迟（按快慢排序）") }
@@ -108,6 +128,57 @@ fun DebugScreen(
                 }
             } else {
                 items(sources.size) { i -> EntryRow(sources[i]) }
+            }
+        }
+    }
+}
+
+/**
+ * 一键探测面板。
+ *
+ * 报告是**可选中复制**的纯文本 —— 排查时经常需要把它贴到 issue 或对话里，
+ * 只显示在日志里就得再装一次 adb。
+ */
+@Composable
+private fun ProbePanel(
+    report: List<String>,
+    isProbing: Boolean,
+    onRun: () -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onRun, enabled = !isProbing) {
+                Text(if (isProbing) "探测中…" else "一键探测")
+            }
+            if (report.isNotEmpty()) {
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onClear) { Text("清空") }
+            }
+        }
+        Text(
+            text =
+                "依次跑 homeContent → categoryContent → detailContent → playerContent，" +
+                    "用于判定「壳/站点侧无数据」还是「映射层丢数据」。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        if (report.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = report.joinToString("\n"),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(10.dp),
+                    )
+                }
             }
         }
     }

@@ -34,6 +34,7 @@ import com.mediamix.ui.platform.VideoSurface
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.prefs.AppPreferences
 import com.mediamix.ui.prefs.label
+import com.mediamix.ui.viewmodel.DownloadViewModel
 import com.mediamix.ui.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
@@ -64,6 +65,7 @@ fun PlayerScreen(
     episodeIndex: Int = 0,
     viewModel: PlayerViewModel = koinInject(),
     sessionStore: PlaybackSessionStore = koinInject(),
+    downloadViewModel: DownloadViewModel = koinInject(),
     appPreferences: AppPreferences = koinInject(),
     onBack: () -> Unit = {},
 ) {
@@ -93,6 +95,10 @@ fun PlayerScreen(
     val currentSubtitleText by viewModel.currentSubtitleText.collectAsState()
     val subtitleOffsetMs by viewModel.subtitleOffsetMs.collectAsState()
     val skipInterval by viewModel.skipInterval.collectAsState()
+    val audioTracks by viewModel.audioTracks.collectAsState()
+    val videoTracks by viewModel.videoTracks.collectAsState()
+    val qualityLabels by viewModel.qualityLabels.collectAsState()
+    val currentQualityIndex by viewModel.currentQualityIndex.collectAsState()
 
     // ---- UI 局部状态 ----
     var controlsVisible by remember { mutableStateOf(true) }
@@ -107,9 +113,14 @@ fun PlayerScreen(
     var showEpisodeSheet by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
     var showMoreSheet by remember { mutableStateOf(false) }
+    var showAudioTrackDialog by remember { mutableStateOf(false) }
+    var showVideoTrackDialog by remember { mutableStateOf(false) }
 
     val isPlaying = playerState == PlayerState.PLAYING
-    val session = remember(url) { sessionStore.sessionFor(url) }
+    // 会话查找键同时接受「剧集标识」与「解析后的地址」：TVBox 场景下导航参数是
+    // 解析结果，而 sessionFor 用 resolveKey 对齐 —— 旧实现只比 startUrl 会静默拿不到会话。
+    val sessionState by sessionStore.session.collectAsState()
+    val session = sessionState
 
     // ---- 屏幕方向 ----
     // 播放页默认横屏（视频全屏体验），顶栏的旋转按钮可在本页切回竖屏。
@@ -127,19 +138,47 @@ fun PlayerScreen(
         onDispose { viewModel.dispose() }
     }
 
+    // 会话在解析出结果后会被改写（写入 resolved），从而触发重组。
+    // 若不记住「已经装载过的地址」，这个 effect 会再跑一遍 openVideo ——
+    // 那等于把播放器重新 initialize 一次（重建协程作用域、重置指标与计时器），
+    // 用户看到的是「刚开始播就闪一下重来」。用 key 去重，只在**目标集真正变化**时装一次。
+    var openedKey by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(url, episodeIndex) {
-        if (url.isNotEmpty()) {
-            viewModel.openVideo(
-                url = url,
-                title = title,
-                episodeIndex = episodeIndex,
-                episodeNames = session?.episodeNames,
-                episodeUrls = session?.episodeUrls,
-                headers = buildPlaybackHeaders(url),
-                preferSoftwareDecoding = appPreferences.preferSoftwareDecoding,
-                fallbackUrls = session?.fallbackUrlsFor(episodeIndex),
-            )
-        }
+        if (url.isEmpty()) return@LaunchedEffect
+        val s = session
+        val openKey = "${s?.resolveKey ?: url}#$episodeIndex"
+        if (openedKey == openKey) return@LaunchedEffect
+        // TVBox 会话：先确保「要播的这一集」已解析出真实地址与请求头，再交给播放器。
+        val startResolved =
+            if (s != null && s.isResolvable && s.sourceKey.isNotBlank()) {
+                viewModel.resolveEpisode(s, episodeIndex)
+            } else {
+                null
+            }
+        val playUrl = startResolved?.url ?: url
+        val playHeaders =
+            if (s?.isResolvable == true) startResolved?.headers else s?.headers
+        openedKey = openKey
+        viewModel.openVideo(
+            url = playUrl,
+            title = title,
+            episodeIndex = episodeIndex,
+            episodeNames = s?.episodeNames,
+            // TVBox 的 episodeUrls 必须是**待解析标识**：切集时交给 episodeResolver 换地址。
+            episodeUrls = s?.episodeUrls,
+            // 优先用会话里的真实请求头（TVBox 蜘蛛 playerContent 给出）；
+            // 没有时才退回按 URL 猜 Referer 的兜底逻辑。
+            headers = playHeaders ?: buildPlaybackHeaders(playUrl),
+            preferSoftwareDecoding = appPreferences.preferSoftwareDecoding,
+            fallbackUrls = s?.fallbackUrlsFor(episodeIndex),
+        )
+    }
+
+    // TVBox 切集/连播：把「待解析标识」按需换成真实地址与请求头。
+    // 装在 PlayerCoreManager 上而不是这里，是因为自动连播发生在管理器内部。
+    LaunchedEffect(viewModel, session) {
+        viewModel.installEpisodeResolver(session)
     }
 
     // 控制栏自动隐藏：拖拽/预览/锁定时不隐藏
@@ -469,8 +508,58 @@ fun PlayerScreen(
                     showMoreSheet = false
                 },
                 onDismiss = { showMoreSheet = false },
+                audioTracks = audioTracks,
+                videoTracks = videoTracks,
+                qualityLabels = qualityLabels,
+                currentQualityIndex = currentQualityIndex,
+                onOpenAudioTracks = {
+                    showMoreSheet = false
+                    showAudioTrackDialog = true
+                },
+                onOpenVideoTracks = {
+                    showMoreSheet = false
+                    showVideoTrackDialog = true
+                },
+                onQualitySelect = { index ->
+                    viewModel.switchQuality(index)
+                    showMoreSheet = false
+                },
+                onDownload = {
+                    showMoreSheet = false
+                    val downloadUrl = viewModel.currentPlayableUrl()
+                    if (downloadUrl.isNotBlank()) {
+                        // 把会话里解析出的**真实请求头**一起交给下载器：
+                        // 防盗链 CDN 缺了它必然 403，这正是「下载下来的文件打不开」的主因。
+                        downloadViewModel.addDownload(
+                            vodId = session?.vodId.orEmpty(),
+                            vodName = session?.vodName ?: title,
+                            episodeName = session?.episodes?.getOrNull(currentEpisodeIndex)?.name ?: title,
+                            videoUrl = downloadUrl,
+                            headers = session?.startHeaders.orEmpty(),
+                        )
+                    }
+                },
             )
         }
+    }
+
+    if (showAudioTrackDialog) {
+        TrackSelectorDialog(
+            title = "音轨",
+            tracks = audioTracks,
+            onSelect = { viewModel.selectAudioTrack(it.id) },
+            onDismiss = { showAudioTrackDialog = false },
+        )
+    }
+
+    if (showVideoTrackDialog) {
+        TrackSelectorDialog(
+            title = "视频轨",
+            tracks = videoTracks,
+            emptyHint = "当前媒体没有可切换的视频轨（画质请用「画质」入口）",
+            onSelect = { viewModel.selectVideoTrack(it.id) },
+            onDismiss = { showVideoTrackDialog = false },
+        )
     }
 }
 

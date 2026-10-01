@@ -10,6 +10,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -24,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.mediamix.shared.player.AspectMode
 import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.SubtitleTrack
+import com.mediamix.shared.player.TrackInfo
 
 // ============================================================================
 // 倍速
@@ -166,6 +170,66 @@ private fun RowScope.OffsetButton(
 }
 
 // ============================================================================
+// 音轨 / 视频轨 / 画质
+// ============================================================================
+
+/**
+ * 轨道选择对话框。
+ *
+ * 引擎（ExoPlayer / mpv）早就实现了 `getAudioTracks` / `setAudioTrack`，
+ * 缺的只是中间层透传与这个入口 —— 结果就是「引擎有 API、UI 无入口」。
+ */
+@Composable
+fun TrackSelectorDialog(
+    title: String,
+    tracks: List<TrackInfo>,
+    emptyHint: String = "当前媒体没有可切换的轨道",
+    onSelect: (TrackInfo) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier =
+                    Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+            ) {
+                if (tracks.isEmpty()) {
+                    Text(
+                        text = emptyHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    tracks.forEach { track ->
+                        SelectableRow(
+                            label = track.displayLabel(),
+                            selected = track.isSelected,
+                            onClick = {
+                                onSelect(track)
+                                onDismiss()
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("完成") }
+        },
+    )
+}
+
+/** 轨道展示名：优先「语言 · 标签」，都没有时退回 id。 */
+private fun TrackInfo.displayLabel(): String {
+    val parts = listOfNotNull(language?.takeIf { it.isNotBlank() }, label.takeIf { it.isNotBlank() })
+    return parts.joinToString(" · ").ifBlank { id }
+}
+
+// ============================================================================
 // 选集面板
 // ============================================================================
 
@@ -255,6 +319,14 @@ fun PlayerMoreSheet(
     onPlayModeSelect: (PlayMode) -> Unit,
     onLock: () -> Unit,
     onDismiss: () -> Unit,
+    audioTracks: List<TrackInfo> = emptyList(),
+    videoTracks: List<TrackInfo> = emptyList(),
+    qualityLabels: List<String> = emptyList(),
+    currentQualityIndex: Int = 0,
+    onOpenAudioTracks: () -> Unit = {},
+    onOpenVideoTracks: () -> Unit = {},
+    onQualitySelect: (Int) -> Unit = {},
+    onDownload: () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -315,7 +387,51 @@ fun PlayerMoreSheet(
             )
         }
 
+        // 画质（= 播放线路）：详情页给的多条线路通过 qualityUrls 进入播放器，
+        // switchQuality 早就能用，缺的只是入口。
+        if (qualityLabels.size > 1) {
+            SettingGroup(icon = Icons.Default.HighQuality, title = "画质") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    qualityLabels.forEachIndexed { index, label ->
+                        FilterChip(
+                            selected = currentQualityIndex == index,
+                            onClick = { onQualitySelect(index) },
+                            label = { Text(label, fontSize = 12.sp) },
+                        )
+                    }
+                }
+            }
+        }
+
+        // 音轨 / 视频轨：列表为空时隐藏入口（Desktop mpv 可能不上报轨道），
+        // 不做「点了没反应」的假按钮。
+        if (audioTracks.isNotEmpty() || videoTracks.isNotEmpty()) {
+            SettingGroup(icon = Icons.Default.GraphicEq, title = "轨道") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (audioTracks.isNotEmpty()) {
+                        OutlinedButton(onClick = onOpenAudioTracks) {
+                            Text("音轨 ${audioTracks.count { it.isSelected }.coerceAtMost(1)}/${audioTracks.size}", fontSize = 12.sp)
+                        }
+                    }
+                    if (videoTracks.isNotEmpty()) {
+                        OutlinedButton(onClick = onOpenVideoTracks) {
+                            Text("视频轨 ${videoTracks.count { it.isSelected }.coerceAtMost(1)}/${videoTracks.size}", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(8.dp))
+
+        TextButton(
+            onClick = onDownload,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        ) {
+            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("下载本集")
+        }
 
         TextButton(
             onClick = onLock,

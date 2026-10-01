@@ -4,13 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.database.PlaybackProgressDao
+import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.player.AspectMode
+import com.mediamix.shared.player.EpisodeSource
 import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.PlayerCoreManager
 import com.mediamix.shared.player.PlayerState
 import com.mediamix.shared.player.SubtitleService
 import com.mediamix.shared.player.SubtitleTrack
+import com.mediamix.shared.player.TrackInfo
+import com.mediamix.shared.services.PlaybackResolver
+import com.mediamix.shared.services.ResolvedPlay
+import com.mediamix.ui.player.PlaybackSession
+import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.prefs.AppPreferences
+import com.mediamix.ui.source.SourceRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +40,9 @@ class PlayerViewModel(
     private val playbackProgressDao: PlaybackProgressDao,
     private val subtitleService: SubtitleService,
     private val appPreferences: AppPreferences,
+    private val sourceRepository: SourceRepository,
+    private val resolver: PlaybackResolver,
+    private val sessionStore: PlaybackSessionStore,
 ) : ViewModel() {
     private val logger = Logger.withTag("PlayerViewModel")
 
@@ -109,6 +120,12 @@ class PlayerViewModel(
     private val _showSubtitles = MutableStateFlow(true)
     val showSubtitles: StateFlow<Boolean> = _showSubtitles.asStateFlow()
 
+    private val _audioTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
+    val audioTracks: StateFlow<List<TrackInfo>> = _audioTracks.asStateFlow()
+
+    private val _videoTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
+    val videoTracks: StateFlow<List<TrackInfo>> = _videoTracks.asStateFlow()
+
     private val _speedOptions =
         MutableStateFlow(
             listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 2.75f, 3.0f),
@@ -138,7 +155,6 @@ class PlayerViewModel(
     private var currentVideoUrl: String = ""
     private var progressSaveJob: Job? = null
     private var subtitleUpdateJob: Job? = null
-    private var episodePollJob: Job? = null
     private var disposed = false
 
     /** 本次打开时传入的剧集列表（用于选集面板） */
@@ -161,6 +177,12 @@ class PlayerViewModel(
             if (tracks.isNotEmpty()) startSubtitleUpdates() else stopSubtitleUpdates()
         }
         playerCoreManager.onError = { event -> _lastError.value = event.message }
+        // 剧集变化事件（切集 / 自动连播）——取代了原来的 500ms 轮询
+        playerCoreManager.onEpisodeChanged = { _, _ -> syncEpisodeState() }
+        playerCoreManager.onTracksChanged = { audio, video ->
+            _audioTracks.value = audio
+            _videoTracks.value = video
+        }
         // 进度链路：PlayerCoreManager 每 250ms 主动推送，进度条 / 时长 / 缓冲率 / 字幕同步都依赖它
         playerCoreManager.onProgress = { positionMs, durationMs, bufferedPercent ->
             _position.value = positionMs
@@ -254,7 +276,10 @@ class PlayerViewModel(
         _skipInterval.value = playerCoreManager.getSkipInterval()
 
         startProgressSaving()
-        startEpisodePolling()
+        // 事件驱动：剧集列表与初始状态各同步一次，之后由 onEpisodeChanged 推送
+        _episodeList.value = localEpisodeNames
+        syncEpisodeState()
+        refreshTracks()
     }
 
     fun dispose() {
@@ -263,7 +288,6 @@ class PlayerViewModel(
         saveCurrentProgress()
         stopProgressSaving()
         stopSubtitleUpdates()
-        stopEpisodePolling()
         playerCoreManager.dispose()
     }
 
@@ -298,6 +322,9 @@ class PlayerViewModel(
         playerCoreManager.switchQuality(index)
         _currentQualityIndex.value = index
     }
+
+    /** 当前正在播放/已解析的媒体地址，供「下载本集」使用。 */
+    fun currentPlayableUrl(): String = playerCoreManager.resolvedUrl ?: currentVideoUrl
 
     fun playPrevEpisode() {
         playerCoreManager.playPrevEpisode()
@@ -456,38 +483,14 @@ class PlayerViewModel(
         _currentSubtitleText.value = entry?.text
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        dispose() // Idempotent — safe to call multiple times
-    }
-
     // ===== 剧集状态同步 =====
 
     /**
      * 把 [PlayerCoreManager] 的剧集状态同步到 UI。
      *
-     * 为什么需要轮询：连播是在 PlayerCoreManager 内部完成的（`onPlaybackCompleted`
-     * → `playNextEpisode`），它不会回调到 ViewModel —— 只靠按钮同步的话，
-     * 自动连播后标题和"第几集"会一直停在上一集。
+     * ⚠️ 已改为**事件驱动**（`onEpisodeChanged`）：旧实现每 500ms 轮询一次
+     * [PlayerCoreManager]，上/下一集与自动连播后标题、选集高亮都会迟滞半秒。
      */
-    private fun startEpisodePolling() {
-        stopEpisodePolling()
-        _episodeList.value = localEpisodeNames
-        syncEpisodeState()
-        episodePollJob =
-            viewModelScope.launch {
-                while (isActive) {
-                    delay(500)
-                    syncEpisodeState()
-                }
-            }
-    }
-
-    private fun stopEpisodePolling() {
-        episodePollJob?.cancel()
-        episodePollJob = null
-    }
-
     private fun syncEpisodeState() {
         val index = playerCoreManager.getCurrentEpisodeIndex()
         _currentEpisodeIndex.value = index
@@ -496,5 +499,91 @@ class PlayerViewModel(
         _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
         // 进度按"当前这一集的地址"落库，否则切集后进度会写到第一集头上
         localEpisodeUrls.getOrNull(index)?.let { currentVideoUrl = it }
+    }
+
+    // ==================== 音视频轨 ====================
+
+    private fun refreshTracks() {
+        _audioTracks.value = playerCoreManager.getAudioTracks()
+        _videoTracks.value = playerCoreManager.getVideoTracks()
+    }
+
+    fun selectAudioTrack(trackId: String) {
+        if (playerCoreManager.setAudioTrack(trackId)) refreshTracks()
+    }
+
+    fun selectVideoTrack(trackId: String) {
+        if (playerCoreManager.setVideoTrack(trackId)) refreshTracks()
+    }
+
+    // ==================== TVBox 按需解析 ====================
+
+    /**
+     * 解析并切换一集（TVBox 会话）。
+     *
+     * TVBox 的剧集标识不是地址，必须先经 `playerContent` 解析出真实地址与防盗链头。
+     * 结果会回写 [PlaybackSessionStore]，切集/连播对 TVBox 源因此同样可用。
+     *
+     * 解析失败时写入 [lastError] 让界面提示，并由调用方决定是否阻断切集。
+     */
+    suspend fun resolveEpisode(
+        session: PlaybackSession,
+        index: Int,
+    ): ResolvedPlay? {
+        val rawId = session.episodes.getOrNull(index)?.url ?: return null
+        if (rawId.isBlank()) return null
+        val flag =
+            session.playSources
+                .getOrNull(session.sourceIndex)
+                ?.name
+                .orEmpty()
+
+        // 已解析过就直接复用，避免重复打 playerContent
+        session.resolved[rawId]?.let { return it }
+
+        return try {
+            val resolved =
+                resolver.resolve(
+                    sourceKey = session.sourceKey,
+                    flag = flag,
+                    episodeId = rawId,
+                    siteResolver = { key -> sourceRepository.findByKey(key) ?: CmsApiSite.findByKey(key) },
+                )
+            sessionStore.recordResolved(rawId, resolved)
+            resolved
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.e { "Resolve episode $index failed: ${e.message}" }
+            _lastError.value = e.message ?: "解析这一集的播放地址失败。"
+            null
+        }
+    }
+
+    /**
+     * 把「按需解析剧集」装到 [PlayerCoreManager]。
+     *
+     * TVBox 会话的 `episodeUrls` 是待解析标识，切集/自动连播发生在管理器内部，
+     * 因此必须由管理器在装载前回调这里换出真实地址；CMS 会话直通（标识即地址）。
+     */
+    fun installEpisodeResolver(session: PlaybackSession?) {
+        if (session == null || !session.isResolvable || session.sourceKey.isBlank()) {
+            playerCoreManager.episodeResolver = null
+            return
+        }
+        playerCoreManager.episodeResolver = { index ->
+            resolveEpisode(session, index)?.let { resolved ->
+                if (resolved.headers.isEmpty()) {
+                    EpisodeSource(url = resolved.url)
+                } else {
+                    EpisodeSource(url = resolved.url, headers = resolved.headers)
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        dispose() // Idempotent — safe to call multiple times
     }
 }

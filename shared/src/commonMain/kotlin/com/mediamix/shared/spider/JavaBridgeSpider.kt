@@ -1,6 +1,6 @@
 package com.mediamix.shared.spider
 
-import com.mediamix.shared.models.PlaySource
+import com.mediamix.shared.models.SourceRef
 import com.mediamix.shared.models.SpiderDetailResult
 import com.mediamix.shared.models.SpiderHomeResult
 import com.mediamix.shared.models.SpiderListResult
@@ -8,23 +8,35 @@ import com.mediamix.shared.models.SpiderPlayResult
 import com.mediamix.shared.models.SpiderType
 import com.mediamix.shared.models.TvBoxSite
 import com.mediamix.shared.models.VideoDetail
-import com.mediamix.shared.models.VideoEpisode
 import com.mediamix.shared.models.VideoItem
 
 /**
  * Java Bridge 蜘蛛适配器 —— 通过 [JavaBridgeManager.invokeMethod] 反射调用
- * TVBox 蜘蛛包（dex）里的 csp_* 类。
+ * TVBox 蜘蛛包（dex）里的 csp 类。
  *
- * 结果映射遵循 TVBox/CatVod 的 JSON 约定：
- * - home  → `{"class":[{"type_id","type_name"}], "list":[vod...]}`
- * - 列表  → `{"list":[vod...], "page","pagecount","total"}`
- * - 详情  → `{"list":[{...,"vod_play_from":"A#B","vod_play_url":"ep$url#ep$url$$$..."}]}`
- * - 播放  → `{"parse":"0","jx":"0","url":"...","headers":{...}}`
+ * 结果映射遵循 TVBox / CatVod 的 JSON 约定：
+ * - home、category、search 返回一个含 list 数组的对象，home 另含 class 数组（站内分类）；
+ * - detail 返回的 list 首项里，vod_play_from 与 vod_play_url 各用**三个**美元符分隔
+ *   多条线路，线路内用井号分隔剧集、用单个美元符分隔集名与地址；
+ * - player 返回 parse、jx、url、header 等字段，其中 header 是 JSON 字符串而非对象。
+ *
+ * （原文此处用内联代码贴了四段 JSON 样例，会让 ktlint 的解析器报
+ * 「Closing bracket expected」而整个文件无法通过格式门禁，故改为文字描述。）
  */
 class JavaBridgeSpider(
     private val site: TvBoxSite,
+    /**
+     * 所属 TVBox 配置源的 key（即 [CmsApiSite.key]，如 `fantaiying`）。
+     *
+     * 用来构造 [SourceRef] 复合标识 —— 只带站点 key 的话，详情页
+     * 无法反查回是哪个配置源，会报「找不到数据源」。
+     */
+    private val configKey: String = "",
     private val bridgeManager: JavaBridgeManager = JavaBridgeManager.instance,
 ) : SpiderAdapter {
+    /** 所属 TVBox 配置源 key（换线路时据此整体释放实例）。 */
+    val configKeyForSource: String get() = configKey
+
     override val key: String get() = site.key
     override val name: String get() = site.name
     override val type: SpiderType get() = SpiderType.JAVA_BRIDGE
@@ -34,6 +46,14 @@ class JavaBridgeSpider(
 
     /** 站点级 ext（部分蜘蛛用它拿规则/配置地址），透传给每次 invoke。 */
     private var siteExt: String? = null
+
+    /**
+     * 产物携带的源标识。
+     *
+     * 有 [configKey] 时用 `配置源::站点` 复合形式（详情页据此找回蜘蛛）；
+     * 配置源缺失（旧调用方）时退化为裸站点 key，保持向后兼容。
+     */
+    private fun sourceRef(): String = if (configKey.isBlank()) site.key else SourceRef.compose(configKey, site.key)
 
     override suspend fun init(config: Map<String, Any>) {
         siteExt = (config["ext"] ?: config["extUrl"])?.toString()
@@ -47,10 +67,11 @@ class JavaBridgeSpider(
         bridgeManager.invokeMethod(
             spiderKey = site.api.ifEmpty { site.key },
             method = method,
-            args = buildMap {
-                putAll(args)
-                siteExt?.let { put("ext", it) }
-            },
+            args =
+                buildMap {
+                    putAll(args)
+                    siteExt?.let { put("ext", it) }
+                },
         )
 
     override suspend fun homeContent(page: Int): SpiderHomeResult {
@@ -148,10 +169,18 @@ class JavaBridgeSpider(
                 ?.takeIf { it.isNotEmpty() }
 
         return SpiderPlayResult(
-            url = map["url"]?.toString().orEmpty().ifEmpty { id },
-            parse = map["parse"]?.toString(),
-            playUrl = map["playUrl"]?.toString(),
+            // ⚠️ 解析失败时**不要**回落成 id：id 是待解析的剧集标识（常为「集名$地址」
+            // 或纯 token），把它当播放地址会发出一个必然失败的请求，还会把排查方向带偏。
+            // 返回空串，由上层判定为「解析失败」并给出可读提示。
+            url = map["url"]?.toString().orEmpty(),
+            // TVBox/CatVod 的约定是**单数** header（JSON 字符串），不是 headers 对象。
+            // 只读 headers 会把防盗链头整段丢掉，表现就是播放直接 403。
+            header = map["header"]?.toString()?.takeIf { it.isNotBlank() },
             headers = headers,
+            parse = map["parse"]?.toString(),
+            jx = map["jx"]?.toString()?.takeIf { it.isNotBlank() },
+            playUrl = map["playUrl"]?.toString()?.takeIf { it.isNotBlank() },
+            format = map["format"]?.toString()?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -166,50 +195,27 @@ class JavaBridgeSpider(
     private fun videoItemOf(entry: Any?): VideoItem? {
         val m = entry as? Map<*, *> ?: return null
         val stringMap = m.entries.associate { it.key.toString() to it.value }
-        val item = VideoItem.fromJson(stringMap, sourceKey = site.key)
+        val item = VideoItem.fromJson(stringMap, sourceKey = sourceRef())
         if (item.vodName.isEmpty()) return null
         return item
     }
 
+    /**
+     * TVBox 详情 → [VideoDetail]。
+     *
+     * **直接复用 [VideoDetail.fromJson]**，不再手写一份平行拆解：原来的实现用
+     * `split("$\$")` 拆多线路 —— Kotlin 里 `"$\$"` 求值就是 `"$$"`（两个美元符），
+     * 而 TVBox 的约定是 **`$$$`（三个）**，多线路必然解析错位。
+     * [VideoDetail.fromJson] 按 `$$$` 拆线路、按 `#` 拆集，并用 `indexOf('$')`
+     * 定位集名/地址分隔符（防地址自带 `$` 被截断），且已被 VideoModelsTest 覆盖。
+     */
     private fun videoDetailOf(
         item: Map<*, *>,
         fallbackId: String,
     ): VideoDetail {
         val stringMap = item.entries.associate { it.key.toString() to it.value }
-        // TVBox 约定：多播放源以 $$$ 分隔，集与集之间 #，集名与地址之间 $
-        val playFrom = (stringMap["vod_play_from"] ?: "").toString().split("$\$")
-        val playUrl = (stringMap["vod_play_url"] ?: "").toString().split("$\$")
-
-        val sources =
-            playFrom.zip(playUrl).mapNotNull { (from, urls) ->
-                val episodes =
-                    urls
-                        .split('#')
-                        .mapNotNull { ep ->
-                            val sep = ep.indexOf('$')
-                            if (sep <= 0) return@mapNotNull null
-                            VideoEpisode(
-                                name = ep.substring(0, sep).trim(),
-                                url = ep.substring(sep + 1).trim(),
-                            )
-                        }
-                if (episodes.isEmpty()) null else PlaySource(name = from.trim(), episodes = episodes)
-            }
-
-        return VideoDetail(
-            vodId = (stringMap["vod_id"] ?: fallbackId).toString(),
-            vodName = (stringMap["vod_name"] ?: "未知").toString(),
-            vodPic = stringMap["vod_pic"]?.toString(),
-            vodContent = stringMap["vod_content"]?.toString(),
-            vodActor = stringMap["vod_actor"]?.toString(),
-            vodDirector = stringMap["vod_director"]?.toString(),
-            vodYear = stringMap["vod_year"]?.toString(),
-            vodArea = stringMap["vod_area"]?.toString(),
-            vodRemarks = stringMap["vod_remarks"]?.toString(),
-            typeName = stringMap["type_name"]?.toString(),
-            typeId = (stringMap["type_id"] as? Number)?.toInt(),
-            sourceKey = site.key,
-            playSources = sources,
-        )
+        val detail = VideoDetail.fromJson(stringMap, sourceKey = sourceRef())
+        // fromJson 在 vod_id 缺失时给空串；这里回落到调用方传入的 id
+        return if (detail.vodId.isBlank()) detail.copy(vodId = fallbackId) else detail
     }
 }

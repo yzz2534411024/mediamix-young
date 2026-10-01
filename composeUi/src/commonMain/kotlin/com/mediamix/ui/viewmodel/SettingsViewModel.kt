@@ -3,7 +3,8 @@ package com.mediamix.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
-import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.cache.CacheKind
+import com.mediamix.shared.cache.CacheManager
 import com.mediamix.shared.core.PlatformPaths
 import com.mediamix.shared.database.FavoriteDao
 import com.mediamix.shared.database.WatchHistoryDao
@@ -57,7 +58,7 @@ data class SettingsMessage(
  */
 class SettingsViewModel(
     private val preferences: AppPreferences,
-    private val videoCacheService: VideoCacheService,
+    private val cacheManager: CacheManager,
     private val watchHistoryDao: WatchHistoryDao,
     private val favoriteDao: FavoriteDao,
     private val metricsEngine: MetricsEngine,
@@ -147,7 +148,9 @@ class SettingsViewModel(
     fun clearCache() {
         viewModelScope.launch {
             try {
-                videoCacheService.clearAll()
+                // 走 CacheManager 门面：视频缓存与接口元数据一起清，
+                // 避免「清了缓存但占用没降」这种因清理范围不一致造成的困惑。
+                cacheManager.clear(CacheKind.ALL)
                 refreshCacheStats()
                 notify("缓存已清除")
             } catch (e: Exception) {
@@ -158,21 +161,20 @@ class SettingsViewModel(
     }
 
     /**
-     * 刷新缓存统计 — 从 VideoCacheService 获取真实数据
+     * 刷新缓存统计 — 统一从 [CacheManager] 取真实数据
      */
     fun refreshCacheStats() {
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                val stats = videoCacheService.getStats()
-                val memUsage = videoCacheService.getMemoryUsage()
-                val memSize = memUsage.l1Bytes + memUsage.l2Bytes
+                val snapshot = cacheManager.snapshot()
+                val memSize = snapshot.memory.l1Bytes + snapshot.memory.l2Bytes
                 _cacheStats.value =
                     CacheStatsInfo(
                         memoryCacheSize = memSize,
-                        diskCacheSize = stats.totalSize,
-                        totalSize = memSize + stats.totalSize,
-                        entryCount = stats.entryCount,
-                        hitRate = stats.hitRate,
+                        diskCacheSize = snapshot.stats.totalSize,
+                        totalSize = snapshot.totalBytes,
+                        entryCount = snapshot.stats.entryCount,
+                        hitRate = snapshot.stats.hitRate,
                     )
             } catch (e: Exception) {
                 logger.e { "Refresh cache stats failed: ${e.message}" }

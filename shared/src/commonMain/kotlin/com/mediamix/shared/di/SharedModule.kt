@@ -1,5 +1,6 @@
 package com.mediamix.shared.di
 
+import com.mediamix.shared.cache.CacheManager
 import com.mediamix.shared.cache.CacheStrategyManager
 import com.mediamix.shared.cache.DiskCache
 import com.mediamix.shared.cache.MemoryCache
@@ -26,7 +27,10 @@ import com.mediamix.shared.player.engines.MetricsEngine
 import com.mediamix.shared.player.engines.MetricsEngineImpl
 import com.mediamix.shared.player.engines.PlaybackErrorHandler
 import com.mediamix.shared.player.engines.PlaybackErrorHandlerImpl
+import com.mediamix.shared.services.DownloadService
+import com.mediamix.shared.services.PlaybackResolver
 import com.mediamix.shared.services.PreloadService
+import com.mediamix.shared.services.SourceContentGateway
 import com.mediamix.shared.spider.SpiderRegistry
 import com.mediamix.shared.spider.SpiderService
 import com.mediamix.shared.spider.VideoApiService
@@ -63,6 +67,15 @@ val sharedModule: Module =
         // 用 shared 单例，保证 CmsSpider 与首页读到的是同一份缓存。
         single { VideoApiService.shared }
 
+        // 内容网关：**唯一**分流「CMS 协议」与「TVBox 蜘蛛」的地方。
+        // ViewModel 不应再自己写 if (site.isTvBox)。
+        // 站点健康度用 UI 层用 Settings 持久化，由 UiModule 的网关定义注入。
+        single { SourceContentGateway(videoApiService = get(), spiderService = get()) }
+
+        // 剧集标识 → 真实播放地址（含请求头）。详情页与播放页共用，
+        // 使 TVBox 的切集/连播也能按需解析（不依赖详情页是否还在返回栈上）。
+        single { PlaybackResolver(spiderService = get<SpiderService>(), gateway = get<SourceContentGateway>()) }
+
         // ==================== 缓存系统 ====================
 
         single { Settings() }
@@ -78,6 +91,13 @@ val sharedModule: Module =
         }
         // 平台相关的本地代理：Desktop 走 JDK HttpServer，Android 走降级实现
         single { createLocalProxyServer(get()) }
+
+        // 缓存门面：设置页 / 诊断页统一用它读写占用与清理，
+        // 不再各自直接引用 MemoryCache / DiskCache / VideoCacheService 中的某一套。
+        single { CacheManager(videoCacheService = get()) }
+
+        // 下载引擎：HLS 分片合并 / 请求头透传 / 断点续传 / 并发闸门都在它内部。
+        single { DownloadService() }
 
         // ==================== 数据库 ====================
 
