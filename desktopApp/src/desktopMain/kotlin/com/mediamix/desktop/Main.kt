@@ -3,11 +3,14 @@ package com.mediamix.desktop
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.mediamix.shared.di.sharedModule
@@ -61,13 +64,19 @@ fun main(args: Array<String>) {
     }
     application {
         val appIcon = remember { loadAppIcon() }
+        val (initialWidth, initialHeight) = remember { preferredWindowSize() }
         Window(
             onCloseRequest = ::exitApplication,
             title = "MediaMix",
             // 窗口 / 任务栏图标。打包进 exe 的图标由 build.gradle.kts 的 windows.iconFile 指定，
             // 这里管的是运行期窗口本身（含任务栏缩略图）。
             icon = appIcon,
-            state = rememberWindowState(width = 1280.dp, height = 800.dp),
+            state =
+                rememberWindowState(
+                    width = initialWidth,
+                    height = initialHeight,
+                    position = WindowPosition(Alignment.Center),
+                ),
         ) {
             val themeMode by ThemeConfig.themeMode.collectAsState()
             MediaMixTheme(themeMode = themeMode) {
@@ -281,6 +290,36 @@ private fun runSelfTestCli() {
     println("=== 全部 TVBox 源（${sites.size} 个）：$total 项检查，${total - failed} 通过 / $failed 失败 ===")
     if (failed > 0) kotlin.system.exitProcess(1)
 }
+
+/**
+ * 按屏幕可用区计算初始窗口尺寸。
+ *
+ * 写死 1280x800 在 14 寸笔记本（常见 1920x1080@125% → 逻辑 1536x864，再扣任务栏）
+ * 上会顶到甚至超出屏幕底边（实测用户反馈「一打开尺寸太大」）。
+ * 这里取「目标 1280x800」与「屏幕可用区 92%」的较小值，并留出下限与居中定位。
+ *
+ * AWT 的 screenSize 是**逻辑像素**（已随系统缩放换算），与 Compose Desktop 的 dp
+ * 一一对应，可直接当作窗口尺寸使用。
+ */
+private fun preferredWindowSize(): Pair<Dp, Dp> =
+    runCatching {
+        val toolkit = java.awt.Toolkit.getDefaultToolkit()
+        val screen = toolkit.screenSize
+        val insets =
+            toolkit.getScreenInsets(
+                java.awt.GraphicsEnvironment
+                    .getLocalGraphicsEnvironment()
+                    .defaultScreenDevice
+                    .defaultConfiguration,
+            )
+        val availW = (screen.width - insets.left - insets.right).coerceAtLeast(800)
+        val availH = (screen.height - insets.top - insets.bottom).coerceAtLeast(600)
+        // 取屏幕可用区的 ~62% 宽 / 72% 高，并限制上限：14 寸 1920x1200 上得到约
+        // 1180x760（占宽 61%），小屏（1366x768）自动收窄到 900x560。
+        val w = minOf(1180, (availW * 0.62).toInt()).coerceAtLeast(900)
+        val h = minOf(760, (availH * 0.72).toInt()).coerceAtLeast(560)
+        w.dp to h.dp
+    }.getOrDefault(1180.dp to 760.dp)
 
 /**
  * 加载应用图标。
