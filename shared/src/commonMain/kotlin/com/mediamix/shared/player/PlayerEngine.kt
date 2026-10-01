@@ -70,4 +70,21 @@ expect class PlayerEngine() {
 
     // 停止
     fun stop()
+
+    // === 画面比例 ===
+
+    /**
+     * 设置画面比例模式。
+     *
+     * Android（ExoPlayer）不做处理 —— TextureView 的尺寸由 UI 层按
+     * [getVideoAspectRatio] + 模式约束；Desktop（mpv）在这里直接下发
+     * keepaspect / panscan / video-aspect-override 参数。
+     */
+    fun setAspectMode(mode: AspectMode)
+
+    /** 引擎是否自行处理画面比例（Desktop mpv = true 时 UI 层不再约束 surface 尺寸）。 */
+    val handlesAspectInternally: Boolean
+
+    /** 当前视频宽高比（w/h）；未知返回 0f（UI 层回退 16:9）。 */
+    fun getVideoAspectRatio(): Float
 }

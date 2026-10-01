@@ -92,6 +92,8 @@ actual class PlayerEngine actual constructor() {
                 ?: ""
         setPropertyString(h, "http-header-fields", headerValue)
         mpv.mpv_command(h, arrayOf("loadfile", url, "replace"))
+        // loadfile 会重置部分渲染参数 —— 换集后重放一次当前比例设置
+        applyAspectMode()
         firstFrameReported = false
         updateState(PlayerState.BUFFERING)
     }
@@ -117,6 +119,62 @@ actual class PlayerEngine actual constructor() {
     actual fun stop() {
         val h = handle ?: return
         mpv.mpv_command(h, arrayOf("stop"))
+    }
+
+    // === 画面比例（交给 mpv 原生处理）===
+
+    /** 当前已应用的比例，setSource 后重放一次（mpv 换片会重置部分渲染参数）。 */
+    private var aspectMode: AspectMode = AspectMode.ADAPTIVE
+
+    /**
+     * mpv 参数映射：
+     * - 自适应/原始：`keepaspect=yes` + `panscan=0`（完整显示，可留黑边）
+     * - 铺满裁剪：`panscan=1`（放大填满，超出裁掉）
+     * - 拉伸铺满：`keepaspect=no`（变形铺满）
+     * - 固定比例：`video-aspect-override`（16:9 / 4:3 / 21:9）
+     */
+    actual fun setAspectMode(mode: AspectMode) {
+        aspectMode = mode
+        applyAspectMode()
+    }
+
+    /** Desktop 端 mpv 自行按比例渲染，UI 层不再约束 surface 尺寸。 */
+    actual val handlesAspectInternally: Boolean get() = true
+
+    /** mpv 会根据窗口与视频尺寸算比例，无需上层告知（返回 0f 表示未知）。 */
+    actual fun getVideoAspectRatio(): Float = 0f
+
+    private fun applyAspectMode() {
+        val h = handle ?: return
+        when (aspectMode) {
+            AspectMode.ADAPTIVE, AspectMode.ORIGINAL -> {
+                setPropertyString(h, "video-aspect-override", "no")
+                setPropertyString(h, "keepaspect", "yes")
+                setPropertyDouble(h, "panscan", 0.0)
+            }
+            AspectMode.CROP -> {
+                setPropertyString(h, "video-aspect-override", "no")
+                setPropertyString(h, "keepaspect", "yes")
+                setPropertyDouble(h, "panscan", 1.0)
+            }
+            AspectMode.STRETCH -> {
+                setPropertyString(h, "video-aspect-override", "no")
+                setPropertyString(h, "keepaspect", "no")
+                setPropertyDouble(h, "panscan", 0.0)
+            }
+            AspectMode.RATIO_16_9 -> {
+                setPropertyString(h, "keepaspect", "yes")
+                setPropertyString(h, "video-aspect-override", "16:9")
+            }
+            AspectMode.RATIO_4_3 -> {
+                setPropertyString(h, "keepaspect", "yes")
+                setPropertyString(h, "video-aspect-override", "4:3")
+            }
+            AspectMode.RATIO_21_9 -> {
+                setPropertyString(h, "keepaspect", "yes")
+                setPropertyString(h, "video-aspect-override", "21:9")
+            }
+        }
     }
 
     actual fun seekTo(positionMs: Long) {

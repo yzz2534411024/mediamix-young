@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -77,6 +78,8 @@ fun PlayerScreen(
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val isLocked by viewModel.isLocked.collectAsState()
     val isSeeking by viewModel.isSeeking.collectAsState()
+    // 视频真实宽高比（Android 用它约束画面尺寸；桌面端恒为 0，由 mpv 自理）
+    val videoAspectRatio by viewModel.videoAspectRatio.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val brightness by viewModel.brightness.collectAsState()
     val subtitleTracks by viewModel.subtitleTracks.collectAsState()
@@ -210,21 +213,49 @@ fun PlayerScreen(
         // 横屏时控制层远离屏幕边缘（单手操作 / 刘海 / 圆角都不易误触），竖屏贴边即可
         val sidePadding = if (isLandscape) 24.dp else 4.dp
 
-        // 画面比例：自适应时铺满（ExoPlayer 自己是等比适配），16:9 / 4:3 时
-        // 让渲染面本身变成对应比例并居中，超出的部分自然留黑边。
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // 画面比例约束：
+        //  - 桌面端交给 mpv 原生处理（keepaspect / panscan / video-aspect-override），
+        //    这里保持填满画布即可；
+        //  - Android 的 TextureView **不会**自动适配视频比例，不约束就是默认拉伸填满
+        //    （实测用户反馈「自适应比例太大」的根因）。
+        val targetRatio = if (videoAspectRatio > 0f) videoAspectRatio else 16f / 9f
+        val containerRatio =
+            if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else 16f / 9f
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clipToBounds(),
+            contentAlignment = Alignment.Center,
+        ) {
             VideoSurface(
                 modifier =
-                    when (aspectMode) {
-                        AspectMode.RATIO_16_9 ->
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 9f)
-                        AspectMode.RATIO_4_3 ->
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(4f / 3f)
-                        else -> Modifier.fillMaxSize()
+                    when {
+                        viewModel.engineHandlesAspect -> Modifier.fillMaxSize()
+
+                        // 铺满裁剪：按视频比例放大到覆盖容器，溢出部分被上面裁掉
+                        aspectMode == AspectMode.CROP ->
+                            if (targetRatio >= containerRatio) {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(targetRatio)
+                            } else {
+                                Modifier
+                                    .fillMaxHeight()
+                                    .aspectRatio(targetRatio)
+                            }
+
+                        // 拉伸铺满：接受画面变形
+                        aspectMode == AspectMode.STRETCH -> Modifier.fillMaxSize()
+
+                        aspectMode == AspectMode.RATIO_16_9 -> Modifier.aspectRatio(16f / 9f)
+
+                        aspectMode == AspectMode.RATIO_4_3 -> Modifier.aspectRatio(4f / 3f)
+
+                        aspectMode == AspectMode.RATIO_21_9 -> Modifier.aspectRatio(21f / 9f)
+
+                        // 自适应 / 原始比例：等比完整显示，多余空间留黑边
+                        else -> Modifier.aspectRatio(targetRatio)
                     },
                 onSurfaceCreated = { surface -> viewModel.setSurface(surface) },
                 onSurfaceDestroyed = { viewModel.setSurface(null) },
