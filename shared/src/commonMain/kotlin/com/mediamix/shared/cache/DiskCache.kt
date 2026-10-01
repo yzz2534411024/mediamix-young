@@ -185,6 +185,11 @@ class DiskCache(
                 val segFileName = "${cacheId}_$segmentKey.seg"
                 val segPath = "$segmentDir${File.separator}$segFileName"
 
+                // ⚠️ 目录必须在这里兜底创建：initialize() 未必被调用过（实测日志里
+                // C:\Users\...\.mediamix\cache\segments 不存在 → writeBytes 抛
+                // FileNotFoundException → 缓存段写不进去 → 代理回 404 → 播放黑屏）。
+                File(segmentDir).mkdirs()
+
                 File(segPath).writeBytes(data)
 
                 val now = Clock.System.now().toEpochMilliseconds()

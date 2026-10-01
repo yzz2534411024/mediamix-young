@@ -123,6 +123,18 @@ class CacheEngineImpl(
             //    Desktop 走进程内代理边播边存。
             _isUsingCache = false
             if (PlatformInfo.isAndroid) return CacheResolveResult(url = url, isUsingCache = false)
+
+            // HLS 直连（桌面端也跳过代理）：
+            // m3u8 是「碎请求」流（几百 KB 一个分片、按需拉取），代理缓存收益低
+            // （分片命中率低、空间占用大），却要多付一跳内存转发 + 512KB 分段落盘，
+            // 弱机/慢盘上表现为起播变慢或拖动卡顿。直连 CDN 最快 —— 这也正是
+            // Android 端一直流畅的原因。整文件（mp4 等）继续走代理：拖进度、
+            // 重看、预加载的缓存收益明显，多一跳值得。
+            if (isHlsStream(url)) {
+                logger.i("HLS 直连（跳过本地缓存代理）: $videoId")
+                return CacheResolveResult(url = url, isUsingCache = false)
+            }
+
             try {
                 proxyServer.start()
                 val proxyUrl = proxyServer.proxyUrl(url, videoId)
@@ -137,6 +149,10 @@ class CacheEngineImpl(
             CacheResolveResult(url = url, isUsingCache = false)
         }
     }
+
+    /** 是否 HLS（m3u8）流：按路径后缀判定，忽略 query/fragment。 */
+    private fun isHlsStream(url: String): Boolean =
+        url.substringBefore('?').substringBefore('#').endsWith(".m3u8", ignoreCase = true)
 
     // ========================================================================
     // Preload management
