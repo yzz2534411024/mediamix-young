@@ -32,6 +32,7 @@ import com.mediamix.ui.components.*
 import com.mediamix.ui.platform.ApplyScreenOrientation
 import com.mediamix.ui.platform.ScreenOrientationMode
 import com.mediamix.ui.platform.VideoSurface
+import com.mediamix.shared.core.PlatformInfo
 import com.mediamix.ui.platform.onPointerActivity
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.prefs.AppPreferences
@@ -188,12 +189,17 @@ fun PlayerScreen(
         viewModel.installEpisodeResolver(session)
     }
 
+    var activityTick by remember { mutableIntStateOf(0) }
+
     // 控制栏自动隐藏：拖拽/预览/锁定时不隐藏。
     // `activityTick` 由「鼠标移动」（桌面）或点按递增 —— 它变化会重启这个计时器，
     // 否则 controlsVisible 已是 true 时再置 true 不触发重组，计时不会被重置。
-    var activityTick by remember { mutableIntStateOf(0) }
+    //
+    // ⚠️ 仅 Android（触摸设备）自动隐藏：桌面端鼠标操作下改为**常显** ——
+    // 隐藏后只能靠鼠标移动/点按召回，实测用户直接判定成「播放页没有任何组件」。
+    // 桌面播放器（VLC/mpv 等）也都是控制栏常显。
     LaunchedEffect(controlsVisible, showSeekPreview, isLocked, activityTick) {
-        if (controlsVisible && !showSeekPreview && !isLocked) {
+        if (controlsVisible && !showSeekPreview && !isLocked && PlatformInfo.isAndroid) {
             delay(HIDE_CONTROLS_DELAY_MS)
             controlsVisible = false
         }
