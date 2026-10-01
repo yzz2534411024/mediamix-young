@@ -177,6 +177,9 @@ class PlayerViewModel(
             if (tracks.isNotEmpty()) startSubtitleUpdates() else stopSubtitleUpdates()
         }
         playerCoreManager.onError = { event -> _lastError.value = event.message }
+        // 补发：注册回调之前发生的初始化失败（如桌面端缺 mpv 运行库）——
+        // 不补发的话用户只会看到白屏，永远等不到错误提示
+        playerCoreManager.consumePendingError()?.let { _lastError.value = it.message }
         // 剧集变化事件（切集 / 自动连播）——取代了原来的 500ms 轮询
         playerCoreManager.onEpisodeChanged = { _, _ -> syncEpisodeState() }
         playerCoreManager.onTracksChanged = { audio, video ->

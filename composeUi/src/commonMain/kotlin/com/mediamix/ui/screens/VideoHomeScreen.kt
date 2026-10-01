@@ -43,7 +43,12 @@ import kotlinx.coroutines.flow.filter
 import org.koin.compose.koinInject
 import androidx.compose.foundation.lazy.grid.items as gridItems
 
+/** 骨架屏用的低列数（真实网格按宽度自适应，见 [CARD_MIN_WIDTH_DP]）。 */
 private const val GRID_COLUMNS = 3
+
+/** 影片卡片的最小宽度：网格列数 = 可用宽度 / 此值（手机 3 列、桌面约 7 列）。 */
+private const val CARD_MIN_WIDTH_DP = 165
+
 private const val BANNER_HEIGHT_DP = 168
 
 /**
@@ -442,60 +447,66 @@ private fun HomeContent(
         }
 
         else -> {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(GRID_COLUMNS),
-                state = gridState,
-                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                // Banner 只在「全部」分类下展示，且至少 3 部影片才够轮播
-                if (videos.size >= 3) {
-                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "banner") {
-                        BannerSection(
-                            items = videos.take(5),
-                            onOpenDetail = onOpenDetail,
-                        )
-                    }
-                }
-
-                // 豆瓣系源（豆豆等）不返回 vod_id —— key 用「id，或 名字+海报」兜底，
-                // 否则空 key 全部重复直接崩 LazyGrid（实测 IllegalArgumentException: Key ""）
-                gridItems(
-                    videos,
-                    key = { "${it.vodId}|${it.vodName}|${it.vodPic}" },
-                ) { item ->
-                    VideoGridCard(item = item, onClick = { onOpenDetail(item) })
-                }
-
-                if (isLoading && videos.isNotEmpty()) {
-                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "loading-more") {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(22.dp),
+            // 响应式列数：每列至少 [CARD_MIN_WIDTH_DP] dp。手机 3 列、平板 5 列、
+            // 桌面（1280dp 窗口）约 7 列 —— 固定 3 列在桌面端会把一张海报拉到
+            // 近 400dp 宽（占半屏），这是「桌面端画报过大」的根因。
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val columns = (maxWidth / CARD_MIN_WIDTH_DP.dp).toInt().coerceIn(3, 8)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    state = gridState,
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    // Banner 只在「全部」分类下展示，且至少 3 部影片才够轮播
+                    if (videos.size >= 3) {
+                        item(span = { GridItemSpan(columns) }, key = "banner") {
+                            BannerSection(
+                                items = videos.take(5),
+                                onOpenDetail = onOpenDetail,
                             )
                         }
                     }
-                } else if (!hasMore && videos.isNotEmpty()) {
-                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "list-end") {
-                        Text(
-                            text = "已经到底啦",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
+
+                    // 豆瓣系源（豆豆等）不返回 vod_id —— key 用「id，或 名字+海报」兜底，
+                    // 否则空 key 全部重复直接崩 LazyGrid（实测 IllegalArgumentException: Key ""）
+                    gridItems(
+                        videos,
+                        key = { "${it.vodId}|${it.vodName}|${it.vodPic}" },
+                    ) { item ->
+                        VideoGridCard(item = item, onClick = { onOpenDetail(item) })
+                    }
+
+                    if (isLoading && videos.isNotEmpty()) {
+                        item(span = { GridItemSpan(columns) }, key = "loading-more") {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                        }
+                    } else if (!hasMore && videos.isNotEmpty()) {
+                        item(span = { GridItemSpan(columns) }, key = "list-end") {
+                            Text(
+                                text = "已经到底啦",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
                     }
                 }
             }
@@ -736,14 +747,18 @@ private fun SkeletonContent() {
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
         )
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(2) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(GRID_COLUMNS) {
-                        SkeletonCard(modifier = Modifier.weight(1f))
+        // 骨架列数与真实网格保持一致（否则加载完成瞬间 3 列变 7 列会跳一下）
+        BoxWithConstraints {
+            val columns = (maxWidth / CARD_MIN_WIDTH_DP.dp).toInt().coerceIn(3, 8)
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(2) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(columns) {
+                            SkeletonCard(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }

@@ -110,6 +110,24 @@ class PlayerCoreManager(
 
     var onFirstFrame: ((FirstFrameEvent) -> Unit)? = null
     var onError: ((ErrorEvent) -> Unit)? = null
+
+    /**
+     * 最近一次未被消费的错误。
+     *
+     * 播放页的 onError 回调是在 viewModel.initialize() 时才注册的 —— 若初始化/装载
+     * 在注册前就失败（实测桌面端缺 mpv 运行库会这样），错误会**永久丢失**，
+     * 用户只看到白屏（无错误面板、无提示）。缓存一份供上层注册后补发。
+     */
+    @Volatile
+    private var pendingError: ErrorEvent? = null
+
+    private fun emitError(event: ErrorEvent) {
+        pendingError = event
+        onError?.invoke(event)
+    }
+
+    /** 取出并清空未消费的错误（供 PlayerViewModel 注册回调后补发到 UI）。 */
+    fun consumePendingError(): ErrorEvent? = pendingError.also { pendingError = null }
     var onQualitySuggestion: ((QualitySuggestionEvent) -> Unit)? = null
     var onProgressResume: ((ProgressResumeEvent) -> Unit)? = null
     var onQualityAutoSwitch: ((QualityAutoSwitchEvent) -> Unit)? = null
@@ -474,7 +492,7 @@ class PlayerCoreManager(
             // Error 而非 Exception，用 catch (Exception) 会漏掉并直接把进程打挂。
             logger.e("PlayerEngine.initialize() failed: ${t.message}")
             // 把失败暴露到 UI，避免用户只看到黑屏
-            onError?.invoke(
+            emitError(
                 ErrorEvent(
                     message = "播放器初始化失败：${t.message}",
                     hasNextEpisode = false,
@@ -848,7 +866,7 @@ class PlayerCoreManager(
             if (source == null && episodeResolver != null) {
                 // 解析失败：不要拿待解析的标识去播放（必然失败，还会把排查方向带偏）
                 isLoading = false
-                onError?.invoke(
+                emitError(
                     ErrorEvent(message = "这一集的播放地址解析失败，换一集或换条线路试试。", hasNextEpisode = getHasNextEpisode()),
                 )
                 return@launch
@@ -1149,7 +1167,7 @@ class PlayerCoreManager(
                     return
                 }
                 val nq = errorHandler.findNextUntriedQuality()
-                onError?.invoke(
+                emitError(
                     ErrorEvent(
                         message = error,
                         hasNextEpisode = getHasNextEpisode(),
@@ -1195,10 +1213,10 @@ class PlayerCoreManager(
                         onQualityAutoSwitch?.invoke(QualityAutoSwitchEvent(qualityLabels[nextIdx]))
                         switchQualityInternal(nextIdx)
                     } else {
-                        onError?.invoke(ErrorEvent(message = error, hasNextEpisode = getHasNextEpisode()))
+                        emitError(ErrorEvent(message = error, hasNextEpisode = getHasNextEpisode()))
                     }
                 } else {
-                    onError?.invoke(ErrorEvent(message = error, hasNextEpisode = getHasNextEpisode()))
+                    emitError(ErrorEvent(message = error, hasNextEpisode = getHasNextEpisode()))
                 }
             }
         }

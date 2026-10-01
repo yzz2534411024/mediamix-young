@@ -110,6 +110,7 @@ fun App() {
                             launchSingleTop = true
                         }
                     },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Screen.Player.PATTERN) { backStackEntry ->

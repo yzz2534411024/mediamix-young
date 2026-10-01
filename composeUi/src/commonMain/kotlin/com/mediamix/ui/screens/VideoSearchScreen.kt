@@ -29,6 +29,7 @@ import org.koin.compose.koinInject
 fun VideoSearchScreen(
     viewModel: SearchViewModel = koinInject(),
     onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> },
+    onBack: () -> Unit = {},
 ) {
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
@@ -40,33 +41,41 @@ fun VideoSearchScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
     ) {
-        // Search bar
-        SearchBar(
-            query = query,
-            onQueryChange = { viewModel.onQueryChange(it) },
-            onSearch = { viewModel.search(it) },
-            active = false,
-            onActiveChange = {},
+        // 搜索栏 + 返回键。桌面端没有系统返回键，缺了这个按钮就会「进了搜索页出不去」。
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("搜索影片（全站搜索）...") },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "搜索")
-            },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = {
-                        viewModel.onQueryChange("")
-                        viewModel.clearResults()
-                    }) {
-                        Icon(Icons.Default.Clear, contentDescription = "清除")
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            SearchBar(
+                query = query,
+                onQueryChange = { viewModel.onQueryChange(it) },
+                onSearch = { viewModel.search(it) },
+                active = false,
+                onActiveChange = {},
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("搜索影片（全站搜索）...") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "搜索")
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = {
+                            viewModel.onQueryChange("")
+                            viewModel.clearResults()
+                        }) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除")
+                        }
                     }
-                }
-            },
-            colors =
-                SearchBarDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-        ) {}
+                },
+                colors =
+                    SearchBarDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            ) {}
+        }
 
         // Content
         when {

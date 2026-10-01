@@ -76,7 +76,14 @@ class SpiderService(
                 throw Exception("无法解析 TVBox 配置：未知格式")
             }
 
-            val config = TvBoxConfigParser().parseFromJsonObject(jsonObj)
+            val parsed = TvBoxConfigParser().parseFromJsonObject(jsonObj)
+            // ⚠️ spider 字段常用**相对路径**（老刘备 "./fty.jar"、俊佬 "./jar/top98_1.jar"），
+            // 直接拿去下载会失败 —— 按配置地址 resolve 成绝对 URL。
+            val config =
+                parsed.copy(
+                    spiderUrl = resolveRelative(configUrl, parsed.spiderUrl),
+                    spiderSpec = resolveSpecRelative(configUrl, parsed.spiderSpec),
+                )
             logger.d {
                 "TVBox配置解析完成: ${config.sites.size}个站点, spider=${config.spiderUrl}"
             }
@@ -85,6 +92,28 @@ class SpiderService(
             logger.e { "获取TVBox配置失败: ${e.message}" }
             throw e
         }
+    }
+
+    /** 把相对引用按配置地址 resolve 成绝对 URL；已是绝对地址则原样返回。 */
+    private fun resolveRelative(
+        base: String,
+        ref: String?,
+    ): String? {
+        val r = ref ?: return null
+        if (r.startsWith("http://") || r.startsWith("https://")) return r
+        return runCatching { java.net.URI(base).resolve(r).toString() }.getOrDefault(r)
+    }
+
+    /** 解析 `url;md5;<hash>` 原文里的 URL 段（保留 md5 后缀不变）。 */
+    private fun resolveSpecRelative(
+        base: String,
+        spec: String?,
+    ): String? {
+        val s = spec ?: return null
+        val idx = s.indexOf(';')
+        if (idx == -1) return resolveRelative(base, s)
+        val url = resolveRelative(base, s.substring(0, idx).trim()) ?: return s
+        return url + s.substring(idx)
     }
 
     /**
@@ -390,15 +419,74 @@ class SpiderService(
      * 从 bytes 提取 JSON（尝试 UTF-8 解码后直接解析）
      */
     internal fun extractJsonFromBytes(bytes: ByteArray): JsonObject? {
-        try {
-            val text = bytes.decodeToString().trim()
-            if (text.startsWith("{") || text.startsWith("[")) {
-                val element = json.parseToJsonElement(text)
+        // 1. UTF-8 解码 + 去 BOM（部分源以 BOM 开头，会让 startsWith("{") 判定失败）
+        var text = bytes.decodeToString().trim().removePrefix("\uFEFF").trim()
+        // 2. GBK 回退（少数老源是 GBK 编码，UTF-8 解码会出现替换符）
+        if (text.contains('\uFFFD')) {
+            runCatching { String(bytes, charset("GBK")).trim() }
+                .getOrNull()
+                ?.takeIf { !it.contains('\uFFFD') }
+                ?.let { text = it }
+        }
+        // 3. 剥注释：TVBox 生态大量配置带 `//` 说明（实测小盒子 xhz），严格 JSON 解析器不认
+        text = stripJsonComments(text)
+        // 4. 截取首个 `{` 到末个 `}`（容忍前置的说明行 / 混杂文本）
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start >= 0 && end > start) {
+            try {
+                val element = json.parseToJsonElement(text.substring(start, end + 1))
                 if (element is JsonObject) return element
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
         }
         return null
+    }
+
+    /**
+     * 剥离 JSON 里的 `//` 行注释与 `/* */` 块注释。
+     *
+     * 字符串字面量内的 `//`（典型就是 URL）必须保留 —— 因此用状态机而不是
+     * 正则一刀切；顺带清掉注释剥离后可能出现的尾随逗号（`{"a":1,}`）。
+     */
+    private fun stripJsonComments(s: String): String {
+        val sb = StringBuilder(s.length)
+        var i = 0
+        var inString = false
+        var escaped = false
+        while (i < s.length) {
+            val c = s[i]
+            if (inString) {
+                sb.append(c)
+                when {
+                    escaped -> escaped = false
+                    c == '\\' -> escaped = true
+                    c == '"' -> inString = false
+                }
+                i++
+                continue
+            }
+            when {
+                c == '"' -> {
+                    inString = true
+                    sb.append(c)
+                    i++
+                }
+                c == '/' && i + 1 < s.length && s[i + 1] == '/' -> {
+                    while (i < s.length && s[i] != '\n') i++
+                }
+                c == '/' && i + 1 < s.length && s[i + 1] == '*' -> {
+                    i += 2
+                    while (i + 1 < s.length && !(s[i] == '*' && s[i + 1] == '/')) i++
+                    i += 2
+                }
+                else -> {
+                    sb.append(c)
+                    i++
+                }
+            }
+        }
+        return sb.toString().replace(Regex(",\\s*([}\\]])"), "$1")
     }
 
     private companion object {
