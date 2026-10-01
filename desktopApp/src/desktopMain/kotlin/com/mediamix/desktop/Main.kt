@@ -58,6 +58,20 @@ fun main(args: Array<String>) {
  * 退出码：全部通过 = 0，任一环节失败 = 1。
  */
 private fun runSelfTestCli() {
+    // mpv 运行库可用性 —— 桌面端播放的前提，先测它省得等用户点播放才发现缺 dll。
+    // 打包内置的 libmpv-2.dll 会由 MpvLib 从 jar 资源解压到临时目录后加载。
+    println("=== MediaMix 桌面端自检 ===")
+    val mpvStatus =
+        runCatching {
+            com.mediamix.shared.player.MpvLib.getInstance()
+            "OK（已加载）"
+        }.fold(
+            onSuccess = { it },
+            onFailure = { "FAIL: ${it.javaClass.simpleName}: ${it.message?.take(100)}" },
+        )
+    println("[mpv 运行库] $mpvStatus")
+    println()
+
     val sites = CmsApiSite.defaultSites.filter { it.isTvBox }
     val httpClient = HttpClientFactory.createHttpClient(
         connectTimeoutSeconds = 10,
