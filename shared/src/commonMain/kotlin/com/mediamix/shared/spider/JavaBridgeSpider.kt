@@ -173,11 +173,27 @@ class JavaBridgeSpider(
                 ?.associate { it.key.toString() to it.value.toString() }
                 ?.takeIf { it.isNotEmpty() }
 
+        // ⚠️ 剥掉壳的本地代理前缀：壳假定宿主在 127.0.0.1:9978 跑 TVBox 代理
+        // （返回形如 http://127.0.0.1:-1/proxy?do=m3u8&url=<enc 的地址，端口未配置时为 -1）。
+        // 我们的播放器直连原始地址 + header 注入（ExoPlayer），不需要这层代理。
+        // 同时把 danmaku 地址做同样处理。
+        fun stripLocalProxy(u: String?): String? {
+            val raw = u ?: return null
+            val match = Regex("""http://127\.0\.0\.1:[-0-9]+/proxy\?do=([a-z0-9]+)&url=([^&\s]+)""").find(raw) ?: return raw
+            val decoded =
+                runCatching {
+                    java.net.URLDecoder.decode(match.groupValues[2], "UTF-8")
+                }.getOrDefault(match.groupValues[2])
+            return decoded
+        }
+
+        val playUrl = stripLocalProxy(map["url"]?.toString()).orEmpty()
+
         return SpiderPlayResult(
             // ⚠️ 解析失败时**不要**回落成 id：id 是待解析的剧集标识（常为「集名$地址」
             // 或纯 token），把它当播放地址会发出一个必然失败的请求，还会把排查方向带偏。
             // 返回空串，由上层判定为「解析失败」并给出可读提示。
-            url = map["url"]?.toString().orEmpty(),
+            url = playUrl,
             // TVBox/CatVod 的约定是**单数** header（JSON 字符串），不是 headers 对象。
             // 只读 headers 会把防盗链头整段丢掉，表现就是播放直接 403。
             header = map["header"]?.toString()?.takeIf { it.isNotBlank() },

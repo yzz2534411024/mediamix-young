@@ -52,6 +52,12 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
             implementation(libs.media3.exoplayer.dash)
+            // TVBox 蜘蛛生态的宿主契约依赖：spider.jar 里的 csp_* 类大量引用
+            // okhttp3/gson/jsoup（网络、解析），宿主必须自带，否则壳线程池里
+            // NoClassDefFoundError 会直接杀进程（实测 WoGG 站点）
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
+            implementation("com.google.code.gson:gson:2.10.1")
+            implementation("org.jsoup:jsoup:1.17.2")
             // 边播边缓存的 CacheDataSource/SimpleCache 在 media3-datasource（上面 exoplayer 的传递依赖）
         }
         val desktopMain by getting {
