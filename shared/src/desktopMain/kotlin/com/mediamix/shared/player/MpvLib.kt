@@ -61,6 +61,18 @@ interface MpvLib : Library {
         data: Pointer?,
     ): Int
 
+    /**
+     * 以字符串形式设置初始化前选项（mpv 自行解析类型）。
+     *
+     * 比 [mpv_set_option] 安全：不需要手写 Memory 缓冲、不用担心
+     * MPV_FORMAT_* 与实际类型不匹配（这两个坑都实测崩过 JNA）。
+     */
+    fun mpv_set_option_string(
+        handle: Pointer,
+        name: String,
+        value: String,
+    ): Int
+
     fun mpv_error_string(error: Int): String?
 
     /**

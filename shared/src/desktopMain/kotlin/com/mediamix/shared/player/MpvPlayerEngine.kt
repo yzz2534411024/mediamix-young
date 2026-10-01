@@ -67,6 +67,19 @@ actual class PlayerEngine actual constructor() {
         // initialize() 阶段就崩，表现为播放页白屏（实测 2026-10-02）。
         val osdLevel = Memory(8).apply { setLong(0, 0) }
         mpv.mpv_set_option(h, "osd-level", MpvLib.MPV_FORMAT_INT64, osdLevel)
+        // ★ 网络流缓冲（桌面端此前完全没配，mpv 默认偏保守，弱网易卡顿）：
+        //  - cache：网络流启用 demuxer 缓存
+        //  - demuxer-readahead-secs=30：预读 30 秒
+        //  - demuxer-max-bytes=200MiB：解复用缓冲上限（默认约 150MiB）
+        //  - demuxer-max-back-bytes=50MiB：保留已播数据，回退拖动不用重新下载
+        //  - network-timeout=30：弱网容忍
+        // 全部字符串形式下发，由 mpv 自己解析（避免手写 Memory 的类型/长度坑）。
+        mpv.mpv_set_option_string(h, "cache", "yes")
+        mpv.mpv_set_option_string(h, "demuxer-readahead-secs", "30")
+        mpv.mpv_set_option_string(h, "demuxer-max-bytes", "200MiB")
+        mpv.mpv_set_option_string(h, "demuxer-max-back-bytes", "50MiB")
+        mpv.mpv_set_option_string(h, "network-timeout", "30")
+
         // ★ 渲染窗口：必须在 mpv_initialize() 之前设置
         val widMem = Memory(8).apply { setLong(0, wid) }
         mpv.mpv_set_option(h, "wid", MpvLib.MPV_FORMAT_INT64, widMem)
