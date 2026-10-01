@@ -28,37 +28,82 @@ actual class PlayerEngine actual constructor() {
     // ==================== 生命周期 ====================
 
     actual fun initialize() {
-        handle = mpv.mpv_create()
-            ?: throw RuntimeException("Failed to create mpv instance")
+        // ⚠️ 这里**不能**直接 mpv_create + initialize：
+        // mpv 的 `wid`（渲染窗口句柄）必须在 mpv_initialize() **之前**设置，而 HWND
+        // 来自 UI 层（Compose SwingPanel 的 Canvas attach 回调）。此前 setSurface 走
+        // `mpv_set_option(h,"wid")`，但 initialize 之后该 API 已失效、且 HWND 回调往往
+        // 早于 initialize（那时 handle 还是 null，wid 被直接丢弃）—— 结果是 mpv 没有
+        // 渲染目标、画面全白（实测用户反馈）。
+        // 现在改为「等 surface 就绪再创建」：见 ensureInitialized()。
+        if (pendingWid != null) ensureInitialized()
+    }
+
+    /** 等待中的渲染窗口句柄（Surface 先于/后于 initialize 都走这里）。 */
+    private var pendingWid: Long? = null
+
+    /** handle 就绪前缓存的装载请求（播放地址可能先于 surface 到达）。 */
+    private var pendingSource: Pair<String, Map<String, String>?>? = null
+
+    private var pendingPlay = false
+
+    /**
+     * 真正创建 mpv 实例：顺序必须是 create → set_option(wid 等) → initialize。
+     * 完成后重放等待中的装载/播放请求。
+     */
+    private fun ensureInitialized() {
+        if (handle != null) return
+        val wid = pendingWid ?: return
+        val h =
+            mpv.mpv_create()
+                ?: throw RuntimeException("Failed to create mpv instance")
 
         // 禁用默认键绑定和 OSC
         val flagOff = Memory(4).apply { setInt(0, 0) }
-        mpv.mpv_set_option(handle!!, "input-default-bindings", MpvLib.MPV_FORMAT_FLAG, flagOff)
-        mpv.mpv_set_option(handle!!, "osc", MpvLib.MPV_FORMAT_FLAG, flagOff)
-        // 禁用 OSD 消息显示
-        val osdLevel = Memory(4).apply { setInt(0, 0) }
-        mpv.mpv_set_option(handle!!, "osd-level", MpvLib.MPV_FORMAT_INT64, osdLevel)
+        mpv.mpv_set_option(h, "input-default-bindings", MpvLib.MPV_FORMAT_FLAG, flagOff)
+        mpv.mpv_set_option(h, "osc", MpvLib.MPV_FORMAT_FLAG, flagOff)
+        // 禁用 OSD 消息显示。
+        // ⚠️ MPV_FORMAT_INT64 必须配 8 字节缓冲：给 4 字节时 mpv 会按 8 字节读，
+        // 越界读直接让 JNA 抛 "Invalid memory access"（Error，非 Exception）——
+        // initialize() 阶段就崩，表现为播放页白屏（实测 2026-10-02）。
+        val osdLevel = Memory(8).apply { setLong(0, 0) }
+        mpv.mpv_set_option(h, "osd-level", MpvLib.MPV_FORMAT_INT64, osdLevel)
+        // ★ 渲染窗口：必须在 mpv_initialize() 之前设置
+        val widMem = Memory(8).apply { setLong(0, wid) }
+        mpv.mpv_set_option(h, "wid", MpvLib.MPV_FORMAT_INT64, widMem)
 
-        val rc = mpv.mpv_initialize(handle!!)
+        val rc = mpv.mpv_initialize(h)
         if (rc < 0) {
-            mpv.mpv_destroy(handle!!)
-            handle = null
+            mpv.mpv_destroy(h)
             throw RuntimeException("mpv_initialize failed: ${mpv.mpv_error_string(rc)}")
         }
+        handle = h
 
         // 观察关键属性
-        mpv.mpv_observe_property(handle!!, 1, "time-pos", MpvLib.MPV_FORMAT_DOUBLE)
-        mpv.mpv_observe_property(handle!!, 2, "duration", MpvLib.MPV_FORMAT_DOUBLE)
-        mpv.mpv_observe_property(handle!!, 3, "pause", MpvLib.MPV_FORMAT_FLAG)
-        mpv.mpv_observe_property(handle!!, 4, "idle-active", MpvLib.MPV_FORMAT_FLAG)
-        mpv.mpv_observe_property(handle!!, 5, "demuxer-cache-duration", MpvLib.MPV_FORMAT_DOUBLE)
-        mpv.mpv_observe_property(handle!!, 6, "eof-reached", MpvLib.MPV_FORMAT_FLAG)
+        mpv.mpv_observe_property(h, 1, "time-pos", MpvLib.MPV_FORMAT_DOUBLE)
+        mpv.mpv_observe_property(h, 2, "duration", MpvLib.MPV_FORMAT_DOUBLE)
+        mpv.mpv_observe_property(h, 3, "pause", MpvLib.MPV_FORMAT_FLAG)
+        mpv.mpv_observe_property(h, 4, "idle-active", MpvLib.MPV_FORMAT_FLAG)
+        mpv.mpv_observe_property(h, 5, "demuxer-cache-duration", MpvLib.MPV_FORMAT_DOUBLE)
+        mpv.mpv_observe_property(h, 6, "eof-reached", MpvLib.MPV_FORMAT_FLAG)
 
         startEventLoop()
+
+        // 重放等待中的操作（顺序：先装载再播放）
+        pendingSource?.let { (u, hd) ->
+            pendingSource = null
+            setSource(u, hd)
+            if (pendingPlay) {
+                pendingPlay = false
+                play()
+            }
+        }
     }
 
     actual fun release() {
         running = false
+        // 清空等待中的请求：release 后不应再被重放（否则下一次进播放页会用旧地址开播）
+        pendingSource = null
+        pendingPlay = false
         val thread = eventThread
         eventThread = null
         try {
@@ -82,7 +127,12 @@ actual class PlayerEngine actual constructor() {
         url: String,
         headers: Map<String, String>?,
     ) {
-        val h = handle ?: return
+        val h = handle
+        if (h == null) {
+            // 等 surface 期间收到的装载请求先缓存（ensureInitialized 后重放）
+            pendingSource = url to headers
+            return
+        }
         // mpv 的 HTTP 头通过 `--http-header-fields` 属性下发；没有头时清空，避免沿用上一集
         val headerValue =
             headers
@@ -105,7 +155,12 @@ actual class PlayerEngine actual constructor() {
     }
 
     actual fun play() {
-        val h = handle ?: return
+        val h = handle
+        if (h == null) {
+            // mpv 还没创建（等 surface）—— 记下播放意图，创建后自动开播
+            pendingPlay = true
+            return
+        }
         val mem = Memory(4).apply { setInt(0, 0) } // false = not paused
         mpv.mpv_set_property(h, "pause", MpvLib.MPV_FORMAT_FLAG, mem)
     }
@@ -229,10 +284,29 @@ actual class PlayerEngine actual constructor() {
     // ==================== Surface ====================
 
     actual fun setSurface(surface: Any?) {
-        val h = handle ?: return
-        if (surface is Long) {
-            val mem = Memory(8).apply { setLong(0, surface) }
-            mpv.mpv_set_option(h, "wid", MpvLib.MPV_FORMAT_INT64, mem)
+        if (surface !is Long) return
+        if (handle != null && pendingWid != null && pendingWid != surface) {
+            // 渲染窗口换了（退出播放页再进 / 页面重建）—— mpv 的 wid 是**初始化选项**，
+            // 运行期无法改，只能销毁重建。待播请求保留（ensureInitialized 会重放）。
+            rebuildHandle()
+        }
+        // 句柄可能还没创建（等 wid）—— 记录后交给 ensureInitialized 一并创建
+        pendingWid = surface
+        ensureInitialized()
+    }
+
+    /** 销毁 mpv 实例（保留待播请求），供换窗口后重建使用。 */
+    private fun rebuildHandle() {
+        running = false
+        val t = eventThread
+        eventThread = null
+        runCatching {
+            t?.interrupt()
+            t?.join(3000)
+        }
+        synchronized(this) {
+            handle?.let { mpv.mpv_destroy(it) }
+            handle = null
         }
     }
 
@@ -343,22 +417,28 @@ actual class PlayerEngine actual constructor() {
         }
     }
 
-    private fun setPropertyDouble(
-        h: Pointer,
-        name: String,
-        value: Double,
-    ) {
-        val mem = Memory(8).apply { setDouble(0, value) }
-        mpv.mpv_set_property(h, name, MpvLib.MPV_FORMAT_DOUBLE, mem)
-    }
-
+    /**
+     * 写 mpv 属性统一走 `set` 命令（字符串形式），由 mpv 自己解析类型。
+     *
+     * 原因（实测 2026-10-02，两处 JNA "Invalid memory access" 都出自这里）：
+     *  1. 手写 Memory 缓冲长度不可控 —— 固定 8 字节装不下长字符串（header 列表等）；
+     *  2. mpv 各属性的真实类型不一（`video-aspect-override` 实际是 double 而非 string），
+     *     按 MPV_FORMAT_STRING 强写会类型不匹配、越界崩。
+     */
     private fun setPropertyString(
         h: Pointer,
         name: String,
         value: String,
     ) {
-        val mem = Memory(8).apply { setString(0, value) }
-        mpv.mpv_set_property(h, name, MpvLib.MPV_FORMAT_STRING, mem)
+        mpv.mpv_command(h, arrayOf("set", name, value))
+    }
+
+    private fun setPropertyDouble(
+        h: Pointer,
+        name: String,
+        value: Double,
+    ) {
+        setPropertyString(h, name, value.toString())
     }
 
     // --- mpv_node 解析 ---

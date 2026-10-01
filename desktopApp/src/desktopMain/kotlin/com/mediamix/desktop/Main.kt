@@ -30,6 +30,27 @@ fun main(args: Array<String>) {
         runSelfTestCli()
         return
     }
+    // 播放链路自检：MediaMix.exe --mpv-probe [url]
+    // 造一个真实窗口 + HWND，走与播放页完全相同的 mpv 路径播一个测试片，
+    // 用于在无人点击 UI 的情况下验证「mpv 加载 → wid 绑定 → 出画/推进」。
+    if ("--mpv-probe" in args) {
+        runMpvProbe(args)
+        return
+    }
+    // 逐 API 探针：定位 JNA "Invalid memory access" 具体出在哪个 mpv 调用
+    if ("--mpv-raw" in args) {
+        val frame = javax.swing.JFrame("mpv raw probe")
+        val canvas = java.awt.Canvas()
+        frame.add(canvas)
+        frame.setSize(320, 180)
+        frame.isVisible = true
+        Thread.sleep(1200)
+        val wid = com.mediamix.shared.player.awtComponentId(canvas)
+        println("=== mpv 逐步 API 探针 (wid=$wid) ===")
+        com.mediamix.shared.player.mpvStepProbe(wid).forEach { println("  $it") }
+        runCatching { frame.dispose() }
+        kotlin.system.exitProcess(0)
+    }
     startKoin {
         modules(sharedModule, uiModule)
     }
@@ -57,6 +78,107 @@ fun main(args: Array<String>) {
  * 不启动 Koin/DB/UI —— SpiderService 零依赖可构造，CmsApiSite.defaultSites 是纯数据。
  * 退出码：全部通过 = 0，任一环节失败 = 1。
  */
+/**
+ * 播放链路自检（`MediaMix.exe --mpv-probe [url]`）。
+ *
+ * 造一个真实 AWT 窗口（拿 HWND）→ PlayerEngine.initialize() → setSurface(HWND)
+ * → setSource(测试片) → play()，随后轮询位置 / 状态 / 缓冲。
+ *
+ * 关键价值：`wid` 必须在 mpv_initialize() 之前设置，而生产路径里 HWND 回调早于
+ * initialize —— 这条链路此前坏了（画面全白）。这里能自动化复现/验证它。
+ */
+private fun runMpvProbe(args: Array<String>) {
+    val idx = args.indexOf("--mpv-probe")
+    val url =
+        args.getOrNull(idx + 1)
+            ?: "https://media.w3.org/2010/05/sintel/trailer.mp4"
+
+    println("=== MediaMix 播放链路自检 ===")
+    println("测试地址: $url")
+
+    val frame = javax.swing.JFrame("MediaMix mpv probe")
+    val canvas = java.awt.Canvas()
+    canvas.background = java.awt.Color.BLACK
+    frame.add(canvas)
+    frame.setSize(640, 360)
+    frame.setLocationRelativeTo(null)
+    frame.isVisible = true
+    Thread.sleep(1500) // 等窗口真正显示（HWND 才有效）
+
+    val hwnd = com.mediamix.shared.player.awtComponentId(canvas)
+    println("窗口 HWND: $hwnd")
+    if (hwnd == 0L) {
+        println("✗ 拿不到 HWND，无法继续")
+        kotlin.system.exitProcess(1)
+    }
+
+    val engine = com.mediamix.shared.player.PlayerEngine()
+    engine.setListener(
+        object : com.mediamix.shared.player.PlayerEngineListener {
+            override fun onStateChanged(state: com.mediamix.shared.player.PlayerState) {
+                println("  [state] $state")
+            }
+
+            override fun onPositionChanged(positionMs: Long) = Unit
+
+            override fun onBufferChanged(bufferedPercent: Int) = Unit
+
+            override fun onError(
+                error: String,
+                code: Int?,
+            ) {
+                println("  [error] $error")
+            }
+
+            override fun onFirstFrameRendered() {
+                println("  [first-frame] ✓")
+            }
+
+            override fun onPlaybackEnded() {
+                println("  [ended]")
+            }
+        },
+    )
+
+    val ok =
+        runCatching {
+            println("  step: engine.initialize()")
+            engine.initialize()
+            println("  step: engine.setSurface(hwnd)")
+            engine.setSurface(hwnd)
+            println("  step: engine.setSource(url)")
+            engine.setSource(url)
+            println("  step: engine.play()")
+            engine.play()
+        }.fold(onSuccess = { true }, onFailure = {
+            println("✗ 启动失败: ${it.javaClass.simpleName}: ${it.message}")
+            it.printStackTrace() // JNA 的堆栈能指出崩在哪个 native 调用
+            false
+        })
+
+    if (!ok) {
+        runCatching { frame.dispose() }
+        kotlin.system.exitProcess(1)
+    }
+
+    var lastPos = 0L
+    var advanced = false
+    repeat(12) {
+        Thread.sleep(2000)
+        val pos = runCatching { engine.getPosition() }.getOrDefault(0L)
+        val state = runCatching { engine.getPlayerState() }.getOrDefault(com.mediamix.shared.player.PlayerState.IDLE)
+        val buf = runCatching { engine.getBufferedPercentage() }.getOrDefault(0)
+        println("  t=${(it + 1) * 2}s pos=${pos}ms state=$state buffered=$buf%")
+        if (pos > lastPos) advanced = true
+        lastPos = pos
+    }
+
+    runCatching { engine.release() }
+    runCatching { frame.dispose() }
+    println(if (advanced) "=== 结果: ✓ 画面推进正常（position 有增长）===" else "=== 结果: ✗ position 未推进 ===")
+    kotlin.system.exitProcess(if (advanced) 0 else 1)
+}
+
 private fun runSelfTestCli() {
     // mpv 运行库可用性 —— 桌面端播放的前提，先测它省得等用户点播放才发现缺 dll。
     // 打包内置的 libmpv-2.dll 会由 MpvLib 从 jar 资源解压到临时目录后加载。
