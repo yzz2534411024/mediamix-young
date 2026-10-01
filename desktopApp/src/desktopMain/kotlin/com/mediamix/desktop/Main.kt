@@ -234,6 +234,26 @@ private fun runSelfTestCli() {
             onFailure = { "FAIL: ${it.javaClass.simpleName}: ${it.message?.take(100)}" },
         )
     println("[mpv 运行库] $mpvStatus")
+
+    // 播放链路里的本地缓存代理（JdkLocalProxyServer 用 com.sun.net.httpserver）——
+    // 该 API 需要 jlink runtime 含 jdk.httpserver 模块，缺了就是点播放即白屏
+    // （NoClassDefFoundError，实测用户日志定位）。
+    val proxyStatus =
+        runCatching {
+            val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/") { exchange ->
+                exchange.sendResponseHeaders(204, -1)
+                exchange.close()
+            }
+            server.start()
+            val port = server.address.port
+            server.stop(0)
+            "OK（可创建，测试端口 $port）"
+        }.fold(
+            onSuccess = { it },
+            onFailure = { "FAIL: ${it.javaClass.simpleName}: ${it.message}" },
+        )
+    println("[本地缓存代理 jdk.httpserver] $proxyStatus")
     println()
 
     val sites = CmsApiSite.defaultSites.filter { it.isTvBox }
