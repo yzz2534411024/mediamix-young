@@ -87,11 +87,13 @@ compose.desktop {
             description = "MediaMix - Cross-platform video player"
             copyright = "© 2026 MediaMix. All rights reserved."
 
-            // ⚠️ jlink 精简 runtime 的默认模块集很小（java.base/desktop/logging 等），
-            // 历史与收藏走 SQLDelight 的 JDBC 驱动，需要 java.sql —— 缺了就报
-            // NoClassDefFoundError: java/sql/DriverManager（实测 2026-10-01）。
-            // jdk.unsupported 是 okhttp/协程的 sun.misc 兜底，一并补上。
-            modules("java.sql", "jdk.unsupported")
+            // ⚠️ jlink 精简 runtime 的默认模块集很小（java.base/desktop/logging 等）：
+            // - java.sql：SQLDelight 的 JDBC 驱动（历史/收藏/播放进度）
+            // - jdk.unsupported：okhttp/协程的 sun.misc 兜底
+            // - jdk.httpserver：播放链路里的本地缓存代理（JdkLocalProxyServer，
+            //   用 com.sun.net.httpserver）—— 缺了它点播放直接 NoClassDefFoundError
+            //   白屏（实测 2026-10-02，用户日志定位）
+            modules("java.sql", "jdk.unsupported", "jdk.httpserver")
 
             windows {
                 menuGroup = "MediaMix"
