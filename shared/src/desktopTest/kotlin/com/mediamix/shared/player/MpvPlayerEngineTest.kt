@@ -108,12 +108,17 @@ class MpvPlayerEngineTest {
 
     @Test
     fun aspectMode_hasAllExpectedValues() {
-        // FILL / COVER 已删除：两端引擎都没有实现，UI 也没暴露过（见 AspectMode 注释）。
+        // 7 种模式全部有真实实现（手机 Compose 约束 / 桌面 mpv 参数）：
+        // 自适应、铺满裁剪、拉伸铺满、16:9、4:3、21:9、原始比例
         val modes = AspectMode.entries
-        assertEquals(3, modes.size)
-        assertTrue(AspectMode.ORIGINAL in modes)
+        assertEquals(7, modes.size)
+        assertTrue(AspectMode.ADAPTIVE in modes)
+        assertTrue(AspectMode.CROP in modes)
+        assertTrue(AspectMode.STRETCH in modes)
         assertTrue(AspectMode.RATIO_16_9 in modes)
         assertTrue(AspectMode.RATIO_4_3 in modes)
+        assertTrue(AspectMode.RATIO_21_9 in modes)
+        assertTrue(AspectMode.ORIGINAL in modes)
     }
 
     // ==================== MpvLib 常量测试 ====================

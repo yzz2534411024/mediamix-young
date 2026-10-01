@@ -34,12 +34,16 @@ class PlayerViewModelTest {
 
     @Test
     fun aspectMode_hasAllExpectedValues() {
-        // FILL / COVER 已删除：两端引擎都没有实现，UI 也没暴露过。
+        // 7 种模式全部有真实实现（手机 Compose 约束 / 桌面 mpv 参数）
         val modes = AspectMode.entries
-        assertEquals(3, modes.size)
+        assertEquals(7, modes.size)
+        assertTrue(modes.contains(AspectMode.ADAPTIVE))
+        assertTrue(modes.contains(AspectMode.CROP))
+        assertTrue(modes.contains(AspectMode.STRETCH))
         assertTrue(modes.contains(AspectMode.ORIGINAL))
         assertTrue(modes.contains(AspectMode.RATIO_16_9))
         assertTrue(modes.contains(AspectMode.RATIO_4_3))
+        assertTrue(modes.contains(AspectMode.RATIO_21_9))
     }
 
     @Test
