@@ -114,6 +114,7 @@ val uiModule: Module =
                 cacheManager = get(),
                 sourceRepository = get(),
                 spiderService = get(),
+                httpClient = get(),
             )
         }
     }

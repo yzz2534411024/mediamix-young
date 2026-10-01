@@ -7,7 +7,9 @@ import com.mediamix.shared.cache.CacheManager
 import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.player.engines.MetricsEngine
 import com.mediamix.shared.spider.SpiderService
+import com.mediamix.shared.spider.TvBoxSelfTestRunner
 import com.mediamix.ui.source.SourceRepository
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +36,7 @@ class DebugViewModel(
     private val cacheManager: CacheManager,
     private val sourceRepository: SourceRepository,
     private val spiderService: SpiderService,
+    private val httpClient: HttpClient,
 ) : ViewModel() {
     private val logger = Logger.withTag("DebugViewModel")
 
@@ -60,6 +63,41 @@ class DebugViewModel(
     val tvBoxSites: List<CmsApiSite> get() = sourceRepository.sites.value.filter { it.isTvBox }
 
     private var probeJob: Job? = null
+
+    /**
+     * 接口自检（**桌面端也可跑**）：线路连通 → 配置拉取+伪装解码 → 站点解析 →
+     * 蜘蛛包下载+md5+zip 结构 → 平台蜘蛛桥状态。
+     *
+     * 与 [runProbe] 的区别：probe 走完整蜘蛛管线（含 dex 调用，桌面端跑不了）；
+     * 自检只测「接口本身」，用于在桌面端快速判断配置/线路/蜘蛛包是否正常。
+     */
+    fun runSelfTest() {
+        if (_isProbing.value) return
+        val site =
+            sourceRepository.sites.value.firstOrNull { it.isTvBox }
+                ?: run {
+                    _probeReport.value = listOf("没有可自检的 TVBox 源。先在数据源管理里启用「饭太硬」。")
+                    return
+                }
+        probeJob?.cancel()
+        probeJob =
+            viewModelScope.launch {
+                _isProbing.value = true
+                _probeReport.value = listOf("接口自检中…（逐线路探测，最长约 40 秒）")
+                _probeReport.value =
+                    try {
+                        val runner = TvBoxSelfTestRunner(spiderService, httpClient)
+                        runner.run(site).map { item ->
+                            "${if (item.ok) "✓" else "✗"} ${item.name}：${item.detail}"
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        listOf("自检异常: ${e.message ?: "未知错误"}")
+                    }
+                _isProbing.value = false
+            }
+    }
 
     /**
      * 一键探测：按真实链路跑 homeContent → categoryContent → detailContent → playerContent。

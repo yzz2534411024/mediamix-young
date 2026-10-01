@@ -34,7 +34,17 @@ kotlin {
             implementation(libs.koin.compose)
             implementation(libs.coil.compose)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.androidx.navigation.compose)
+            // ⚠️ navigation 2.8.0-alpha13 的传递依赖会把桌面 compose.runtime/ui 升到
+            // 1.8.0-alpha03、skiko 到 0.8.18 —— 与 1.7.1 的 foundation/material 混用，
+            // 桌面端启动即崩（RenderNodeContext NoClassDefFoundError，实测）。
+            // 排除其 compose 传递依赖，统一走本文件上面锁定的 1.7.1。
+            // Android 端不受影响（androidx.compose 是不同 group）。
+            implementation(libs.androidx.navigation.compose) {
+                exclude(group = "org.jetbrains.compose.runtime")
+                exclude(group = "org.jetbrains.compose.annotation-internal")
+                exclude(group = "org.jetbrains.compose.collection-internal")
+                exclude(group = "org.jetbrains.skiko")
+            }
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(compose.materialIconsExtended)
             implementation(libs.ktor.client.core)

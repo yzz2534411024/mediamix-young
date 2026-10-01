@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -115,6 +116,7 @@ fun DebugScreen(
                     report = probeReport,
                     isProbing = isProbing,
                     onRun = { viewModel.runProbe() },
+                    onSelfTest = { viewModel.runSelfTest() },
                     onClear = { viewModel.clearProbeReport() },
                 )
             }
@@ -144,12 +146,17 @@ private fun ProbePanel(
     report: List<String>,
     isProbing: Boolean,
     onRun: () -> Unit,
+    onSelfTest: () -> Unit,
     onClear: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = onRun, enabled = !isProbing) {
                 Text(if (isProbing) "探测中…" else "一键探测")
+            }
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(onClick = onSelfTest, enabled = !isProbing) {
+                Text("接口自检")
             }
             if (report.isNotEmpty()) {
                 Spacer(Modifier.width(8.dp))
@@ -158,8 +165,9 @@ private fun ProbePanel(
         }
         Text(
             text =
-                "依次跑 homeContent → categoryContent → detailContent → playerContent，" +
-                    "用于判定「壳/站点侧无数据」还是「映射层丢数据」。",
+                "一键探测：依次跑 homeContent → categoryContent → detailContent → playerContent，" +
+                    "判定「壳/站点侧无数据」还是「映射层丢数据」。\n接口自检（桌面可跑）：线路连通 → " +
+                    "配置拉取+伪装解码 → 站点解析 → 蜘蛛包下载+md5+zip 结构 → 蜘蛛桥状态。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),

@@ -4,6 +4,19 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+// ⚠️ 锁定 compose 系版本与 1.7.1 统一：navigation-compose 2.8.0-alpha13 会把
+// compose.runtime/annotation/collection 升到 1.8.0-alpha03、skiko 升到 0.8.18，
+// 与 1.7.1 的 ui/foundation 混用导致桌面端启动即崩（RenderNodeContext
+// UnsatisfiedLinkError / NoClassDefFoundError，实测 2026-10-01）。
+configurations.all {
+    resolutionStrategy.force(
+        "org.jetbrains.skiko:skiko:0.8.4",
+        "org.jetbrains.compose.runtime:runtime:1.7.1",
+        "org.jetbrains.compose.annotation-internal:annotation:1.7.1",
+        "org.jetbrains.compose.collection-internal:collection:1.7.1",
+    )
+}
+
 kotlin {
     jvm {
         withJava()
