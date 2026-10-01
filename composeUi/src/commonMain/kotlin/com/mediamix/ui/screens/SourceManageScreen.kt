@@ -156,6 +156,22 @@ private fun SourceTile(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (site.isTvBox) {
+                    Spacer(Modifier.width(8.dp))
+                    // TVBox 源依赖 dex 格式的蜘蛛包 —— Android 端专属能力，
+                    // 桌面端（JVM）加载不了 dex，标注清楚避免用户反复试。
+                    Text(
+                        text = "TVBox·手机端",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier =
+                            Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.tertiaryContainer,
+                                    MaterialTheme.shapes.extraSmall,
+                                ).padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
                 if (site.isBuiltIn) {
                     Spacer(Modifier.width(8.dp))
                     Text(
