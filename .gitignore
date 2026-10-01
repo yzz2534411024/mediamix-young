@@ -54,3 +54,5 @@ build_output.txt
 # 工作区本地数据（WorkBuddy 会话记忆等，不入库）
 .workbuddy/
 MediaMix-桌面版/
+MediaMix-桌面版.zip
+MediaMix-桌面版/
