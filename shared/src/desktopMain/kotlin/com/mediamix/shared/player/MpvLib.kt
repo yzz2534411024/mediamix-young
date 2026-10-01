@@ -121,11 +121,19 @@ interface MpvLib : Library {
         /**
          * 加载 mpv 客户端库。
          *
-         * 不同发行版的 DLL 名不同：老版本是 `mpv-1.dll`，
-         * 新一代 libmpv（如 `mpv-dev-x86_64-*.7z` 里的）是 `libmpv-2.dll`，
-         * 因此按顺序回退尝试。全部缺失时抛出带明确指引的 [UnsatisfiedLinkError]。
+         * 顺序：
+         *  1. **打包内置**：从 jar 资源 `native/windows-x64/`（按 `files.txt` 清单）
+         *     解压到临时目录后加载 —— 分发包自带 mpv，用户无需手工放 DLL；
+         *  2. 系统搜索（用户自装 mpv / 手工放到 exe 同目录）：
+         *     老版本 DLL 名是 `mpv-1.dll`，新 libmpv（mpv-dev-x86_64-*.7z）是
+         *     `libmpv-2.dll`，按序回退。
+         *
+         * 全部失败时抛带明确指引的 [UnsatisfiedLinkError]。
          */
         fun getInstance(): MpvLib {
+            extractBundledNative()?.let { path ->
+                return Native.load(path, MpvLib::class.java)
+            }
             val candidates = listOf("mpv-1", "libmpv-2", "libmpv")
             var lastError: Throwable? = null
             for (libName in candidates) {
@@ -136,11 +144,48 @@ interface MpvLib : Library {
                 }
             }
             throw UnsatisfiedLinkError(
-                "无法加载 mpv 运行库（已尝试：${candidates.joinToString()}）。" +
+                "无法加载 mpv 运行库（已尝试：内置资源、${candidates.joinToString()}）。" +
                     "Desktop 端播放需要 mpv-1.dll 或 libmpv-2.dll；" +
                     "请把该 DLL 放到应用可执行文件（MediaMix.exe）同目录。" +
                     "底层错误：${lastError?.message}",
             )
         }
+
+        /**
+         * 把打包进来的 mpv 运行库解压到临时目录并返回可加载的主 DLL 路径。
+         *
+         * 依赖的 `av*.dll` / `sw*.dll` 必须与主 DLL 同在**一个目录**（Windows
+         * 加载器按同目录解析依赖），因此整个 `native/windows-x64/` 全部解压。
+         * classpath 无法列目录，故用打包时生成的 `files.txt` 清单逐行读取。
+         */
+        private fun extractBundledNative(): String? {
+            val loader = MpvLib::class.java.classLoader ?: return null
+            val mainLib = BUNDLED_MAIN_LIB
+            val targetDir = java.io.File(System.getProperty("java.io.tmpdir"), "mediamix-native")
+            val target = java.io.File(targetDir, mainLib)
+            // 已解压过且大小非零直接复用（同一进程/多次播放）
+            if (target.isFile && target.length() > 0) return target.absolutePath
+
+            return try {
+                targetDir.mkdirs()
+                val manifest =
+                    loader.getResourceAsStream("$BUNDLED_DIR/files.txt")?.bufferedReader()?.readLines()
+                        ?: return null
+                manifest.map { it.trim() }.filter { it.isNotEmpty() && it.endsWith(".dll") }.forEach { name ->
+                    loader.getResourceAsStream("$BUNDLED_DIR/$name")?.use { input ->
+                        java.io.File(targetDir, name).outputStream().use { input.copyTo(out = it) }
+                    }
+                }
+                if (target.isFile && target.length() > 0) target.absolutePath else null
+            } catch (t: Throwable) {
+                null
+            }
+        }
+
+        /** 打包内置的 mpv 运行库目录（相对 classpath）。 */
+        private const val BUNDLED_DIR = "native/windows-x64"
+
+        /** 内置主库文件名（zhongfly/mpv-winbuild dev 包即 libmpv-2.dll）。 */
+        private const val BUNDLED_MAIN_LIB = "libmpv-2.dll"
     }
 }
