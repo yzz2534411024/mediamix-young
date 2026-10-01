@@ -4,14 +4,27 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-// ⚠️ 锁定 compose 系版本与 1.7.1 统一：navigation-compose 2.8.0-alpha13 会把
-// compose.runtime/annotation/collection 升到 1.8.0-alpha03、skiko 升到 0.8.18，
-// 与 1.7.1 的 ui/foundation 混用导致桌面端启动即崩（RenderNodeContext
-// UnsatisfiedLinkError / NoClassDefFoundError，实测 2026-10-01）。
+// ⚠️ 锁定 compose 系版本与 1.7.1 统一：navigation/coil/koin 的传递依赖把部分
+// compose 构件升到 1.8.0-alpha03（实测包里 animation-core 1.8.0-alpha03 与
+// animation 1.7.1 并存），导致 ui-graphics 类引用 skiko 0.8.18 独有 API 时
+// 与 1.7.1 的 skiko 解析错配，桌面端启动即崩（实测 2026-10-01）。
+// compose 1.7.1 的正确 skiko 就是 0.8.18（ui-unit 1.7.1 原配依赖，勿锁 skiko）。
 configurations.all {
     resolutionStrategy.force(
-        "org.jetbrains.skiko:skiko:0.8.4",
+        "org.jetbrains.compose.animation:animation:1.7.1",
+        "org.jetbrains.compose.animation:animation-core:1.7.1",
+        "org.jetbrains.compose.foundation:foundation:1.7.1",
+        "org.jetbrains.compose.foundation:foundation-layout:1.7.1",
+        "org.jetbrains.compose.material3:material3:1.7.1",
+        "org.jetbrains.compose.material:material:1.7.1",
         "org.jetbrains.compose.runtime:runtime:1.7.1",
+        "org.jetbrains.compose.runtime:runtime-saveable:1.7.1",
+        "org.jetbrains.compose.ui:ui:1.7.1",
+        "org.jetbrains.compose.ui:ui-geometry:1.7.1",
+        "org.jetbrains.compose.ui:ui-graphics:1.7.1",
+        "org.jetbrains.compose.ui:ui-text:1.7.1",
+        "org.jetbrains.compose.ui:ui-unit:1.7.1",
+        "org.jetbrains.compose.ui:ui-util:1.7.1",
         "org.jetbrains.compose.annotation-internal:annotation:1.7.1",
         "org.jetbrains.compose.collection-internal:collection:1.7.1",
     )
