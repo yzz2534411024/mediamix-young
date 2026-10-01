@@ -152,3 +152,29 @@
 - **`LocalProxyServer` 未引入新依赖**：Android 侧先说好降级为「直连 CDN」，而不是引入 Ktor Server。
   代价是 Android 失去边播边缓存，已记入 P1 待办。
 - **项目不是 git 仓库**：本次执行过程中无版本回滚保护，后续改动需格外谨慎（建议先 `git init` 并首次提交）。
+
+### 7.5.5 jar 蜘蛛桥实现（2026-10-01 下午，参考 FongMi/TVBox 成熟方案）
+
+实测链路打通的关键事实：
+- 饭太硬 `spider` 字段（`.jpg` 后缀）实为 **zip 包**（`PK` 头），md5 校验通过（`2cc088af...`）
+- zip 内含 `classes.dex`（36KB 加固壳）+ `assets/ftyguard_v7/v8.so` + `ftyshinidie.guard`
+- 壳 dex 中蜘蛛类名为 **`com.github.catvod.spider.<Xxx>Guard`**（与配置 `csp_XxxGuard` 直接对应），
+  方法签名为标准 TVBox Spider 接口（`init(Context)` / `homeContent(boolean)` /
+  `categoryContent(String,String,boolean,HashMap)` / `detailContent(List)` / `searchContent(String,boolean)` /
+  `playerContent(String,String,List)`，返回 JSON 字符串）
+
+实现（全部落地）：
+1. **`AndroidJavaBridgeManager`**（44 行存根 → 完整实现）：
+   - jar 下载：`;md5;hash` 语法解析 + md5 校验 + `filesDir/spiders/{md5}.zip` 缓存（命中跳过）
+   - `DexClassLoader(zip, codeCacheDir, null, appClassLoader)`（zip 可直接加载）
+   - 壳初始化触发：`com.github.catvod.spider.Init` + `init(Context)`
+   - 类名解析序：全类名 → `com.github.catvod.spider.X` → `com.github.catvod.crawler.SpiderX`
+   - 反射调用：标准签名 + 同名同参数个数兜底匹配
+2. **`JavaBridgeSpider`**（TODO 空壳 → 完整适配）：invoke 调用 + TVBox JSON 约定映射
+   （home 的 class/list、详情的 `vod_play_from/vod_play_url`（`$$$`/`#`/`$` 分隔）、player 的 parse/url/headers）
+3. **`JavaBridgeManager.attach(context)`**：`MediaMixApp.onCreate` 调用（壳需要 Context）
+4. `SpiderService.initFromConfig → ensureJavaBridge → loadSpiderJar(spiderUrl)` 原有调用链即通
+
+验证：四目标编译 ✅ · desktopTest 全绿 ✅ · assembleDebug ✅（13:12 构建）
+**加固壳能否在真机 DexClassLoader 流程下跑通，需真机实测**（壳依赖 native so 解密，
+本机无法模拟 Android 运行时）—— 日志已做全程可观测（tag=JavaBridgeManager）。
