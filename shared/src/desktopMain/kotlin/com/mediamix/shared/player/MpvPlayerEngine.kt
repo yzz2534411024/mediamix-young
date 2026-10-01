@@ -77,11 +77,24 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 播放控制 ====================
 
-    actual fun setSource(url: String) {
+    actual fun setSource(url: String, headers: Map<String, String>?) {
         val h = handle ?: return
+        // mpv 的 HTTP 头通过 `--http-header-fields` 属性下发；没有头时清空，避免沿用上一集
+        val headerValue = headers
+            ?.entries
+            ?.filter { it.key.isNotBlank() && it.value.isNotBlank() }
+            ?.joinToString(",") { "${it.key}: ${it.value}" }
+            ?: ""
+        setPropertyString(h, "http-header-fields", headerValue)
         mpv.mpv_command(h, arrayOf("loadfile", url, "replace"))
         firstFrameReported = false
         updateState(PlayerState.BUFFERING)
+    }
+
+    /** Desktop 侧由 mpv 自行决定解码器，这里保留接口一致性。 */
+    actual fun setDecodeMode(preferSoftware: Boolean) {
+        val h = handle ?: return
+        setPropertyString(h, "hwdec", if (preferSoftware) "no" else "auto-safe")
     }
 
     actual fun play() {

@@ -15,6 +15,8 @@ import java.io.RandomAccessFile
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Desktop 平台的本地代理实现，基于 JDK 自带的 `com.sun.net.httpserver`。
@@ -22,6 +24,9 @@ import java.net.URLEncoder
  * 完整支持：L3 整文件缓存直出、L4 分片拼装、CDN 转发 + 边下边存（512KB 分片）、
  * HTTP Range（含 206 / 416）。单例由 Koin 的 `single {}` 保证，本类不做静态持有。
  */
+/** 代理并发处理线程数。m3u8 会并发拉取分片，8 个足够且不会打满 CPU。 */
+private const val PROXY_THREADS = 8
+
 class JdkLocalProxyServer(
     private val cacheService: VideoCacheService,
 ) : LocalProxyServer {
@@ -30,6 +35,7 @@ class JdkLocalProxyServer(
     private var server: HttpServer? = null
     private var port = 0
     private var streamingClient: HttpClient? = null
+    private var executor: ExecutorService? = null
 
     override val currentPort: Int get() = port
     override val isRunning: Boolean get() = server != null
@@ -44,7 +50,13 @@ class JdkLocalProxyServer(
             val srv = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
             port = srv.address.port
             srv.createContext("/vod") { exchange -> handleRequest(exchange) }
-            srv.executor = null // use default thread pool
+            // ⚠️ 不要用 `srv.executor = null`：JDK HttpServer 在 null 时回落到**单线程**
+            // executor，而 m3u8 播放器会并发拉取多个分片，单线程会把所有请求串行化，
+            // 表现为「能播但一直转圈 / 拖动后卡很久」。这里显式给一个有界线程池。
+            executor = Executors.newFixedThreadPool(PROXY_THREADS) { runnable ->
+                Thread(runnable, "mediamix-proxy").apply { isDaemon = true }
+            }
+            srv.executor = executor
             srv.start()
             server = srv
             streamingClient = HttpClientFactory.createStreamingClient()
@@ -63,6 +75,9 @@ class JdkLocalProxyServer(
         } catch (_: Exception) {}
         server?.stop(0)
         server = null
+        // 关闭线程池，避免反复 start/stop 时线程泄漏
+        executor?.shutdownNow()
+        executor = null
         port = 0
         logger.i { "Local proxy stopped" }
     }

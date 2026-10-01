@@ -109,6 +109,13 @@ private class FakeMetricsEngine : MetricsEngine {
     override val hasRecordedFirstFrame: Boolean get() = _hasRecordedFirstFrame
     override val isBuffering: Boolean get() = _isBuffering
 
+    /** 记录开关状态，便于断言「使用数据分享」是否真的接到了指标引擎 */
+    var enabled: Boolean? = null
+
+    override fun setEnabled(enabled: Boolean) {
+        this.enabled = enabled
+    }
+
     override fun startSession(videoId: String) { sessionStarted = true }
     override fun endSession(): Map<String, Any?>? {
         sessionEnded = true

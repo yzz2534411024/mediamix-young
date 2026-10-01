@@ -29,6 +29,7 @@ import com.mediamix.shared.player.engines.PlaybackErrorHandlerImpl
 import com.mediamix.shared.services.PreloadService
 import com.mediamix.shared.spider.SpiderRegistry
 import com.mediamix.shared.spider.SpiderService
+import com.mediamix.shared.spider.VideoApiService
 import com.russhwolf.settings.Settings
 import io.ktor.client.*
 import org.koin.core.module.Module
@@ -56,6 +57,10 @@ val sharedModule: Module = module {
 
     single { SpiderRegistry.instance }
     single { SpiderService(registry = get(), httpClient = get()) }
+
+    // CMS 接口服务：带 DNS 预解析（5min）与列表结果缓存（5min）。
+    // 用 shared 单例，保证 CmsSpider 与首页读到的是同一份缓存。
+    single { VideoApiService.shared }
 
     // ==================== 缓存系统 ====================
 
@@ -100,7 +105,7 @@ val sharedModule: Module = module {
 
     // ==================== 播放核心 — 引擎（接口 → 实现） ====================
 
-    single<CacheEngine> { CacheEngineImpl(cacheService = get(), proxyServer = get()) }
+    single<CacheEngine> { CacheEngineImpl(cacheService = get(), proxyServer = get(), preloadService = get()) }
     single<PlaybackErrorHandler> { PlaybackErrorHandlerImpl() }
     single<MetricsEngine> { MetricsEngineImpl() }
 

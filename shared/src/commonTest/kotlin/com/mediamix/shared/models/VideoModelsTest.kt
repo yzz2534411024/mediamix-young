@@ -2,6 +2,7 @@ package com.mediamix.shared.models
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.*
 
 class VideoModelsTest {
@@ -313,5 +314,88 @@ class VideoModelsTest {
     fun test_spiderEngineException_isException() {
         val ex = SpiderEngineException("err")
         assertTrue(ex is Exception)
+    }
+    // ========================================================
+    // JSON 引号污染回归测试
+    // 见 VideoModels.kt 的 plainText()：用 JsonElement.toString() 取 CMS 字段
+    // 会把字符串写成 `"abc"`，播放地址尾部多一个引号 → ExoPlayer Source error。
+    // ========================================================
+
+    @Test
+    fun test_videoDetail_fromJson_stripsJsonQuotes() {
+        // 注意：raw string 里写 ${'$'} 而不是 \\(dollar)，否则会生成非法 JSON 转义
+        val parsed = Json.parseToJsonElement(
+            """
+            {
+              "vod_id": 1287,
+              "vod_name": "应援团少女",
+              "vod_play_from": "liangzi${'$'}${'$'}${'$'}lzm3u8",
+              "vod_play_url": "HD中字${'$'}https://a.example/share/1${'$'}${'$'}${'$'}HD中字${'$'}https://b.example/1.m3u8"
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val detail = VideoDetail.fromJson(parsed.toMap(), sourceKey = "lzzy")
+
+        assertEquals("应援团少女", detail.vodName)
+        assertFalse(detail.vodName.contains('"'), "vodName 不应带 JSON 引号")
+        assertEquals(2, detail.playSources.size)
+        assertEquals("liangzi", detail.playSources[0].name)
+        assertEquals("lzm3u8", detail.playSources[1].name)
+
+        val lastUrl = detail.playSources[1].episodes[0].url
+        assertEquals("https://b.example/1.m3u8", lastUrl)
+        assertFalse(lastUrl.endsWith("\""), "播放地址尾部不应有引号，否则播放器会报 Source error")
+
+        assertEquals(
+            "第1集",
+            VideoDetail.parseEpisodes("第1集${'$'}https://a.example/1.m3u8")[0].name
+        )
+    }
+
+    @Test
+    fun test_videoDetail_fromJson_defaultSourceIsRichestLine() {
+        val map = mapOf(
+            "vod_play_from" to "A${'$'}${'$'}${'$'}B",
+            "vod_play_url" to "1${'$'}https://a/1${'$'}${'$'}${'$'}1${'$'}https://b/1" +
+                "#2${'$'}https://b/2#3${'$'}https://b/3",
+        )
+        val detail = VideoDetail.fromJson(map)
+        assertEquals(1, detail.defaultSourceIndex)
+        assertTrue(detail.hasPlayableSource)
+    }
+
+    @Test
+    fun test_videoDetail_fallbackUrlsForEpisode() {
+        val map = mapOf(
+            "vod_play_from" to "A${'$'}${'$'}${'$'}B",
+            "vod_play_url" to "1${'$'}https://a/1#2${'$'}https://a/2" +
+                "${'$'}${'$'}${'$'}1${'$'}https://b/1#2${'$'}https://b/2",
+        )
+        val detail = VideoDetail.fromJson(map)
+        val fallbacks = detail.fallbackUrlsFor(episodeIndex = 1, currentSourceIndex = 0)
+        assertEquals(listOf("https://b/2"), fallbacks)
+    }
+
+    @Test
+    fun test_parseEpisodes_keepsDollarInsideUrl() {
+        // 地址里本身带 $ 时不能被 split("$") 截断
+        val episodes = VideoDetail.parseEpisodes("第1集${'$'}https://cdn/1.m3u8?sign=a${'$'}b")
+        assertEquals(1, episodes.size)
+        assertEquals("https://cdn/1.m3u8?sign=a${'$'}b", episodes[0].url)
+    }
+
+    @Test
+    fun test_parseEpisodes_skipsBlankAndWhitespace() {
+        val episodes = VideoDetail.parseEpisodes("#第1集${'$'}https://a/1##第2集${'$'}  #")
+        assertEquals(1, episodes.size)
+        assertEquals("第1集", episodes[0].name)
+    }
+
+    @Test
+    fun test_sanitizePlayUrl_removesQuotes() {
+        assertEquals("https://a/1.m3u8", sanitizePlayUrl("\"https://a/1.m3u8\""))
+        assertNull(sanitizePlayUrl("   "))
+        assertNull(sanitizePlayUrl("https://a/1 .m3u8"))
     }
 }

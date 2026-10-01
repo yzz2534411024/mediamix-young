@@ -7,7 +7,7 @@ package com.mediamix.shared.player
  */
 expect class PlayerEngine() {
     fun initialize()
-    fun setSource(url: String)
+    fun setSource(url: String, headers: Map<String, String>? = null)
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
@@ -17,6 +17,14 @@ expect class PlayerEngine() {
     fun getDuration(): Long
     fun isPlaying(): Boolean
     fun release()
+
+    /**
+     * 设置解码偏好。
+     *
+     * @param preferSoftware true = 优先软解（兼容老旧/异常编码），false = 默认硬解 + 失败回退。
+     *   Android 侧通过 MediaCodecSelector 过滤软件解码器实现；Desktop 侧忽略。
+     */
+    fun setDecodeMode(preferSoftware: Boolean)
 
     // === 新增 API ===
 

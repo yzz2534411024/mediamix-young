@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      应用主题。
+
+      ⚠️ 之前 AndroidManifest 里没有 android:theme，系统退回到 DeviceDefault，
+      于是每个页面顶部都会多出一条系统 ActionBar —— 显示的就是 android:label
+      "MediaMix"。它和首页自己的 TopAppBar 叠在一起，看起来就是"两个标题、
+      排版很乱"。
+
+      这里显式用 NoActionBar 主题，并把状态栏/导航栏设为透明，
+      由 Compose 侧（TopAppBar / NavigationBar 的 windowInsets）负责内边距。
+    -->
+    <style name="Theme.MediaMix" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

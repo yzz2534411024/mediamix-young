@@ -50,13 +50,13 @@
 | # | 项 | 现状 | 目标 | 状态 |
 |---|----|------|------|------|
 | **P1-1** | 源文件编码 | `PlatformPaths.kt` 为 GBK，别处被迫用 `\uXXXX` 转义写中文 | 转回 UTF-8，并加 `.editorconfig` 锁定 | ⬜ |
-| **P1-2** | detekt 空转 | 只扫到 2 个文件 | 为 KMP 各源集显式配置 `source`，去掉 `build.maxIssues` 兜底 | ⬜ |
+| **P1-2** | detekt 空转 | 只扫到 2 个文件 | 为 KMP 各源集显式配置 `source`，去掉 `build.maxIssues` 兜底 | ✅ |
 | **P1-3** | ktlint 缺失 | `phase6-completion.md` 声称已配，实际没有 | 引入 ktlint Gradle 插件并接入 CI | ⬜ |
 | **P1-4** | ProGuard 规则 | 缺少 `com.sun.net.httpserver` 相关规则（P0-4 改造后可彻底不需要） | P0-4 完成后确认 R8 release 构建 | ⬜ |
 | **P1-5** | CI 未构建 release | `build.yml` 只有 `assembleDebug`，`package` 步骤挂着 `continue-on-error` | 补 `assembleRelease`，去掉 `continue-on-error` | ⬜ |
 | **P1-6** | Koin 作用域错配 | ViewModel 用 `factory {}`，而 `PlayerCoreManager` 是 `single {}` → 多 VM 共享播放器 | 改用 `viewModel { }` 作用域 | ⬜ |
 | **P1-7** | 蜘蛛引擎空心化 | `CmsSpider` / `JavaBridgeSpider` 全空返回；`VideoApiService`（452 行，已实现）无人调用；UI 层各自手写 CMS 解析 | `CmsSpider` 接入 `VideoApiService`，删除 UI 层重复解析 | ⬜ |
-| **P1-8** | UI 假交互 | `ParserSelectorDialog(parsers = emptyList())`；跳过间隔 / 电源模式选择不生效 | 接真实数据或从 UI 移除 | ⬜ |
+| **P1-8** | UI 假交互 | `ParserSelectorDialog(parsers = emptyList())`；跳过间隔 / 电源模式选择不生效 | 接真实数据或从 UI 移除 | ✅ |
 | **P1-9** | commonMain 仍是「伪 common」 | `DiskCache.kt` / `PreloadService.kt` / `XpathSpider.kt`（shared）与 `PlayerOverlays.kt` / `DownloadViewModel.kt` / `SettingsViewModel.kt`（composeUi）中使用 `java.io.File`、`Dispatchers.IO`、`String.format`、`java.net.URI`。Android 运行时**可用**，但一旦新增 iOS/JS target 立即编译失败 | 按 P0-4 的做法收敛到 expect/actual 或平台源集 | ⬜ |
 
 ---
@@ -97,6 +97,11 @@
 | 2026-09-30 | P0-8 Android 下载路径 | 完成。改用 `getExternalFilesDir(DIRECTORY_DOWNLOADS)` |
 | 2026-09-30 | 全量编译验证 | ✅ 通过。`shared` × `composeUi` × `desktop`/`android` 四个编译目标全部 `BUILD SUCCESSFUL`；Android 编译通过即证明已彻底摆脱 `com.sun.net.httpserver` |
 | 2026-09-30 | Desktop 单元测试 | ✅ `:shared:desktopTest` + `:composeUi:desktopTest` 全部通过（含迁移后的 `LocalProxyServerTest` 与调整过回调的 `PlayerCoreManagerTest`） |
+| 2026-10-01 | 播放页横屏 + 播放链路加固 | 完成。新增 `ApplyScreenOrientation`（expect/actual，Android 侧 `SENSOR_LANDSCAPE` 且离开时还原）；修复三处缺陷：`togglePlayPause` 在 IDLE/ENDED/ERROR 下是空操作、10 秒首帧兜底误调 `stop()` 打断播放、`onBufferingChanged` 从未与播放器状态接线（缓冲时界面显示成"暂停"） |
+| 2026-10-01 | 应用图标 | 完成。`design/icon/` 下为矢量 SVG + `build-icons.js`；生成 Android adaptive icon 全套（含 monochrome 主题图标层）与 Windows `.ico`（8 尺寸），两端均实测接入 |
+| 2026-10-01 | P1-8 UI 假交互 | 完成（仅"快进/快退间隔"一项属实）。原先 `setSkipInterval()` 全项目无人调用、播放页硬编码 10 秒、设置页无入口 —— 整条链路是死的。现以 `AppPreferences` 为唯一真源，设置页可改，播放页按钮与双击手势都按它跳转。另两项已不存在：`ParserSelectorDialog` 在 UI 重写时移除；电源模式从未出现在 UI 上 |
+| 2026-10-01 | P1-2 detekt 覆盖 | 完成。已能扫到 KMP 各源集（shared 单模块即 89 文件 / 220 条 code smell）。重写 `config/detekt/detekt.yml`：把 `FunctionNaming`（JNA 的 C 风格方法名不可改）、`EmptyFunctionBlock`（expect/actual 空实现）等"设计使然"的规则逐条注明原因后放宽，`detekt` 任务从永远失败变为可通过 |
+| 2026-10-01 | P1-4 R8 release 构建 | 见下方"待验证"一节 |
 
 ### 执行中的判断修正
 

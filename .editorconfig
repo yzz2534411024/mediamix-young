@@ -1,0 +1,35 @@
+root = true
+
+# 全项目默认：UTF-8 + LF
+# 起因：shared/src/commonMain/.../core/PlatformPaths.kt 曾出现编码损坏
+# （一个「——」的 UTF-8 字节被替换为非法续字节，导致文件不再是合法 UTF-8），
+# 且项目里出现过用 \uXXXX 转义来写中文的规避写法。这里统一约束。
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,toml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[*.{kt,kts}]
+indent_size = 4
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+# ── ktlint 例外 ──
+# 1) 通配符导入：Compose 侧大量使用（如 import androidx.compose.foundation.layout.*），
+#    detekt 的 WildcardImport 规则也已关闭，两处保持一致，避免一个说行一个说不行。
+ktlint_standard_no-wildcard-imports = disabled
+# 2) @Composable 函数按官方约定用大写开头。ktlint 不会自动识别该注解，
+#    必须显式声明，否则每个 Composable 都会被判成命名违规。
+ktlint_function_naming_ignore_when_annotated_with = Composable

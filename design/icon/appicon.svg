@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 渐变统一用 userSpaceOnUse，保证耳朵与脸的颜色连续（否则边界会出现接缝） -->
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5E9DFF"/>
+      <stop offset="0.5" stop-color="#2D6BF5"/>
+      <stop offset="1" stop-color="#1537B4"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="140" y1="80" x2="380" y2="450" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E1ECFF"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="190" y1="210" x2="315" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3E7EFF"/>
+      <stop offset="1" stop-color="#1537B4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 底板 -->
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#bg)"/>
+
+  <!-- 耳朵（同色描边让三边圆角，猫耳更钝更可爱） -->
+  <g fill="url(#fur)" stroke="url(#fur)" stroke-width="12" stroke-linejoin="round">
+    <path d="M 150 246 L 132 98 L 252 166 Z"/>
+    <path d="M 362 246 L 380 98 L 260 166 Z"/>
+  </g>
+  <path d="M 166 226 L 152 132 L 226 172 Z" fill="#FFC4D6"/>
+  <path d="M 346 226 L 360 132 L 286 172 Z" fill="#FFC4D6"/>
+
+  <!-- 脸 -->
+  <circle cx="256" cy="290" r="142" fill="url(#fur)"/>
+
+  <!-- 眼睛 -->
+  <ellipse cx="199" cy="240" rx="25" ry="29" fill="url(#ink)"/>
+  <ellipse cx="313" cy="240" rx="25" ry="29" fill="url(#ink)"/>
+  <circle cx="192" cy="230" r="8.5" fill="#FFFFFF"/>
+  <circle cx="306" cy="230" r="8.5" fill="#FFFFFF"/>
+
+  <!-- 播放三角 -->
+  <path d="M 226 326 L 308 355 L 226 384 Z"
+        fill="url(#ink)" stroke="url(#ink)" stroke-width="21" stroke-linejoin="round"/>
+</svg>

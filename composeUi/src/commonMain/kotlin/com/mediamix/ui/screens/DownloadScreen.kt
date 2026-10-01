@@ -31,6 +31,7 @@ fun DownloadScreen(
     var taskToDelete by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("\u4e0b\u8f7d\u7ba1\u7406") },

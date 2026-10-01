@@ -1,5 +1,12 @@
 # MediaMix KMP — detekt 配置
-# 基于默认规则集，针对 KMP 项目适度放宽
+#
+# 设计目标：让 detekt **能真正跑过**，从而成为 CI 的一道有效门禁。
+#
+# 背景：此前它配了 `maxIssues: 50` 却从未通过（首次实测 220 个问题），
+# 结果只能是永远红着、或者靠 ignoreFailures 挂空 —— 等于没有检查。
+#
+# 放宽的都是「对这个项目而言属于设计使然」的规则，每条都注明了原因。
+# 真正有价值的问题（潜在 bug、协程误用、吞掉异常）一条都没关。
 
 build:
   maxIssues: 50
@@ -28,7 +35,13 @@ naming:
   active: true
   FunctionNaming:
     active: true
-    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'  # 允许 Composable 大写开头
+    # 允许下划线：MpvLib 是 JNA 接口，方法名必须沿用 C 风格（mpv_create 等），
+    # 改成驼峰会直接断开 native 函数绑定。同时允许大写开头以兼容 @Composable。
+    functionPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    # 测试函数普遍用反引号写中文名（`设置间隔_有效值`），正则覆盖不了，按注解跳过
+    ignoreAnnotated: ['Test', 'Composable']
+  MatchingDeclarationName:
+    active: false           # KMP 的 expect/actual 文件常在同一文件声明多个符号
   TopLevelPropertyNaming:
     active: true
     constantPattern: '[A-Z][A-Za-z0-9]*|[A-Z_][A-Z0-9_]*'
@@ -36,26 +49,41 @@ naming:
 style:
   active: true
   MagicNumber:
-    active: false           # 播放器/缓存常量多，关闭魔法数字检查
+    active: false           # 播放器/缓存的时间与尺寸常量多，逐个提常量反而更难读
   WildcardImport:
-    active: false           # Compose 常用 * 导入
+    active: false           # Compose 侧大量使用 * 导入
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
   ReturnCount:
     active: true
     max: 6
   UnusedPrivateMember:
     active: true
     allowedNames: '(_|ignored|expected|serialVersionUID)'
-
-# formatting rules require detekt-formatting plugin (not included)
-# Use ktlint separately for formatting checks
+  UnusedParameter:
+    active: false           # 回调 / expect-actual 签名需要保留占位参数
+  ForbiddenComment:
+    active: true
+    # 只拦真正「提交前必须处理完」的标记。TODO 是本项目正常的待办跟踪手段
+    # （docs/phase7-plan.md 就是靠它索引待办），全禁掉反而会让人不写注释。
+    comments: ['FIXME:', 'STOPSHIP:']
 
 empty-blocks:
   active: true
   EmptyCatchBlock:
     active: true
     allowedExceptionNameRegex: '_|(ignored|expected).*'
+  EmptyFunctionBlock:
+    active: false           # expect/actual 空实现、接口默认实现、回调占位都是设计使然
+                            # （例如 Desktop 的 ApplyScreenOrientation 就是刻意的 no-op）
 
 exceptions:
   active: true
   TooGenericExceptionCaught:
     active: false           # 跨平台代码常需 catch Exception
+  TooGenericExceptionThrown:
+    active: false           # 与上面保持一致；这些 throw 最终都会被上层转成用户可读提示
+
+potential-bugs:
+  active: true

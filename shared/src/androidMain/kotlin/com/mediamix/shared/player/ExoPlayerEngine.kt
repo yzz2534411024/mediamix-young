@@ -13,7 +13,12 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import co.touchlab.kermit.Logger
 
 /**
@@ -29,6 +34,12 @@ actual class PlayerEngine actual constructor() {
     private var exoPlayer: ExoPlayer? = null
     private var currentState: PlayerState = PlayerState.IDLE
     private var listener: PlayerEngineListener? = null
+
+    /** 软解优先开关，重建 ExoPlayer 时生效 */
+    private var preferSoftwareDecoding = false
+
+    /** 数据源工厂，持有它才能在切集时动态更新请求头 */
+    private var dataSourceFactory: DefaultHttpDataSource.Factory? = null
 
     // 首帧渲染标记，每次 setSource 时重置
     private var firstFrameReported = false
@@ -103,28 +114,99 @@ actual class PlayerEngine actual constructor() {
             it.release()
         }
 
-        exoPlayer = ExoPlayer.Builder(context).build().apply {
-            addListener(playerListener)
-        }
+        exoPlayer = ExoPlayer.Builder(context, buildRenderersFactory(context))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(newDataSourceFactory()))
+            .setLoadControl(buildLoadControl())
+            .build()
+            .apply { addListener(playerListener) }
         currentState = PlayerState.IDLE
         firstFrameReported = false
+    }
+
+    /**
+     * 新建数据源工厂。
+     *
+     * 必须带默认 UA：大量 CMS/CDN（尤其带防盗链的）对 ExoPlayer 默认的
+     * `ExoPlayerLib/x.y.z` 直接返回 403，表现为「Source error」。
+     */
+    /**
+     * 缓冲策略。
+     *
+     * ExoPlayer 默认值（起播 2.5s / 最小 50s / 最大 50s）对采集站的 m3u8 源并不合适：
+     * 起播偏慢，而缓冲上限又没给弱网留够抗抖动空间。这里调成「起播更快 + 抗抖动更强」：
+     * - `bufferForPlaybackMs = 1.5s`：点开更快出画面
+     * - `minBufferMs = 15s / maxBufferMs = 90s`：网络抖动时不容易卡断，又不会一次吃掉太多内存
+     * - `bufferForPlaybackAfterRebufferMs = 4s`：避免弱网下「缓冲→播放→再缓冲」反复抖动
+     */
+    private fun buildLoadControl(): DefaultLoadControl =
+        DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 15_000,
+                /* maxBufferMs = */ 90_000,
+                /* bufferForPlaybackMs = */ 1_500,
+                /* bufferForPlaybackAfterRebufferMs = */ 4_000,
+            )
+            .build()
+
+    private fun newDataSourceFactory(): DefaultHttpDataSource.Factory {
+        val factory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
+            .setDefaultRequestProperties(DEFAULT_HEADERS)
+        dataSourceFactory = factory
+        return factory
+    }
+
+    /**
+     * 构建渲染器工厂。
+     *
+     * - 一律开启 [DefaultRenderersFactory.setEnableDecoderFallback]：硬解在部分
+     *   中低端机型上会直接失败，开启后 ExoPlayer 会自动退到软件解码器。
+     * - 软解优先时用 [MediaCodecSelector] 过滤出软件解码器；若该编码没有软件
+     *   实现则回退到全量列表，避免「过滤后无解码器 → 黑屏」。
+     */
+    private fun buildRenderersFactory(context: Context): DefaultRenderersFactory {
+        val factory = DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+        if (preferSoftwareDecoding) {
+            factory.setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
+                val all = MediaCodecSelector.DEFAULT
+                    .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
+                all.filter { it.softwareOnly }.ifEmpty { all }
+            }
+        }
+        return factory
+    }
+
+    actual fun setDecodeMode(preferSoftware: Boolean) {
+        preferSoftwareDecoding = preferSoftware
+        logger.i("Decode mode: ${if (preferSoftware) "software preferred" else "hardware preferred"}")
     }
 
     /**
      * 设置播放源
      * 构建 MediaItem 并加载到 ExoPlayer，同时重置首帧标记
      */
-    actual fun setSource(url: String) {
+    actual fun setSource(url: String, headers: Map<String, String>?) {
         firstFrameReported = false
         try {
             if (url.isBlank()) {
                 logger.w("Empty URL, skipping setSource")
                 return
             }
+            // 合并默认头与调用方传入的头（后者优先），每次切集都要重设，
+            // 否则上一集的 Referer 会串到下一集，导致 CDN 鉴权失败。
+            val merged = buildMap {
+                putAll(DEFAULT_HEADERS)
+                headers?.forEach { (k, v) -> if (k.isNotBlank() && v.isNotBlank()) put(k, v) }
+            }
+            (dataSourceFactory ?: newDataSourceFactory()).setDefaultRequestProperties(merged)
+
             val mediaItem = MediaItem.fromUri(url)
             exoPlayer?.apply {
                 setMediaItem(mediaItem)
                 prepare()
+                playWhenReady = true
             }
             currentState = PlayerState.BUFFERING
             listener?.onStateChanged(PlayerState.BUFFERING)
@@ -354,6 +436,20 @@ actual class PlayerEngine actual constructor() {
 
     companion object {
         private var appContext: Context? = null
+
+        /**
+         * 默认请求头。
+         *
+         * 媒体聚合站的 CDN 普遍做 UA 校验与防盗链，ExoPlayer 自带的
+         * `ExoPlayerLib/1.5.0` 会被直接拒绝（403 → Source error）。
+         * 这里伪装成移动端浏览器 UA，并放开 Accept 通配。
+         */
+        private val DEFAULT_HEADERS: Map<String, String> = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "Accept" to "*/*",
+            "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8",
+        )
 
         /**
          * 初始化 ExoPlayerEngine，注入 Application Context

@@ -74,6 +74,29 @@ interface MpvLib : Library {
         const val MPV_END_FILE_REASON_ERROR = 3
         const val MPV_END_FILE_REASON_REDIRECT = 4
 
-        fun getInstance(): MpvLib = Native.load("mpv-1", MpvLib::class.java)
+        /**
+         * 加载 mpv 客户端库。
+         *
+         * 不同发行版的 DLL 名不同：老版本是 `mpv-1.dll`，
+         * 新一代 libmpv（如 `mpv-dev-x86_64-*.7z` 里的）是 `libmpv-2.dll`，
+         * 因此按顺序回退尝试。全部缺失时抛出带明确指引的 [UnsatisfiedLinkError]。
+         */
+        fun getInstance(): MpvLib {
+            val candidates = listOf("mpv-1", "libmpv-2", "libmpv")
+            var lastError: Throwable? = null
+            for (libName in candidates) {
+                try {
+                    return Native.load(libName, MpvLib::class.java)
+                } catch (t: Throwable) {
+                    lastError = t
+                }
+            }
+            throw UnsatisfiedLinkError(
+                "无法加载 mpv 运行库（已尝试：${candidates.joinToString()}）。" +
+                    "Desktop 端播放需要 mpv-1.dll 或 libmpv-2.dll；" +
+                    "请把该 DLL 放到应用可执行文件（MediaMix.exe）同目录。" +
+                    "底层错误：${lastError?.message}"
+            )
+        }
     }
 }

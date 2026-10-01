@@ -9,6 +9,7 @@ import com.mediamix.shared.player.PlayerState
 import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.SubtitleService
 import com.mediamix.shared.player.SubtitleTrack
+import com.mediamix.ui.prefs.AppPreferences
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ class PlayerViewModel(
     private val playerCoreManager: PlayerCoreManager,
     private val playbackProgressDao: PlaybackProgressDao,
     private val subtitleService: SubtitleService,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
     private val logger = Logger.withTag("PlayerViewModel")
@@ -122,12 +124,30 @@ class PlayerViewModel(
     private val _subtitleOffsetMs = MutableStateFlow(0L)
     val subtitleOffsetMs: StateFlow<Long> = _subtitleOffsetMs.asStateFlow()
 
+    /**
+     * 快进 / 快退间隔（秒）。
+     *
+     * 播放页此前把它硬编码成 10，用户在设置里改多少都没用。
+     * 现在由设置页写入 [AppPreferences]，打开播放页时推给播放器再回读。
+     */
+    private val _skipInterval = MutableStateFlow(AppPreferences.DEFAULT_SKIP_INTERVAL)
+    val skipInterval: StateFlow<Int> = _skipInterval.asStateFlow()
+
     // ===== Internal =====
 
     private var currentVideoUrl: String = ""
     private var progressSaveJob: Job? = null
     private var subtitleUpdateJob: Job? = null
+    private var episodePollJob: Job? = null
     private var disposed = false
+
+    /** 本次打开时传入的剧集列表（用于选集面板） */
+    private var localEpisodeNames: List<String> = emptyList()
+    private var localEpisodeUrls: List<String> = emptyList()
+
+    /** 剧集列表变化（切集/自动连播都会更新），供 UI 显示选集与上下集状态 */
+    private val _episodeList = MutableStateFlow<List<String>>(emptyList())
+    val episodeList: StateFlow<List<String>> = _episodeList.asStateFlow()
 
     // ===== Init =====
 
@@ -157,6 +177,16 @@ class PlayerViewModel(
         _playMode.value = playerCoreManager.getPlayMode()
         _aspectMode.value = playerCoreManager.getAspectMode()
         _speedOptions.value = playerCoreManager.getSpeedOptions()
+
+        // ⚠️ 播放状态也要立刻同步一次。上面那些回调只在**状态变化时**被触发，
+        // 若状态在回调注册之前就已经变过（页面回退后重进、或 ViewModel 被重建），
+        // 界面会一直停在默认的 IDLE/暂停 —— 用户看到的正是「点了播放没反应」。
+        _playerState.value = playerCoreManager.playerState
+        _isBuffering.value = false
+        _currentEpisodeIndex.value = playerCoreManager.getCurrentEpisodeIndex()
+        _currentEpisodeName.value = playerCoreManager.getCurrentEpisodeName()
+        _hasPrevEpisode.value = playerCoreManager.getHasPrevEpisode()
+        _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
     }
 
     // ===== Actions =====
@@ -170,8 +200,14 @@ class PlayerViewModel(
         qualityLabels: List<String>? = null,
         qualityUrls: List<String>? = null,
         subtitleUrls: List<String>? = null,
+        headers: Map<String, String>? = null,
+        preferSoftwareDecoding: Boolean = false,
+        fallbackUrls: List<String>? = null,
     ) {
+        disposed = false
         currentVideoUrl = url
+        localEpisodeNames = episodeNames ?: emptyList()
+        localEpisodeUrls = episodeUrls ?: emptyList()
 
         // 恢复播放进度
         val savedProgress = try {
@@ -189,6 +225,9 @@ class PlayerViewModel(
             qualityLabels = qualityLabels,
             qualityUrls = qualityUrls,
             subtitleUrls = subtitleUrls,
+            headers = headers,
+            preferSoftwareDecoding = preferSoftwareDecoding,
+            fallbackUrls = fallbackUrls,
         )
 
         // 如果有保存的进度，跳转到该位置
@@ -204,7 +243,16 @@ class PlayerViewModel(
         _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
         _currentSubtitleTrack.value = playerCoreManager.getCurrentSubtitleTrack()
         _showSubtitles.value = playerCoreManager.getShowSubtitles()
+
+        // 把偏好里的快进/快退间隔推给播放器 —— skipForward / skipBackward 用的是
+        // PlayerCoreManager 内部字段，光改设置页的存储是没用的。
+        // 注意这行要放在 playerCoreManager.initialize() 之后，
+        // 否则会被它内部的 loadSkipInterval() 覆盖掉。
+        playerCoreManager.setSkipInterval(appPreferences.skipIntervalSeconds)
+        _skipInterval.value = playerCoreManager.getSkipInterval()
+
         startProgressSaving()
+        startEpisodePolling()
     }
 
     fun dispose() {
@@ -213,6 +261,7 @@ class PlayerViewModel(
         saveCurrentProgress()
         stopProgressSaving()
         stopSubtitleUpdates()
+        stopEpisodePolling()
         playerCoreManager.dispose()
     }
 
@@ -230,15 +279,18 @@ class PlayerViewModel(
     fun switchQuality(index: Int) { playerCoreManager.switchQuality(index); _currentQualityIndex.value = index }
     fun playPrevEpisode() {
         playerCoreManager.playPrevEpisode()
-        _currentEpisodeIndex.value = playerCoreManager.getCurrentEpisodeIndex()
-        _hasPrevEpisode.value = playerCoreManager.getHasPrevEpisode()
-        _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
+        syncEpisodeState()
     }
     fun playNextEpisode() {
         playerCoreManager.playNextEpisode()
-        _currentEpisodeIndex.value = playerCoreManager.getCurrentEpisodeIndex()
-        _hasPrevEpisode.value = playerCoreManager.getHasPrevEpisode()
-        _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
+        syncEpisodeState()
+    }
+
+    /** 直接跳到第 [index] 集（选集面板用） */
+    fun playEpisodeAt(index: Int) {
+        if (index !in localEpisodeUrls.indices) return
+        playerCoreManager.playEpisodeAtIndex(index)
+        syncEpisodeState()
     }
 
     fun setVolume(vol: Float) { playerCoreManager.setVolume(vol); _volume.value = vol }
@@ -367,5 +419,41 @@ class PlayerViewModel(
     override fun onCleared() {
         super.onCleared()
         dispose() // Idempotent — safe to call multiple times
+    }
+
+    // ===== 剧集状态同步 =====
+
+    /**
+     * 把 [PlayerCoreManager] 的剧集状态同步到 UI。
+     *
+     * 为什么需要轮询：连播是在 PlayerCoreManager 内部完成的（`onPlaybackCompleted`
+     * → `playNextEpisode`），它不会回调到 ViewModel —— 只靠按钮同步的话，
+     * 自动连播后标题和"第几集"会一直停在上一集。
+     */
+    private fun startEpisodePolling() {
+        stopEpisodePolling()
+        _episodeList.value = localEpisodeNames
+        syncEpisodeState()
+        episodePollJob = viewModelScope.launch {
+            while (isActive) {
+                delay(500)
+                syncEpisodeState()
+            }
+        }
+    }
+
+    private fun stopEpisodePolling() {
+        episodePollJob?.cancel()
+        episodePollJob = null
+    }
+
+    private fun syncEpisodeState() {
+        val index = playerCoreManager.getCurrentEpisodeIndex()
+        _currentEpisodeIndex.value = index
+        _currentEpisodeName.value = playerCoreManager.getCurrentEpisodeName()
+        _hasPrevEpisode.value = playerCoreManager.getHasPrevEpisode()
+        _hasNextEpisode.value = playerCoreManager.getHasNextEpisode()
+        // 进度按"当前这一集的地址"落库，否则切集后进度会写到第一集头上
+        localEpisodeUrls.getOrNull(index)?.let { currentVideoUrl = it }
     }
 }

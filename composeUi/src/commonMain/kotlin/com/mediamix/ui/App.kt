@@ -8,13 +8,18 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mediamix.ui.navigation.MainScaffold
 import com.mediamix.ui.navigation.Screen
+import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.screens.*
+import org.koin.compose.koinInject
 
 @Composable
 fun App() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // 详情页写入、播放页读取的播放会话
+    val sessionStore: PlaybackSessionStore = koinInject()
 
     // 判断是否显示底部导航栏（播放器、详情页、源码管理页不显示）
     val showBottomBar = currentRoute != Screen.Player.route &&
@@ -71,8 +76,12 @@ fun App() {
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToSourceManage = { navController.navigate(Screen.SourceManage.route) },
-                    onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) }
+                    onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) },
+                    onNavigateToDebug = { navController.navigate(Screen.Debug.route) }
                 )
+            }
+            composable(Screen.Debug.route) {
+                DebugScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Detail.PATTERN) { backStackEntry ->
                 val vodId = backStackEntry.arguments?.getString("vodId") ?: ""
@@ -82,6 +91,11 @@ fun App() {
                     sourceKey = sourceKey,
                     onNavigateToPlayer = { url, title, index ->
                         navController.navigate(Screen.Player.createRoute(url, title, index)) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToDetail = { nextVodId, nextSourceKey ->
+                        navController.navigate(Screen.Detail.createRoute(nextVodId, nextSourceKey)) {
                             launchSingleTop = true
                         }
                     },
@@ -115,6 +129,8 @@ fun App() {
                 DownloadScreen(
                     onBack = { navController.popBackStack() },
                     onPlayVideo = { localPath, title ->
+                        // 下载页没有剧集概念，写入单集会话，播放页才能正确显示标题
+                        sessionStore.startSingle(localPath, title)
                         navController.navigate(Screen.Player.createRoute(localPath, title, 0)) {
                             launchSingleTop = true
                         }

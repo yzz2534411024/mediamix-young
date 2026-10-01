@@ -38,9 +38,21 @@ class VideoHomeViewModelTest {
     }
 
     @Test
-    fun cmsApiSite_defaultSitesFirstIsTvBox() {
+    fun cmsApiSite_defaultSitesFirstIsCmsSource() {
+        // 首页默认落在第一个源上；TVBox 源（饭太硬）需要 TVBox 内核才能解析，
+        // 不能当默认值，否则用户一打开就是空列表。
         val firstEnabled = CmsApiSite.defaultSites.filter { it.enabled }.first()
-        assertTrue(firstEnabled.isTvBox)
+        assertFalse(firstEnabled.isTvBox, "第一个源必须是普通 CMS 源，实际是 ${firstEnabled.key}")
+    }
+
+    @Test
+    fun cmsApiSite_defaultSitesHasTvBoxEntry() {
+        assertTrue(CmsApiSite.defaultSites.any { it.isTvBox }, "饭太硬应保留在源列表里")
+    }
+
+    @Test
+    fun cmsApiSite_findByKeyFallsBackToRetired() {
+        assertEquals("天涯资源", CmsApiSite.findByKey("tyyszy")?.name)
     }
 
     @Test

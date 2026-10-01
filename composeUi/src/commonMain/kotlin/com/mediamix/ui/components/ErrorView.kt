@@ -7,13 +7,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
- * Reusable error content component.
- * Used across VideoHomeScreen, VideoDetailScreen, and other screens.
+ * 通用错误占位。
+ *
+ * ⚠️ 这里必须用主题色而不是写死的白色：本应用支持浅色主题，
+ * 原来的 `Color.White` 在浅色下等于白底白字，用户看到的是"一片空白"。
  */
 @Composable
 fun ErrorContent(
@@ -21,41 +23,40 @@ fun ErrorContent(
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Default.Warning,
-    title: String = "\u52A0\u8F7D\u5931\u8D25",
+    title: String = "加载失败",
+    retryLabel: String = "重试",
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFFFF8A80),
-            modifier = Modifier.size(48.dp)
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(44.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.6f)
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            lineHeight = MaterialTheme.typography.bodySmall.lineHeight
         )
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2196F3),
-                    contentColor = Color.White
-                )
-            ) {
-                Text("\u91CD\u8BD5")
+            Button(onClick = onRetry) {
+                Text(retryLabel)
             }
         }
     }

@@ -37,6 +37,7 @@ sealed class Screen(val route: String) {
     data object Settings : Screen("settings")
     data object SourceManage : Screen("source-manage")
     data object Downloads : Screen("downloads")
+    data object Debug : Screen("debug")
 
     companion object {
         val bottomNavItems = listOf(Home, History, Favorite, Settings)

@@ -9,6 +9,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** 主题模式展示名 */
+fun ThemeMode.label(): String = when (this) {
+    ThemeMode.SYSTEM -> "跟随系统"
+    ThemeMode.LIGHT -> "浅色模式"
+    ThemeMode.DARK -> "深色模式"
+}
+
 object ThemeConfig {
     val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
 }

@@ -36,7 +36,6 @@ jobs:
 
       - name: Package Desktop distribution
         run: ./gradlew :desktopApp:packageDistributionForCurrentOS
-        continue-on-error: true
 
       - name: Upload test results
         if: always()
@@ -77,11 +76,21 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :androidApp:assembleDebug
 
+      - name: Build Release APK (R8 + ProGuard)
+        run: ./gradlew :androidApp:assembleRelease
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
           path: androidApp/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: androidApp/build/outputs/apk/release/*.apk
 
       - name: Upload test results
         if: always()

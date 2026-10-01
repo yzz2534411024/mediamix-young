@@ -2,6 +2,7 @@ package com.mediamix.shared.spider
 
 import com.mediamix.shared.models.*
 import com.mediamix.shared.network.HttpClientFactory
+import com.mediamix.shared.network.resolveHostAddresses
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -25,6 +26,7 @@ import kotlinx.serialization.json.Json
  */
 class VideoApiService {
 
+
     private val httpClient: HttpClient = HttpClientFactory.createHttpClient(
         connectTimeoutSeconds = 3,
         requestTimeoutSeconds = 30,
@@ -43,6 +45,20 @@ class VideoApiService {
     private val prefetchCache = mutableMapOf<String, PrefetchCacheEntry>()
     private val prefetchCacheMutex = Mutex()
     private val prefetchCacheTtlMs = 10 * 60 * 1000L
+
+    // 列表接口结果缓存，5 分钟 TTL
+    //
+    // 采集站列表接口实测要 2~9 秒（响应体 60~450KB），而用户的典型操作是
+    // 「切分类 → 切回来」「进详情 → 返回首页」，没有缓存时每次都要重等。
+    // 5 分钟足以覆盖这些来回操作，又不至于让内容显得陈旧。
+    private val listCache = mutableMapOf<String, ListCacheEntry>()
+    private val listCacheMutex = Mutex()
+    private val listCacheTtlMs = 5 * 60 * 1000L
+
+    /** 清空列表缓存（下拉刷新时调用）。 */
+    suspend fun invalidateListCache() {
+        listCacheMutex.withLock { listCache.clear() }
+    }
 
     // 缓存的 TVBox 站点列表
     private var tvboxSites: List<Map<String, Any>>? = null
@@ -76,16 +92,21 @@ class VideoApiService {
         }
     }
 
+    /**
+     * 真正解析一次主机名并缓存。
+     *
+     * 此前这里只是把 host 原样塞进缓存（等于没解析）。现在走 [resolveHostAddresses]，
+     * 结果交给系统 DNS 缓存，紧接着发出的列表请求就能省掉一次解析往返。
+     */
     private suspend fun resolveHost(host: String) {
-        try {
-            // TODO: 平台特定 DNS 解析 (JVM: InetAddress.getAllByName)
-            dnsCacheMutex.withLock {
-                dnsCache[host] = DnsCacheEntry(
-                    addresses = listOf(host),
-                    timeMs = currentTimeMillis(),
-                )
-            }
-        } catch (_: Exception) {}
+        val addresses = resolveHostAddresses(host)
+        if (addresses.isEmpty()) return
+        dnsCacheMutex.withLock {
+            dnsCache[host] = DnsCacheEntry(
+                addresses = addresses,
+                timeMs = currentTimeMillis(),
+            )
+        }
     }
 
     // ==================== 接口预请求 ====================
@@ -154,7 +175,18 @@ class VideoApiService {
         apiUrl: String,
         page: Int = 1,
         typeId: Int? = null,
+        forceRefresh: Boolean = false,
     ): VideoListResponse {
+        // 命中 5 分钟内的缓存直接返回，避免「切分类再切回来」重复等 2~9 秒
+        val cacheKey = "list|$apiUrl|$page|${typeId ?: ""}"
+        if (!forceRefresh) {
+            listCacheMutex.withLock {
+                val entry = listCache[cacheKey]
+                if (entry != null && (currentTimeMillis() - entry.atMs) < listCacheTtlMs) {
+                    return entry.response
+                }
+            }
+        }
         try {
             var effectiveUrl = apiUrl
 
@@ -180,7 +212,11 @@ class VideoApiService {
                 return VideoListResponse(list = emptyList(), page = page, pageCount = 0, total = 0)
             }
 
-            return VideoListResponse.fromJson(data)
+            val result = VideoListResponse.fromJson(data)
+            listCacheMutex.withLock {
+                listCache[cacheKey] = ListCacheEntry(result, currentTimeMillis())
+            }
+            return result
         } catch (e: Exception) {
             throw Exception("加载失败: ${e.message}")
         }
@@ -441,12 +477,25 @@ class VideoApiService {
         val timeMs: Long,
     )
 
+    data class ListCacheEntry(
+        val response: VideoListResponse,
+        val atMs: Long,
+    )
+
     data class PrefetchCacheEntry(
         val data: VideoDetail,
         val timeMs: Long,
     )
 
     companion object {
+        /**
+         * 进程内共享实例。
+         *
+         * 缓存挂在实例上，多个实例等于多份缓存；[CmsSpider] 与首页都从这里取，
+         * 才能共享同一份列表缓存与 DNS 缓存。
+         */
+        val shared: VideoApiService by lazy { VideoApiService() }
+
         fun currentTimeMillis(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
     }
 }

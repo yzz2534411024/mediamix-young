@@ -3,20 +3,23 @@ package com.mediamix.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,14 +34,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.mediamix.shared.models.CmsApiSite
-import com.mediamix.shared.models.VideoCategory
 import com.mediamix.shared.models.VideoItem
 import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.SkeletonCard
 import com.mediamix.ui.viewmodel.VideoHomeViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.compose.koinInject
 
+private const val GRID_COLUMNS = 3
+private const val BANNER_HEIGHT_DP = 168
+
+/**
+ * 首页。
+ *
+ * 版式（自上而下）：标题栏 → 数据源 → 分类 → 提示条 → 影片网格。
+ *
+ * 原来的实现在 [MainScaffold] 之外又套了一层带 TopAppBar 的 Scaffold，
+ * 加上 MainScaffold 自己的内边距，会出现「两个 MediaMix 标题 + 大块空白」。
+ * 这里只保留一个 topBar，所有间距由内容自己控制。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoHomeScreen(
@@ -54,169 +70,311 @@ fun VideoHomeScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val error by viewModel.error.collectAsState()
+    val notice by viewModel.notice.collectAsState()
+    val unsupported by viewModel.isSourceUnsupported.collectAsState()
 
     val gridState = rememberLazyGridState()
-
-    // Cache filtered lists to avoid recomputation on every recomposition
     val enabledSites = remember(sites) { sites.filter { it.enabled } }
-    val topCategories = remember(categories) { categories.filter { it.typePid == 0 } }
 
-    // Initial load
-    LaunchedEffect(Unit) {
-        viewModel.loadSites()
-        if (viewModel.currentSite.value != null) {
-            viewModel.loadCategories()
-            viewModel.loadVideos()
+    LaunchedEffect(Unit) { viewModel.loadSites() }
+
+    // 触底分页：用 snapshotFlow 代替「在组合里算布尔值」——后者只在重组时求值，
+    // 用户停手不滚动时不会触发，最后几屏经常加载不出来。
+    LaunchedEffect(gridState, hasMore) {
+        snapshotFlow {
+            val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val total = gridState.layoutInfo.totalItemsCount
+            total > 0 && last >= total - 4
         }
-    }
-
-    // Infinite scroll: detect near bottom
-    val shouldLoadMore = remember(gridState.layoutInfo, isLoading, hasMore) {
-        if (!hasMore || isLoading) return@remember false
-        val lastVisibleIndex = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-        val totalItems = gridState.layoutInfo.totalItemsCount
-        lastVisibleIndex >= totalItems - 6
-    }
-
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            viewModel.loadMore()
-        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadMore() }
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("MediaMix") },
+                title = { Text("MediaMix", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onNavigateToSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                        Icon(Icons.Default.Search, contentDescription = "搜索")
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                )
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues)) {
-            // Site switching row
-            if (enabledSites.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(enabledSites) { site ->
-                        FilterChip(
-                            selected = currentSite?.key == site.key,
-                            onClick = { viewModel.selectSite(site) },
-                            label = { Text(site.name, fontSize = 12.sp) }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            SourceRow(
+                sites = enabledSites,
+                currentSite = currentSite,
+                onSelect = { viewModel.selectSite(it) }
+            )
+
+            if (categories.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                CategoryRow(
+                    categories = categories,
+                    selectedId = selectedCategory?.typeId,
+                    onSelect = { viewModel.selectCategory(it) }
+                )
             }
 
-            // Category navigation row
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            notice?.let { text ->
+                NoticeBanner(
+                    text = text,
+                    showSwitchAction = unsupported,
+                    onSwitchSource = {
+                        viewModel.switchToAvailableSource()
+                        viewModel.dismissNotice()
+                    },
+                    onDismiss = { viewModel.dismissNotice() }
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+            HomeContent(
+                videos = videos,
+                isLoading = isLoading,
+                hasMore = hasMore,
+                error = error,
+                hasSource = currentSite != null,
+                gridState = gridState,
+                onRetry = { viewModel.refresh() },
+                onSwitchSource = { viewModel.switchToAvailableSource() },
+                onLoadMore = { viewModel.loadMore() },
+                onOpenDetail = { item ->
+                    onNavigateToDetail(item.vodId, currentSite?.key.orEmpty())
+                }
+            )
+        }
+    }
+}
+
+// ============================================================================
+// 数据源
+// ============================================================================
+
+@Composable
+private fun SourceRow(
+    sites: List<CmsApiSite>,
+    currentSite: CmsApiSite?,
+    onSelect: (CmsApiSite) -> Unit
+) {
+    if (sites.isEmpty()) return
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(sites, key = { it.key }) { site ->
+            val selected = currentSite?.key == site.key
+            FilterChip(
+                selected = selected,
+                onClick = { onSelect(site) },
+                label = {
+                    Text(
+                        text = site.name,
+                        fontSize = 13.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                },
+                shape = RoundedCornerShape(8.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            )
+        }
+    }
+}
+
+// ============================================================================
+// 分类
+// ============================================================================
+
+@Composable
+private fun CategoryRow(
+    categories: List<com.mediamix.shared.models.VideoCategory>,
+    selectedId: Int?,
+    onSelect: (com.mediamix.shared.models.VideoCategory?) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            CategoryChip("全部", selectedId == null) { onSelect(null) }
+        }
+        items(categories, key = { it.typeId }) { cat ->
+            CategoryChip(cat.typeName, selectedId == cat.typeId) { onSelect(cat) }
+        }
+    }
+}
+
+@Composable
+private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, fontSize = 12.sp) },
+        shape = RoundedCornerShape(8.dp),
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            else Color.Transparent,
+            labelColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        border = if (selected) null else AssistChipDefaults.assistChipBorder(
+            enabled = true,
+            borderColor = MaterialTheme.colorScheme.outlineVariant
+        )
+    )
+}
+
+// ============================================================================
+// 提示条
+// ============================================================================
+
+@Composable
+private fun NoticeBanner(
+    text: String,
+    showSwitchAction: Boolean,
+    onSwitchSource: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.weight(1f),
+                lineHeight = 17.sp
+            )
+            if (showSwitchAction) {
+                TextButton(onClick = onSwitchSource) {
+                    Icon(
+                        Icons.Default.SwapHoriz,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("换个源", fontSize = 12.sp)
+                }
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "关闭提示",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 内容区
+// ============================================================================
+
+@Composable
+private fun HomeContent(
+    videos: List<VideoItem>,
+    isLoading: Boolean,
+    hasMore: Boolean,
+    error: String?,
+    hasSource: Boolean,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    onRetry: () -> Unit,
+    onSwitchSource: () -> Unit,
+    onLoadMore: () -> Unit,
+    onOpenDetail: (VideoItem) -> Unit
+) {
+    when {
+        isLoading && videos.isEmpty() -> SkeletonContent()
+
+        !isLoading && videos.isEmpty() && error != null -> {
+            ErrorContent(message = error, onRetry = onRetry)
+            SecondaryAction(onSwitchSource)
+        }
+
+        !isLoading && videos.isEmpty() && hasSource -> {
+            EmptyState()
+        }
+
+        else -> {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(GRID_COLUMNS),
+                state = gridState,
+                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                item {
-                    FilterChip(
-                        selected = selectedCategory == null,
-                        onClick = { viewModel.selectCategory(null) },
-                        label = { Text("\u5168\u90E8", fontSize = 12.sp) }
-                    )
-                }
-                for (cat in topCategories) {
-                    item {
-                        FilterChip(
-                            selected = selectedCategory?.typeId == cat.typeId,
-                            onClick = { viewModel.selectCategory(cat) },
-                            label = { Text(cat.typeName, fontSize = 12.sp) }
+                // Banner 只在「全部」分类下展示，且至少 3 部影片才够轮播
+                if (videos.size >= 3) {
+                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "banner") {
+                        BannerSection(
+                            items = videos.take(5),
+                            onOpenDetail = onOpenDetail
                         )
                     }
                 }
-            }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                gridItems(videos, key = { it.vodId }) { item ->
+                    VideoGridCard(item = item, onClick = { onOpenDetail(item) })
+                }
 
-            // Content area
-            when {
-                isLoading && videos.isEmpty() -> {
-                    SkeletonContent()
-                }
-                error != null && videos.isEmpty() -> {
-                    ErrorContent(
-                        message = error ?: "Unknown error",
-                        onRetry = { viewModel.refresh() }
-                    )
-                }
-                videos.isEmpty() && !isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.Movie,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "\u6682\u65e0\u5f71\u7247\u6570\u636e",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (isLoading && videos.isNotEmpty()) {
+                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "loading-more") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
-                }
-                else -> {
-                    val showBanner = videos.size >= 2 && selectedCategory == null
-                    val bannerItems = if (showBanner) videos.take(5) else emptyList()
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        state = gridState,
-                        contentPadding = PaddingValues(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        if (showBanner) {
-                            item(span = { GridItemSpan(3) }) {
-                                BannerSection(
-                                    items = bannerItems,
-                                    sourceKey = currentSite?.key ?: "",
-                                    onNavigateToDetail = onNavigateToDetail
-                                )
-                            }
-                        }
-
-                        items(videos, key = { it.vodId }) { item ->
-                            VideoGridCard(
-                                item = item,
-                                onClick = {
-                                    onNavigateToDetail(item.vodId, currentSite?.key ?: "")
-                                }
-                            )
-                        }
-
-                        if (isLoading && videos.isNotEmpty()) {
-                            item(span = { GridItemSpan(3) }) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(strokeWidth = 2.dp)
-                                }
-                            }
-                        }
+                } else if (!hasMore && videos.isNotEmpty()) {
+                    item(span = { GridItemSpan(GRID_COLUMNS) }, key = "list-end") {
+                        Text(
+                            text = "已经到底啦",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             }
@@ -225,39 +383,83 @@ fun VideoHomeScreen(
 }
 
 @Composable
+private fun SecondaryAction(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        TextButton(onClick = onClick) {
+            Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("换个数据源")
+        }
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.Movie,
+                contentDescription = null,
+                modifier = Modifier.size(56.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "还没有影片数据",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "下拉刷新或换一个数据源试试",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// 轮播 Banner
+// ============================================================================
+
+@Composable
 private fun BannerSection(
     items: List<VideoItem>,
-    sourceKey: String,
-    onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit
+    onOpenDetail: (VideoItem) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { items.size })
 
-    LaunchedEffect(pagerState) {
+    LaunchedEffect(items.size) {
+        if (items.size <= 1) return@LaunchedEffect
         while (true) {
-            delay(5000L)
-            val nextPage = (pagerState.currentPage + 1) % items.size
-            pagerState.animateScrollToPage(nextPage)
+            delay(6000L)
+            val next = (pagerState.currentPage + 1) % items.size
+            pagerState.animateScrollToPage(next)
         }
     }
 
-    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+    Column {
         HorizontalPager(
             state = pagerState,
+            pageSpacing = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(BANNER_HEIGHT_DP.dp)
                 .clip(RoundedCornerShape(12.dp))
         ) { page ->
             val item = items[page]
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable { onNavigateToDetail(item.vodId, sourceKey) }
+                    .clickable { onOpenDetail(item) }
             ) {
                 AsyncImage(
                     model = item.vodPic,
                     contentDescription = item.vodName,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop
                 )
                 Box(
@@ -265,149 +467,152 @@ private fun BannerSection(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.7f)
-                                ),
-                                startY = 200f
+                                0.35f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.78f)
                             )
                         )
                 )
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(16.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Text(
                         text = item.vodName,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        ),
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val typeName = item.typeName
-                        if (typeName != null && typeName.isNotEmpty()) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = typeName,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        val remarks = item.vodRemarks
-                        if (remarks != null && remarks.isNotEmpty()) {
-                            Text(
-                                text = remarks,
-                                color = Color(0xFFFFCC80),
-                                fontSize = 12.sp
-                            )
-                        }
+                    val caption = listOfNotNull(
+                        item.typeName?.takeIf { it.isNotEmpty() },
+                        item.vodYear?.takeIf { it.isNotEmpty() },
+                        item.vodRemarks?.takeIf { it.isNotEmpty() }
+                    ).joinToString(" · ")
+                    if (caption.isNotEmpty()) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = caption,
+                            color = Color.White.copy(alpha = 0.82f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items.forEachIndexed { index, _ ->
-                val isActive = index == pagerState.currentPage
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 3.dp)
-                        .size(width = if (isActive) 16.dp else 8.dp, height = 8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            if (isActive) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                )
+        if (items.size > 1) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                items.indices.forEach { index ->
+                    val active = index == pagerState.currentPage
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 3.dp)
+                            .size(width = if (active) 14.dp else 6.dp, height = 6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(
+                                if (active) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
+                            )
+                    )
+                }
             }
         }
     }
 }
+
+// ============================================================================
+// 影片卡片
+// ============================================================================
 
 @Composable
 private fun VideoGridCard(
     item: VideoItem,
     onClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
     ) {
-        Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.68f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
             AsyncImage(
                 model = item.vodPic,
                 contentDescription = item.vodName,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.75f)
-                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-            Column(modifier = Modifier.padding(6.dp)) {
-                Text(
-                    text = item.vodName,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.W500
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                val remarks = item.vodRemarks
-                if (!remarks.isNullOrEmpty()) {
+            val remarks = item.vodRemarks
+            if (!remarks.isNullOrEmpty()) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.62f),
+                    shape = RoundedCornerShape(bottomStart = 8.dp, topEnd = 8.dp),
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
                     Text(
                         text = remarks,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFE65100),
+                        color = Color.White,
+                        fontSize = 10.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
             }
         }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = item.vodName,
+            style = MaterialTheme.typography.bodySmall,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
+// ============================================================================
+// 骨架屏
+// ============================================================================
+
 @Composable
 private fun SkeletonContent() {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item(span = { GridItemSpan(3) }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
-        }
-        items(9) {
-            SkeletonCard(modifier = Modifier.fillMaxWidth())
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp)
+                .height(BANNER_HEIGHT_DP.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(2) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(GRID_COLUMNS) {
+                        SkeletonCard(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }

@@ -6,7 +6,11 @@ import com.mediamix.shared.cache.VideoCacheService
 import com.mediamix.shared.core.PlatformPaths
 import com.mediamix.shared.database.FavoriteDao
 import com.mediamix.shared.database.WatchHistoryDao
-import com.russhwolf.settings.Settings
+import com.mediamix.shared.player.engines.MetricsEngine
+import com.mediamix.ui.prefs.AppPreferences
+import com.mediamix.ui.prefs.DecodeMode
+import com.mediamix.ui.theme.ThemeConfig
+import com.mediamix.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,11 +25,12 @@ import co.touchlab.kermit.Logger
 import java.io.File
 
 /**
- * 主题模式枚举
+ * 主题模式。
+ *
+ * 直接用 [ThemeMode]，避免历史上「两套一模一样的枚举」导致
+ * 设置页改了 A、主题系统读的是 B，怎么点都不生效。
  */
-enum class ThemeModeOption {
-    SYSTEM, LIGHT, DARK
-}
+typealias ThemeModeOption = ThemeMode
 
 /**
  * 缓存统计信息
@@ -38,45 +43,150 @@ data class CacheStatsInfo(
     val hitRate: Double = 0.0,
 )
 
+/** 一次性操作结果提示（设置页用 Snackbar 展示） */
+data class SettingsMessage(val text: String, val id: Long)
+
 /**
  * 设置 ViewModel
- * 接入 VideoCacheService、WatchHistoryDao、FavoriteDao 实现真实功能
+ *
+ * 所有开关都走 [AppPreferences] 落盘，并在改动时同步到运行中的系统
+ * （例如主题要写回 [ThemeConfig]，播放器才能立即换肤）。
  */
 class SettingsViewModel(
-    private val settings: Settings,
+    private val preferences: AppPreferences,
     private val videoCacheService: VideoCacheService,
     private val watchHistoryDao: WatchHistoryDao,
     private val favoriteDao: FavoriteDao,
+    private val metricsEngine: MetricsEngine,
 ) : ViewModel() {
 
     private val logger = Logger.withTag("SettingsViewModel")
-    private val themeKey = "theme_mode"
 
-    private val _themeMode = MutableStateFlow(ThemeModeOption.SYSTEM)
-    val themeMode: StateFlow<ThemeModeOption> = _themeMode.asStateFlow()
+    private val _themeMode = MutableStateFlow(preferences.themeMode)
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _decodeMode = MutableStateFlow(preferences.decodeMode)
+    val decodeMode: StateFlow<DecodeMode> = _decodeMode.asStateFlow()
+
+    private val _shareUsageData = MutableStateFlow(preferences.shareUsageData)
+    val shareUsageData: StateFlow<Boolean> = _shareUsageData.asStateFlow()
+
+    private val _skipInterval = MutableStateFlow(preferences.skipIntervalSeconds)
+    val skipInterval: StateFlow<Int> = _skipInterval.asStateFlow()
 
     private val _cacheStats = MutableStateFlow(CacheStatsInfo())
     val cacheStats: StateFlow<CacheStatsInfo> = _cacheStats.asStateFlow()
 
-    private val _exportResult = MutableStateFlow<String?>(null)
-    val exportResult: StateFlow<String?> = _exportResult.asStateFlow()
+    private val _message = MutableStateFlow<SettingsMessage?>(null)
+    val message: StateFlow<SettingsMessage?> = _message.asStateFlow()
+
+    private var messageSeq = 0L
 
     init {
-        val savedIndex = settings.getInt(themeKey, 0)
-        _themeMode.value = ThemeModeOption.entries.getOrElse(savedIndex) { ThemeModeOption.SYSTEM }
+        // 启动时把持久化的主题推给运行中的主题系统，否则冷启动永远是"跟随系统"
+        ThemeConfig.themeMode.value = _themeMode.value
+        // 「使用数据分享」开关必须真正作用于指标引擎，否则它只是个存了偏好的死开关
+        metricsEngine.setEnabled(_shareUsageData.value)
     }
 
-    fun setThemeMode(mode: ThemeModeOption) {
+    // ==================== 主题 ====================
+
+    fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
-        settings.putInt(themeKey, mode.ordinal)
+        preferences.themeMode = mode
+        // 立即生效：MediaMixTheme 收集的就是这个 StateFlow
+        ThemeConfig.themeMode.value = mode
         logger.d { "Theme mode set: $mode" }
     }
 
+    // ==================== 解码模式 ====================
+
+    fun setDecodeMode(mode: DecodeMode) {
+        _decodeMode.value = mode
+        preferences.decodeMode = mode
+        notify("解码方式已切换为「${mode.labelForMessage()}」，下次播放生效")
+    }
+
+    // ==================== 使用数据分享 ====================
+
+    fun setShareUsageData(enabled: Boolean) {
+        _shareUsageData.value = enabled
+        preferences.shareUsageData = enabled
+        // 真正生效：关闭后指标引擎不再累积数据
+        metricsEngine.setEnabled(enabled)
+        notify(if (enabled) "已开启播放指标记录" else "已关闭播放指标记录")
+    }
+
+    // ==================== 快进 / 快退间隔 ====================
+
     /**
-     * 导出数据为 JSON — 包含收藏和历史记录
-     * 返回 JSON 字符串，调用方可选择保存到文件或分享
+     * 设置快进 / 快退间隔（秒）。
+     *
+     * 只写偏好，不直接碰 PlayerCoreManager —— 它是 single 的，而设置页打开时
+     * 播放器可能压根没初始化。真正下发发生在打开播放页时（见 PlayerViewModel.openVideo）。
      */
-    fun exportData(): String {
+    fun setSkipInterval(seconds: Int) {
+        val valid = seconds.takeIf { it in AppPreferences.SKIP_INTERVAL_OPTIONS }
+            ?: AppPreferences.DEFAULT_SKIP_INTERVAL
+        _skipInterval.value = valid
+        preferences.skipIntervalSeconds = valid
+        notify("快进/快退间隔已设为 $valid 秒")
+    }
+
+    // ==================== 缓存 ====================
+
+    /**
+     * 清除缓存。
+     *
+     * 界面需要先弹确认框再调用这里；返回结果通过 [message] 通知，
+     * 而不是像原来那样点完什么都不发生。
+     */
+    fun clearCache() {
+        viewModelScope.launch {
+            try {
+                videoCacheService.clearAll()
+                refreshCacheStats()
+                notify("缓存已清除")
+            } catch (e: Exception) {
+                logger.e { "Clear cache failed: ${e.message}" }
+                notify("清除缓存失败：${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 刷新缓存统计 — 从 VideoCacheService 获取真实数据
+     */
+    fun refreshCacheStats() {
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val stats = videoCacheService.getStats()
+                val memUsage = videoCacheService.getMemoryUsage()
+                val memSize = memUsage.l1Bytes + memUsage.l2Bytes
+                _cacheStats.value = CacheStatsInfo(
+                    memoryCacheSize = memSize,
+                    diskCacheSize = stats.totalSize,
+                    totalSize = memSize + stats.totalSize,
+                    entryCount = stats.entryCount,
+                    hitRate = stats.hitRate,
+                )
+            } catch (e: Exception) {
+                logger.e { "Refresh cache stats failed: ${e.message}" }
+                _cacheStats.value = CacheStatsInfo()
+            }
+        }
+    }
+
+    // ==================== 导出 ====================
+
+    /**
+     * 导出收藏与历史为 JSON。
+     *
+     * 旧实现在 viewModelScope 里异步写文件，然后**直接返回空字符串** ——
+     * 界面拿不到路径，用户以为功能坏了。现在写完后通过 [message] 把
+     * 真实路径回传。
+     */
+    fun exportData() {
         viewModelScope.launch(Dispatchers.Default) {
             try {
                 val json = Json { prettyPrint = true }
@@ -119,57 +229,35 @@ class SettingsViewModel(
 
                 val result = json.encodeToString(exportJson)
 
-                // 写入本地文件
-                val exportDir = File(PlatformPaths.dataDir)
+                val exportDir = File(PlatformPaths.dataDir.ifBlank { PlatformPaths.cacheDir })
                 if (!exportDir.exists()) exportDir.mkdirs()
                 val exportFile = File(exportDir, "mediamix_export.json")
                 exportFile.writeText(result)
 
-                _exportResult.value = exportFile.absolutePath
+                val favCount = favoriteDao.getAll().size
+                val histCount = watchHistoryDao.getAll().size
                 logger.d { "Data exported to: ${exportFile.absolutePath}" }
+                notify("已导出 $favCount 条收藏、$histCount 条历史\n${exportFile.absolutePath}")
             } catch (e: Exception) {
                 logger.e { "Export data failed: ${e.message}" }
-                _exportResult.value = null
-            }
-        }
-        return ""
-    }
-
-    /**
-     * 清除缓存 — 调用 VideoCacheService.clearAll() 清理内存+磁盘缓存
-     */
-    fun clearCache() {
-        viewModelScope.launch {
-            try {
-                videoCacheService.clearAll()
-                refreshCacheStats()
-                logger.d { "Cache cleared" }
-            } catch (e: Exception) {
-                logger.e { "Clear cache failed: ${e.message}" }
+                notify("导出失败：${e.message}")
             }
         }
     }
 
-    /**
-     * 刷新缓存统计 — 从 VideoCacheService 获取真实数据
-     */
-    fun refreshCacheStats() {
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                val stats = videoCacheService.getStats()
-                val memUsage = videoCacheService.getMemoryUsage()
-                val memSize = memUsage.l1Bytes + memUsage.l2Bytes
-                _cacheStats.value = CacheStatsInfo(
-                    memoryCacheSize = memSize,
-                    diskCacheSize = stats.totalSize,
-                    totalSize = memSize + stats.totalSize,
-                    entryCount = stats.entryCount,
-                    hitRate = stats.hitRate,
-                )
-            } catch (e: Exception) {
-                logger.e { "Refresh cache stats failed: ${e.message}" }
-                _cacheStats.value = CacheStatsInfo()
-            }
-        }
+    fun consumeMessage() {
+        _message.value = null
     }
+
+    private fun notify(text: String) {
+        messageSeq += 1
+        _message.value = SettingsMessage(text = text, id = messageSeq)
+    }
+}
+
+/** 提示文案里用的简短名称 */
+private fun DecodeMode.labelForMessage(): String = when (this) {
+    DecodeMode.AUTO -> "自动"
+    DecodeMode.HARDWARE -> "硬件解码优先"
+    DecodeMode.SOFTWARE -> "软件解码优先"
 }

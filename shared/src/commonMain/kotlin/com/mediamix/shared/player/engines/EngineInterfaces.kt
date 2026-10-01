@@ -101,6 +101,13 @@ interface PlaybackErrorHandler {
  * Metrics engine interface.
  */
 interface MetricsEngine {
+    /**
+     * 是否收集指标 —— 对应设置页的「使用数据分享」开关。
+     *
+     * 关闭后 [startSession] / [recordEvent] 直接返回，不再累积数据。
+     */
+    fun setEnabled(enabled: Boolean)
+
     fun startSession(videoId: String)
     fun endSession(): Map<String, Any?>?
     fun recordEvent(event: MetricsEvent, errorMessage: String? = null, avSyncOffsetMs: Int? = null)

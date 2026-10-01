@@ -55,6 +55,7 @@ fun FavoriteScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(title = { Text("我的收藏") })
         }

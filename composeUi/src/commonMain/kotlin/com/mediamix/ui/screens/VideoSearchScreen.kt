@@ -34,7 +34,11 @@ fun VideoSearchScreen(
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) {
         // Search bar
         SearchBar(
             query = query,

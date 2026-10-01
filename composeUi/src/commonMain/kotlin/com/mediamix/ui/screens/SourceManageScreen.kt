@@ -36,6 +36,7 @@ fun SourceManageScreen(
     LaunchedEffect(Unit) { viewModel.loadSources() }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("数据源管理") },

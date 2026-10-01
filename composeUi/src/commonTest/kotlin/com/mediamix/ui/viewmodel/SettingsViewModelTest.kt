@@ -1,7 +1,9 @@
 ﻿package com.mediamix.ui.viewmodel
 
 import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.ui.prefs.AppPreferences
 import com.mediamix.shared.database.FavoriteDao
+import com.mediamix.shared.player.engines.MetricsEngine
 import com.mediamix.shared.database.WatchHistoryDao
 import com.russhwolf.settings.MapSettings
 import io.mockk.every
@@ -20,10 +22,11 @@ class SettingsViewModelTest {
 
         val mapSettings = MapSettings()
         val vm = SettingsViewModel(
-            settings = mapSettings,
+            preferences = AppPreferences(mapSettings),
             videoCacheService = videoCacheService,
             watchHistoryDao = watchHistoryDao,
             favoriteDao = favoriteDao,
+            metricsEngine = mockk<MetricsEngine>(relaxed = true),
         )
         return videoCacheService to vm
     }
@@ -95,7 +98,7 @@ class SettingsViewModelTest {
         val favoriteDao = mockk<FavoriteDao>(relaxed = true)
         every { videoCacheService.getStats() } returns com.mediamix.shared.models.CacheStats()
         every { videoCacheService.getMemoryUsage() } returns com.mediamix.shared.models.MemoryUsageInfo()
-        val vm = SettingsViewModel(mapSettings, videoCacheService, watchHistoryDao, favoriteDao)
+        val vm = SettingsViewModel(AppPreferences(mapSettings), videoCacheService, watchHistoryDao, favoriteDao, mockk<MetricsEngine>(relaxed = true))
         assertEquals(ThemeModeOption.DARK, vm.themeMode.value)
     }
 
@@ -113,7 +116,7 @@ class SettingsViewModelTest {
         val favoriteDao = mockk<FavoriteDao>(relaxed = true)
         every { videoCacheService.getStats() } returns com.mediamix.shared.models.CacheStats()
         every { videoCacheService.getMemoryUsage() } returns com.mediamix.shared.models.MemoryUsageInfo()
-        val vm = SettingsViewModel(mapSettings, videoCacheService, watchHistoryDao, favoriteDao)
+        val vm = SettingsViewModel(AppPreferences(mapSettings), videoCacheService, watchHistoryDao, favoriteDao, mockk<MetricsEngine>(relaxed = true))
         vm.setThemeMode(ThemeModeOption.LIGHT)
         assertEquals(ThemeModeOption.LIGHT, vm.themeMode.value)
         assertEquals(1, mapSettings.getInt("theme_mode", 0))
@@ -127,7 +130,7 @@ class SettingsViewModelTest {
         val favoriteDao = mockk<FavoriteDao>(relaxed = true)
         every { videoCacheService.getStats() } returns com.mediamix.shared.models.CacheStats()
         every { videoCacheService.getMemoryUsage() } returns com.mediamix.shared.models.MemoryUsageInfo()
-        val vm = SettingsViewModel(mapSettings, videoCacheService, watchHistoryDao, favoriteDao)
+        val vm = SettingsViewModel(AppPreferences(mapSettings), videoCacheService, watchHistoryDao, favoriteDao, mockk<MetricsEngine>(relaxed = true))
         vm.setThemeMode(ThemeModeOption.DARK)
         assertEquals(ThemeModeOption.DARK, vm.themeMode.value)
         assertEquals(2, mapSettings.getInt("theme_mode", 0))
@@ -148,7 +151,7 @@ class SettingsViewModelTest {
         val favoriteDao = mockk<FavoriteDao>(relaxed = true)
         every { videoCacheService.getStats() } returns com.mediamix.shared.models.CacheStats()
         every { videoCacheService.getMemoryUsage() } returns com.mediamix.shared.models.MemoryUsageInfo()
-        val vm = SettingsViewModel(mapSettings, videoCacheService, watchHistoryDao, favoriteDao)
+        val vm = SettingsViewModel(AppPreferences(mapSettings), videoCacheService, watchHistoryDao, favoriteDao, mockk<MetricsEngine>(relaxed = true))
         assertEquals(ThemeModeOption.SYSTEM, vm.themeMode.value)
     }
 }

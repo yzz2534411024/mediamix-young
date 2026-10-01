@@ -480,9 +480,11 @@ class CacheEngineTest {
         // We can't easily mock VideoCacheService/LocalProxyServer without a DI framework,
         // so we test the non-cache-resolution parts (preload management) directly.
         // For full integration tests, a test double would be needed.
+        val cacheService = createStubCacheService()
         return CacheEngineImpl(
-            cacheService = createStubCacheService(),
+            cacheService = cacheService,
             proxyServer = createStubProxyServer(),
+            preloadService = com.mediamix.shared.services.PreloadService(cacheService = cacheService),
         )
     }
 

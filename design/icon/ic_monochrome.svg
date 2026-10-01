@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Adaptive Icon 单色层（Android 13+ 主题图标）。
+    规则：系统只取本层的 **alpha 通道**，用主题色填充。
+    所以：猫头剪影填不透明，五官（眼睛 / 播放三角）留成透明 ——
+    填充后五官会以「镂空」形式透出背景，主题色下依然能看清是只带播放键的猫。
+  -->
+  <defs>
+    <mask id="mo">
+      <rect x="0" y="0" width="512" height="512" fill="#000000"/>
+      <!-- 保留（白 = 不透明） -->
+      <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round">
+        <path d="M 150 246 L 132 98 L 252 166 Z"/>
+        <path d="M 362 246 L 380 98 L 260 166 Z"/>
+        <circle cx="256" cy="290" r="142"/>
+      </g>
+      <!-- 挖空（黑 = 透明） -->
+      <g fill="#000000">
+        <ellipse cx="199" cy="240" rx="25" ry="29"/>
+        <ellipse cx="313" cy="240" rx="25" ry="29"/>
+      </g>
+      <path d="M 226 326 L 308 355 L 226 384 Z"
+            fill="#000000" stroke="#000000" stroke-width="21" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+
+  <g transform="translate(256 256) scale(0.9) translate(-256 -262)">
+    <rect x="-256" y="-256" width="1024" height="1024" fill="#000000" mask="url(#mo)"/>
+  </g>
+</svg>

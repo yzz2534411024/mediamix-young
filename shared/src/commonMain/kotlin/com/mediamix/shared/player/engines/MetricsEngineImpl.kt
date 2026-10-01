@@ -20,6 +20,18 @@ class MetricsEngineImpl : MetricsEngine {
 
     private val logger = Logger.withTag("MetricsEngine")
 
+    /**
+     * 是否收集指标 —— 由设置页的「使用数据分享」开关控制。
+     *
+     * 此前该开关只被写进偏好存储、没有任何消费方，属于「存了却不生效」的假功能。
+     */
+    private var enabled = true
+
+    override fun setEnabled(enabled: Boolean) {
+        this.enabled = enabled
+        logger.i { "Metrics collection ${if (enabled) "enabled" else "disabled"}" }
+    }
+
     // ========== First frame ==========
     private var _hasRecordedFirstFrame = false
     override val hasRecordedFirstFrame: Boolean get() = _hasRecordedFirstFrame
@@ -46,6 +58,7 @@ class MetricsEngineImpl : MetricsEngine {
     // ========================================================================
 
     override fun startSession(videoId: String) {
+        if (!enabled) return
         _hasRecordedFirstFrame = false
         hasActiveSession = true
         sessionVideoId = videoId
@@ -101,6 +114,7 @@ class MetricsEngineImpl : MetricsEngine {
     // ========================================================================
 
     override fun recordEvent(event: MetricsEvent, errorMessage: String?, avSyncOffsetMs: Int?) {
+        if (!enabled) return
         eventCounts[event] = (eventCounts[event] ?: 0) + 1
 
         if (errorMessage != null) {

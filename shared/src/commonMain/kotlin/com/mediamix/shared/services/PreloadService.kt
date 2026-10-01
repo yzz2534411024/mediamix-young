@@ -366,6 +366,22 @@ class PreloadService(
         }
     }
 
+    /**
+     * 轻量预热：只建立连接（DNS / TCP / TLS / 收到响应头），**不下载 body**。
+     *
+     * 用在「打开详情页 → 用户点播放」这段空窗期：等到真正播放时，握手开销已经付过，
+     * 首帧能明显更快。与 [preloadVideo] 的区别是它不会把整集拉下来浪费流量。
+     */
+    suspend fun warmUp(url: String) {
+        if (url.isBlank()) return
+        try {
+            httpClient.prepareGet(url).execute { /* 只握手，不读 body */ }
+        } catch (e: Exception) {
+            // 预热失败不影响任何功能，静默处理
+            logger.d("Warm up skipped: ${e.message}")
+        }
+    }
+
     /** Convenience: preload next episode. */
     suspend fun preloadNextEpisode(videoId: String, url: String, quality: String = "720p") =
         preloadVideo(videoId, url, PreloadPriority.NEXT_EPISODE, quality)

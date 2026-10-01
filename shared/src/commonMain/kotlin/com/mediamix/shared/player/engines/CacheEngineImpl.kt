@@ -3,6 +3,14 @@ package com.mediamix.shared.player.engines
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.cache.LocalProxyServer
 import com.mediamix.shared.cache.VideoCacheService
+import com.mediamix.shared.services.PreloadService
+import com.mediamix.shared.services.PreloadTask
+import com.mediamix.shared.services.PreloadPriority
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.mediamix.shared.core.PowerMode
 
 /**
@@ -13,7 +21,16 @@ import com.mediamix.shared.core.PowerMode
 class CacheEngineImpl(
     private val cacheService: VideoCacheService,
     private val proxyServer: LocalProxyServer,
+    private val preloadService: PreloadService,
 ) : CacheEngine {
+
+    /**
+     * 预加载是挂起操作，而 [CacheEngine] 的接口是非挂起的，这里用自己的作用域桥接。
+     *
+     * 注意：此前 [preloadNextEpisode] 只是往 Set 里丢了个 id、**并没有真的预取**，
+     * 所以「播放到 80% 时预热下一集」实际上是空转。
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val logger = Logger.withTag("CacheEngine")
 
@@ -117,6 +134,14 @@ class CacheEngineImpl(
 
     override fun preloadNextEpisode(videoId: String, url: String) {
         preloadedVideoIds.add(videoId)
+        if (url.isBlank()) return
+        scope.launch {
+            try {
+                preloadService.preloadNextEpisode(videoId, url)
+            } catch (e: Exception) {
+                logger.w("Preload next episode failed: $e")
+            }
+        }
     }
 
     override fun preloadAdjacentEpisodes(
@@ -129,9 +154,25 @@ class CacheEngineImpl(
             logger.d("Power saving mode, skipping preload")
             return
         }
+        val tasks = mutableListOf<PreloadTask>()
         for (i in indices) {
             if (i >= 0 && i < episodeUrls.size) {
-                preloadedVideoIds.add("${title}_$i")
+                val id = "${title}_$i"
+                preloadedVideoIds.add(id)
+                tasks.add(PreloadTask(
+                    videoId = id,
+                    videoUrl = episodeUrls[i],
+                    quality = "720p",
+                    priority = PreloadPriority.ADJACENT_ITEM,
+                ))
+            }
+        }
+        if (tasks.isEmpty()) return
+        scope.launch {
+            try {
+                preloadService.preloadVideos(tasks)
+            } catch (e: Exception) {
+                logger.w("Preload adjacent episodes failed: $e")
             }
         }
     }
@@ -153,5 +194,6 @@ class CacheEngineImpl(
 
     override fun dispose() {
         cancelPreloads()
+        scope.cancel()
     }
 }

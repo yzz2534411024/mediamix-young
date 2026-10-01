@@ -159,6 +159,18 @@ class PlayerCoreManager(
     private var episodeUrls: List<String>? = null
     private var subtitleUrls: List<String>? = null
 
+    /** 播放请求头（UA / Referer 等），切集时同样会带上 */
+    private var requestHeaders: Map<String, String>? = null
+
+    /** 同一集在其它播放线路里的候选地址，当前线路失败时按序回退 */
+    private var fallbackUrls: List<String>? = null
+
+    /** 已经用掉的候选地址下标 */
+    private var fallbackIndex = 0
+
+    /** 软解优先（来自设置页的解码模式） */
+    private var preferSoftwareDecoding = false
+
     // Subtitles
     private var subtitleTracks: List<SubtitleTrack> = emptyList()
     private var showSubtitles = true
@@ -287,6 +299,9 @@ class PlayerCoreManager(
         qualityLabels: List<String>? = null,
         qualityUrls: List<String>? = null,
         subtitleUrls: List<String>? = null,
+        headers: Map<String, String>? = null,
+        preferSoftwareDecoding: Boolean = false,
+        fallbackUrls: List<String>? = null,
     ) {
         isInitializing = true
         this.url = url
@@ -294,14 +309,34 @@ class PlayerCoreManager(
         this.episodeNames = episodeNames
         this.episodeUrls = episodeUrls
         this.subtitleUrls = subtitleUrls
+        this.requestHeaders = headers
+        this.preferSoftwareDecoding = preferSoftwareDecoding
+        this.fallbackUrls = fallbackUrls?.filter { it.isNotBlank() && it != url }
+        this.fallbackIndex = 0
         hasTriedDirectUrl = false
         isDisposed = false
 
         // 初始化/重新初始化播放器引擎
         try {
+            // ⚠️ 解码模式必须在 initialize() **之前**设置：Android 侧的渲染器工厂
+            // 是在 initialize() 里构建的，之后再设不会生效。
+            playerEngine.setDecodeMode(preferSoftwareDecoding)
             playerEngine.initialize()
-        } catch (e: Exception) {
-            logger.e("PlayerEngine.initialize() failed: $e")
+        } catch (t: Throwable) {
+            // ⚠️ 必须捕获 Throwable 而不是 Exception。
+            // Desktop 缺 mpv 运行库时抛的是 UnsatisfiedLinkError，Android 曾经
+            // 引用 com.sun.net.httpserver 时抛的是 NoClassDefFoundError —— 两者都继承
+            // Error 而非 Exception，用 catch (Exception) 会漏掉并直接把进程打挂。
+            logger.e("PlayerEngine.initialize() failed: ${t.message}")
+            // 把失败暴露到 UI，避免用户只看到黑屏
+            onError?.invoke(
+                ErrorEvent(
+                    message = "播放器初始化失败：${t.message}",
+                    hasNextEpisode = false,
+                )
+            )
+            isInitializing = false
+            return
         }
 
         // 重新应用 pending Surface（引擎重建后需重新绑定）
@@ -360,11 +395,13 @@ class PlayerCoreManager(
                 if (isDisposed) return@launch
                 if (!metricsEngine.hasRecordedFirstFrame && url.isNotEmpty() && !hasTriedDirectUrl) {
                     hasTriedDirectUrl = true
-                    logger.w("First frame timeout (10s), bypassing proxy for direct CDN")
-                    playerEngine.stop()
+                    logger.w("First frame timeout (10s), retrying with direct CDN url")
+                    // ⚠️ 这里刻意不调 stop()：stop() 会把播放器打回 IDLE，
+                    // 画面与进度一起中断，而且之后 `play()` 在 IDLE 下不会重新装载媒体，
+                    // 用户看到的就是「卡住，点播放也没反应」。setMediaItem 本身就能替换媒体源。
                     delay(REOPEN_DELAY_MS)
                     if (isDisposed) return@launch
-                    playerEngine.setSource(url)
+                    playerEngine.setSource(url, requestHeaders)
                 }
             }
 
@@ -391,6 +428,11 @@ class PlayerCoreManager(
 
     override fun onStateChanged(state: PlayerState) {
         if (isDisposed) return
+        // 让 UI 的「缓冲中」指示跟随真实缓冲状态。
+        // 原先 onBufferingChanged 只在网络质量探测那一处被调用过，从没和播放器的
+        // BUFFERING 状态关联 —— 结果是视频卡在缓冲时界面显示的是「暂停」，
+        // 对用户来说就跟「点了播放没反应」一模一样。
+        onBufferingChanged?.invoke(state == PlayerState.BUFFERING)
         onPlayerStateChanged?.invoke(state)
     }
 
@@ -466,9 +508,66 @@ class PlayerCoreManager(
         playerEngine.pause()
     }
 
+    /**
+     * 播放 / 暂停。
+     *
+     * ⚠️ 不能只判断 `isPlaying()` 就调 `play()`：引擎处于 IDLE / ENDED / ERROR 时
+     * （例如首帧超时兜底重新加载过、或上一集已播完），`play()` 只会把
+     * `playWhenReady` 置真，**并不会重新装载媒体** —— 用户看到的就是
+     * 「点了播放毫无反应、画面一直不动」。这种情况必须先重新 setSource。
+     */
     fun togglePlayPause() {
-        if (isDisposed) return
-        if (playerEngine.isPlaying()) playerEngine.pause() else playerEngine.play()
+        if (isDisposed) {
+            // 管理器已被释放（页面回退后重进、或 ViewModel 被重建）时，
+            // 所有控制方法都会在第一行直接 return —— 表现就是「点了播放毫无反应」。
+            // 这里兜底重建一次。
+            logger.w("togglePlayPause on a disposed manager, re-initializing")
+            reinitializeCurrentSource()
+            return
+        }
+        if (playerEngine.isPlaying()) {
+            playerEngine.pause()
+            return
+        }
+        when (playerEngine.getPlayerState()) {
+            PlayerState.IDLE, PlayerState.ENDED, PlayerState.ERROR -> {
+                logger.w("togglePlayPause: engine in ${playerEngine.getPlayerState()}, reloading source")
+                reloadCurrentSource()
+            }
+            else -> playerEngine.play()
+        }
+    }
+
+    /** 引擎已被释放时的兜底：拿现有参数重走一遍 initialize。 */
+    private fun reinitializeCurrentSource() {
+        val target = episodeUrls?.getOrNull(currentEpisodeIndex)?.takeIf { it.isNotBlank() } ?: url
+        if (target.isBlank()) return
+        initialize(
+            url = target,
+            title = title,
+            episodeIndex = currentEpisodeIndex,
+            episodeNames = episodeNames,
+            episodeUrls = episodeUrls,
+            subtitleUrls = subtitleUrls,
+            headers = requestHeaders,
+            preferSoftwareDecoding = preferSoftwareDecoding,
+            fallbackUrls = fallbackUrls,
+        )
+    }
+
+    /**
+     * 用「当前正在看的这一集」重新装载媒体。
+     *
+     * 地址优先取剧集列表里当前下标那一项 —— 切集后 [url] 字段仍是上次
+     * initialize 传入的地址，直接用它会跳回第一集。
+     */
+    private fun reloadCurrentSource() {
+        val target = episodeUrls?.getOrNull(currentEpisodeIndex)?.takeIf { it.isNotBlank() }
+            ?: url
+        if (target.isBlank()) return
+        // 引擎重建后 Surface 可能已失效，补绑一次再装载
+        pendingSurface?.let { playerEngine.setSurface(it) }
+        playerEngine.setSource(target, requestHeaders)
     }
 
     fun seekTo(positionMs: Long) {
@@ -559,6 +658,11 @@ class PlayerCoreManager(
         if (index >= names.size) return
 
         val videoId = "${title}_$index"
+        // 让 url 指向当前这一集：之后的重试 / 换线 / 首帧超时兜底都必须以
+        // 当前集为准，否则切集失败后会莫名其妙跳回第一集。
+        url = urls[index]
+        fallbackIndex = 0
+        hasTriedDirectUrl = false
         scope.launch {
             openVideoWithCacheCheck(urls[index], videoId)
         }
@@ -741,11 +845,11 @@ class PlayerCoreManager(
             }
             resolvedUrl = result.url
             logger.i("Video URL resolved: ${if (cacheEngine.isUsingCache) "local cache" else "network"}${if (activeParser != null) ", parser: ${activeParser!!.name}" else ""}")
-            playerEngine.setSource(resolvedUrl)
+            playerEngine.setSource(resolvedUrl, requestHeaders)
         } catch (e: Exception) {
             logger.w("Video URL resolution failed, using original URL: $e")
             resolvedUrl = effectiveUrl
-            playerEngine.setSource(effectiveUrl)
+            playerEngine.setSource(effectiveUrl, requestHeaders)
         }
     }
 
@@ -756,6 +860,17 @@ class PlayerCoreManager(
     private fun applyParser(originalUrl: String): String {
         val parser = activeParser ?: return originalUrl
         return parser.buildUrl(originalUrl)
+    }
+
+    /** 取下一条尚未尝试过的备用线路地址；用尽返回 null */
+    private fun nextFallbackUrl(): String? {
+        val candidates = fallbackUrls ?: return null
+        while (fallbackIndex < candidates.size) {
+            val candidate = candidates[fallbackIndex]
+            fallbackIndex++
+            if (candidate.isNotBlank() && candidate != url) return candidate
+        }
+        return null
     }
 
     // ========================================================================
@@ -801,7 +916,22 @@ class PlayerCoreManager(
                     scope.launch {
                         delay(REOPEN_DELAY_MS)
                         if (isDisposed) return@launch
-                        playerEngine.setSource(url)
+                        playerEngine.setSource(url, requestHeaders)
+                    }
+                    return
+                }
+                // 直连也失败时，换同一集的其它线路再试一次 —— CMS 站点通常同时
+                // 给出 m3u8 / 网盘分享页等多条线路，其中分享页必然直连失败。
+                val nextFallback = nextFallbackUrl()
+                if (nextFallback != null) {
+                    logger.w("Current line failed, switching to alternative line: $nextFallback")
+                    url = nextFallback
+                    hasTriedDirectUrl = false
+                    playerEngine.stop()
+                    scope.launch {
+                        delay(REOPEN_DELAY_MS)
+                        if (isDisposed) return@launch
+                        openVideoWithCacheCheck(nextFallback, "${title}_$currentEpisodeIndex")
                     }
                     return
                 }

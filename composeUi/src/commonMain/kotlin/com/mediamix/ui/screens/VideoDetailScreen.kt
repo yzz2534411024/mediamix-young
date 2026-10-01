@@ -1,6 +1,6 @@
 package com.mediamix.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,23 +24,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.VideoDetail
 import com.mediamix.shared.models.VideoEpisode
 import com.mediamix.shared.models.VideoItem
 import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.LoadingScreen
+import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.viewmodel.VideoDetailViewModel
-import com.mediamix.ui.viewmodel.VideoHomeViewModel
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun VideoDetailScreen(
     vodId: String,
     sourceKey: String,
     viewModel: VideoDetailViewModel = koinInject(),
-    homeViewModel: VideoHomeViewModel = koinInject(),
+    sessionStore: PlaybackSessionStore = koinInject(),
     onNavigateToPlayer: (url: String, title: String, index: Int) -> Unit = { _, _, _ -> },
     onNavigateToDetail: (vodId: String, sourceKey: String) -> Unit = { _, _ -> },
     onBack: () -> Unit = {}
@@ -52,308 +51,185 @@ fun VideoDetailScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    val currentSite by homeViewModel.currentSite.collectAsState()
-    val sites by homeViewModel.sites.collectAsState()
-
     var isContentExpanded by remember { mutableStateOf(false) }
+    var lastPlayedIndex by remember { mutableStateOf(0) }
 
-    // Resolve API URL from sites
-    val apiUrl = remember(sourceKey, sites) {
-        sites.find { it.key == sourceKey }?.apiUrl
-            ?: CmsApiSite.defaultSites.find { it.key == sourceKey }?.apiUrl
-            ?: ""
-    }
+    LaunchedEffect(vodId, sourceKey) { viewModel.loadDetail(vodId, sourceKey) }
 
-    // Load detail on first composition
-    LaunchedEffect(vodId, sourceKey) {
-        viewModel.loadDetail(vodId, sourceKey, apiUrl)
-    }
-
-    // Load related videos when detail is available
-    LaunchedEffect(detail) {
-        val d = detail
-        if (d != null) {
-            viewModel.loadRelated(apiUrl, d.typeId, d.vodId)
-        }
-    }
+    val d = detail
+    val episodes = d?.playSources?.getOrNull(selectedSourceIndex)?.episodes.orEmpty()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("\u5f71\u7247\u8be6\u60c5") },
+                title = {
+                    Text(
+                        text = d?.vodName ?: "影片详情",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.toggleFavorite() }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                            contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                            tint = if (isFavorite) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (episodes.isNotEmpty()) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    modifier = Modifier.navigationBarsPadding()
+                ) {
+                    Button(
+                        onClick = {
+                            val index = lastPlayedIndex.coerceIn(0, episodes.lastIndex)
+                            playEpisode(d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (episodes.size > 1) {
+                                "播放 ${episodes.getOrNull(lastPlayedIndex)?.name ?: "第 1 集"}"
+                            } else {
+                                "立即播放"
+                            },
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             when {
-                isLoading && detail == null -> LoadingScreen()
-                error != null && detail == null -> ErrorContent(
-                    message = error ?: "Unknown error",
-                    onRetry = { viewModel.loadDetail(vodId, sourceKey, apiUrl) }
+                isLoading && d == null -> LoadingScreen()
+
+                error != null && d == null -> ErrorContent(
+                    message = error.orEmpty(),
+                    onRetry = { viewModel.retry(vodId, sourceKey) },
+                    title = "无法打开这部影片"
                 )
-                detail != null -> {
-                    val d = detail!!
-                    val sources = d.playSources
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp)
-                    ) {
-                        // Top: Cover + Basic info
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            AsyncImage(
-                                model = d.vodPic,
-                                contentDescription = d.vodName,
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(170.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = d.vodName,
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                val typeName = d.typeName
-                                if (typeName != null && typeName.isNotEmpty()) {
-                                    InfoChip(icon = Icons.Filled.Category, text = typeName)
-                                }
-                                val year = d.vodYear
-                                if (year != null && year.isNotEmpty()) {
-                                    InfoChip(icon = Icons.Filled.CalendarToday, text = year)
-                                }
-                                val area = d.vodArea
-                                if (area != null && area.isNotEmpty()) {
-                                    InfoChip(icon = Icons.Filled.Public, text = area)
-                                }
-                                val remarks = d.vodRemarks
-                                if (remarks != null && remarks.isNotEmpty()) {
-                                    InfoChip(
-                                        icon = Icons.Filled.Info,
-                                        text = remarks,
-                                        color = Color(0xFFFF9800)
-                                    )
-                                }
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                d != null -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 12.dp, bottom = 24.dp)
+                ) {
+                    Header(detail = d)
 
-                        // Description (expandable)
-                        val descText = d.vodContent
-                            ?.replace(Regex("<[^>]*>"), "")
-                            ?.trim()
-                        if (descText != null && descText.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "\u7b80\u4ecb",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = FontWeight.W600
-                                    )
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                TextButton(
-                                    onClick = { isContentExpanded = !isContentExpanded }
-                                ) {
-                                    Text(
-                                        if (isContentExpanded) "\u6536\u8d77" else "\u5c55\u5f00",
-                                        fontSize = 12.sp
-                                    )
-                                    Icon(
-                                        imageVector = if (isContentExpanded)
-                                            Icons.Filled.ExpandLess
-                                        else Icons.Filled.ExpandMore,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            AnimatedVisibility(visible = !isContentExpanded) {
-                                Text(
-                                    text = descText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                    lineHeight = 18.sp
+                    Spacer(Modifier.height(18.dp))
+
+                    val descText = d.vodContent?.replace(Regex("<[^>]*>"), "")?.trim()
+                    if (!descText.isNullOrEmpty()) {
+                        SectionTitle("简介") {
+                            TextButton(onClick = { isContentExpanded = !isContentExpanded }) {
+                                Text(if (isContentExpanded) "收起" else "展开", fontSize = 12.sp)
+                                Icon(
+                                    imageVector = if (isContentExpanded) Icons.Filled.ExpandLess
+                                    else Icons.Filled.ExpandMore,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
-                            AnimatedVisibility(visible = isContentExpanded) {
-                                Text(
-                                    text = descText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
+                        Text(
+                            text = descText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 19.sp,
+                            maxLines = if (isContentExpanded) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(18.dp))
+                    }
 
-                        // Actor
-                        val actor = d.vodActor
-                        if (actor != null && actor.isNotEmpty()) {
-                            Text(
-                                "\u6f14\u5458",
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.W500
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = actor,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                        }
+                    d.vodActor?.takeIf { it.isNotEmpty() }?.let { actor ->
+                        MetaBlock("演员", actor, maxLines = 2)
+                    }
+                    d.vodDirector?.takeIf { it.isNotEmpty() }?.let { director ->
+                        MetaBlock("导演", director, maxLines = 1)
+                    }
 
-                        // Director
-                        val director = d.vodDirector
-                        if (director != null && director.isNotEmpty()) {
-                            Text(
-                                "\u5bfc\u6f14",
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.W500
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = director,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
+                    if (d.playSources.isNotEmpty()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(14.dp))
 
-                        // Play sources + Episodes
-                        if (sources.isNotEmpty()) {
-                            HorizontalDivider()
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            if (sources.size > 1) {
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    for (idx in sources.indices) {
-                                        item {
-                                            val source = sources[idx]
-                                            FilterChip(
-                                                selected = selectedSourceIndex == idx,
-                                                onClick = { viewModel.selectSource(idx) },
-                                                label = {
-                                                    Text(source.name, fontSize = 12.sp)
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-
-                            val currentEpisodes = sources[selectedSourceIndex].episodes
-                            Text(
-                                "\u9009\u96c6 (${currentEpisodes.size})",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.W600
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Episodes as wrapping chips
-                            FlowRowCompat(
-                                episodes = currentEpisodes,
-                                onEpisodeClick = { epIndex ->
-                                    val ep = currentEpisodes[epIndex]
-                                    onNavigateToPlayer(ep.url, ep.name, epIndex)
-                                }
-                            )
-                        }
-
-                        if (sources.isEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Filled.PlayCircle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        "\u6682\u65e0\u64ad\u653e\u6e90",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        // Related videos
-                        if (relatedVideos.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider()
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "\u76f8\u5173\u63a8\u8350",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.W600
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(relatedVideos) { item ->
-                                    RelatedVideoCard(
-                                        item = item,
+                        if (d.playSources.size > 1) {
+                            SectionTitle("播放线路")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(d.playSources.indices.toList()) { idx ->
+                                    val selected = selectedSourceIndex == idx
+                                    FilterChip(
+                                        selected = selected,
                                         onClick = {
-                                            onNavigateToDetail(
-                                                item.vodId,
-                                                item.sourceKey ?: sourceKey
-                                            )
-                                        }
+                                            viewModel.selectSource(idx)
+                                            lastPlayedIndex = 0
+                                        },
+                                        label = { Text(d.playSources[idx].name, fontSize = 12.sp) },
+                                        shape = RoundedCornerShape(8.dp)
                                     )
                                 }
                             }
+                            Spacer(Modifier.height(14.dp))
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        SectionTitle("选集 · ${episodes.size}")
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            episodes.forEachIndexed { index, episode ->
+                                EpisodeChip(
+                                    episode = episode,
+                                    selected = index == lastPlayedIndex,
+                                    onClick = {
+                                        lastPlayedIndex = index
+                                        playEpisode(d, selectedSourceIndex, index, sessionStore, onNavigateToPlayer)
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(Modifier.height(20.dp))
+                        EmptyPlaySourceHint()
+                    }
+
+                    if (relatedVideos.isNotEmpty()) {
+                        Spacer(Modifier.height(22.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(14.dp))
+                        SectionTitle("相关推荐")
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(relatedVideos, key = { it.vodId }) { item ->
+                                RelatedVideoCard(
+                                    item = item,
+                                    onClick = { onNavigateToDetail(item.vodId, item.sourceKey ?: sourceKey) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -361,91 +237,195 @@ fun VideoDetailScreen(
     }
 }
 
-// ============================================================
-// FlowRow compatibility wrapper using Column + Row
-// ============================================================
+private fun playEpisode(
+    detail: VideoDetail?,
+    sourceIndex: Int,
+    episodeIndex: Int,
+    sessionStore: PlaybackSessionStore,
+    onNavigateToPlayer: (url: String, title: String, index: Int) -> Unit
+) {
+    val d = detail ?: return
+    val episode = d.playSources.getOrNull(sourceIndex)?.episodes?.getOrNull(episodeIndex) ?: return
+    // 先把整份剧集列表交给会话仓库，播放页才能支持选集 / 上下集 / 失败换线
+    sessionStore.start(d, sourceIndex, episodeIndex)
+    onNavigateToPlayer(episode.url, episode.name, episodeIndex)
+}
+
+// ============================================================================
+// 子组件
+// ============================================================================
 
 @Composable
-private fun FlowRowCompat(
-    episodes: List<VideoEpisode>,
-    onEpisodeClick: (Int) -> Unit
-) {
-    val columns = 4
-    val rows = (episodes.size + columns - 1) / columns
-    for (row in 0 until rows) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (col in 0 until columns) {
-                val index = row * columns + col
-                if (index < episodes.size) {
-                    val ep = episodes[index]
-                    FilterChip(
-                        selected = false,
-                        onClick = { onEpisodeClick(index) },
-                        label = {
-                            Text(
-                                text = ep.name,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
+private fun Header(detail: VideoDetail) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        AsyncImage(
+            model = detail.vodPic,
+            contentDescription = detail.vodName,
+            modifier = Modifier
+                .width(112.dp)
+                .height(158.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = detail.vodName,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(8.dp))
+
+            val chips = listOfNotNull(
+                detail.typeName?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.Category to it },
+                detail.vodYear?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.CalendarToday to it },
+                detail.vodArea?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.Public to it },
+            )
+            chips.forEach { (icon, text) -> InfoChip(icon, text) }
+
+            detail.vodRemarks?.takeIf { it.isNotEmpty() }?.let { remarks ->
+                Spacer(Modifier.height(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = remarks,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
-// ============================================================
-// Info Chip
-// ============================================================
+@Composable
+private fun SectionTitle(title: String, trailing: (@Composable () -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.weight(1f))
+        trailing?.invoke()
+    }
+}
 
 @Composable
-private fun InfoChip(
-    icon: ImageVector,
-    text: String,
-    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun MetaBlock(label: String, value: String, maxLines: Int) {
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun EpisodeChip(
+    episode: VideoEpisode,
+    selected: Boolean,
+    onClick: () -> Unit
 ) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.height(34.dp)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = episode.name,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyPlaySourceHint() {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Filled.PlayCircle,
+                contentDescription = null,
+                modifier = Modifier.size(44.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "这个源没有提供播放地址",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "换一个数据源再试试",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoChip(icon: ImageVector, text: String) {
     Row(
-        modifier = Modifier.padding(bottom = 4.dp),
+        modifier = Modifier.padding(bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(14.dp),
-            tint = color
+            modifier = Modifier.size(13.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(Modifier.width(5.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = color,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-// ============================================================
-// Related Video Card
-// ============================================================
-
 @Composable
-private fun RelatedVideoCard(
-    item: VideoItem,
-    onClick: () -> Unit
-) {
+private fun RelatedVideoCard(item: VideoItem, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(100.dp)
+            .width(104.dp)
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
@@ -453,11 +433,12 @@ private fun RelatedVideoCard(
             contentDescription = item.vodName,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(130.dp)
-                .clip(RoundedCornerShape(6.dp)),
+                .height(138.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentScale = ContentScale.Crop
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             text = item.vodName,
             style = MaterialTheme.typography.labelSmall,
