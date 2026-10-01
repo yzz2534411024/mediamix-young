@@ -57,6 +57,23 @@ actual class JavaBridgeManager private constructor() {
     actual val isInitialized: Boolean get() = classLoader != null
 
     /**
+     * 最近一次调用失败的原因 —— 诊断页探测报告直接读它。
+     *
+     * `invokeMethod` 把异常折叠成 `code=-1` 的 Map，映射层只看到「空结果」，
+     * 「站点没数据」与「反射调用炸了」在界面上无法区分。这里保留原文，
+     * 让排查不必依赖真机 logcat。
+     */
+    @Volatile
+    private var lastFailure: String = ""
+
+    actual val lastErrorMessage: String get() = lastFailure
+
+    private fun fail(message: String): Map<String, Any?> {
+        lastFailure = message
+        return mapOf<String, Any?>("code" to -1, "msg" to message)
+    }
+
+    /**
      * 取壳的 `Init` 实例，必要时创建并调用 `init(Context)`。
      *
      * 幂等：同一进程内只会真正 `newInstance()` 一次。
@@ -141,37 +158,37 @@ actual class JavaBridgeManager private constructor() {
             runCatching {
                 val initInstance = ensureShellInit(classLoader!!, ctx)
 
-                // 5. 全局解密等待（只做一次，所有站点共享）：
-                //    壳解密在后台线程异步进行，未完成时 getSpider 拿不到实例。
-                //    用壳 dex 里已知存在的站点类当探针轮询，最多约 15 秒；
-                //    超时也继续（让具体站点调用时自行报错，不阻塞整个源）。
-                val getSpider = initInstance.javaClass.getMethod("getSpider", String::class.java)
+                // 5. 全局探针（只做一次，所有站点共享），两级定位：
+                //    L1: loadClass(Init) —— 壳 dex 本体是否被 ART 成功打开（不依赖任何外部类）；
+                //    L2: loadClass(DouDouGuard) —— Guard 类，依赖宿主的 Spider 基类可解析。
+                //    L1 失败 = dex/文件层问题；L1 成功 L2 失败 = 契约/依赖问题。
+                var probeOk = false
+                var probeErr: Throwable? = null
                 var backoffMs = 1500L
-                var decrypted = false
-                repeat(5) { attempt ->
-                    if (!decrypted) {
-                        val probe =
-                            try {
-                                getSpider.invoke(initInstance, PROBE_SITE_KEY)
-                            } catch (e: kotlinx.coroutines.CancellationException) {
-                                throw e
-                            } catch (_: Throwable) {
-                                null
-                            }
-                        if (probe != null) {
-                            decrypted = true
-                            logger.i { "壳解密完成（第 ${attempt + 1} 轮探针命中）" }
+                repeat(4) { attempt ->
+                    try {
+                        classLoader!!.loadClass(SHELL_INIT_CLASS)
+                        logger.i { "壳探针 L1 成功（Init 可加载，dex 打开正常）" }
+                        try {
+                            classLoader!!.loadClass(PROBE_CLASS_NAME)
+                            probeOk = true
+                            logger.i { "壳探针 L2 成功（Guard 类可加载）" }
+                        } catch (e: Throwable) {
+                            probeErr = e
+                            logger.e { "壳探针 L2 失败（dex 正常，Guard 类解析失败）: ${e.javaClass.simpleName}: ${e.message}" }
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        probeErr = e
+                        logger.e { "壳探针 L1 失败（dex 层）: ${e.javaClass.simpleName}: ${e.message}" }
                     }
-                    // 命中后不再继续 sleep —— 旧写法用 return@repeat 只跳出「本轮」，
-                    // 仍会把后续 4 轮间隔全部睡完。
-                    if (!decrypted) {
-                        kotlinx.coroutines.delay(backoffMs)
-                        backoffMs *= 2
-                    }
+                    if (probeOk) return@repeat
+                    kotlinx.coroutines.delay(backoffMs)
+                    backoffMs *= 2
                 }
-                if (!decrypted) {
-                    logger.w { "壳解密探针未命中（可能仍在解密或站点 key 形式不同，继续加载流程）" }
+                if (!probeOk) {
+                    logger.e { "壳探针 4 轮未命中: ${probeErr?.javaClass?.simpleName}: ${probeErr?.message}" }
                 }
             }.onFailure { logger.w { "壳 Init 触发失败（非致命，部分壳无此入口）: ${it.message}" } }
 
@@ -188,57 +205,63 @@ actual class JavaBridgeManager private constructor() {
         method: String,
         args: Map<String, Any?>,
     ): Map<String, Any?> {
-        val loader = classLoader ?: return mapOf<String, Any?>("code" to -1, "msg" to "未初始化，请先调用 loadSpiderJar")
-        val ctx = appContext() ?: return mapOf<String, Any?>("code" to -1, "msg" to "缺少 Context")
+        val loader = classLoader ?: return fail("未初始化，请先调用 loadSpiderJar（$spiderKey.$method）")
+        val ctx = appContext() ?: return fail("缺少 Context（$spiderKey.$method）")
 
-        return try {
-            // 饭太硬壳的公开 API：Init.getSpider(String) 直接返回蜘蛛实例（native 层管理）。
-            // 走壳入口而不是自己 loadClass —— Guard 类的定义在解密产物里，直接 loadClass 会失败。
-            val initInstance = ensureShellInit(loader, ctx)
+        // ⚠️ 必须在 IO 线程执行：TVBox 蜘蛛方法是**阻塞式同步网络调用**（内置 okhttp
+        // execute），跑在主线程会抛 NetworkOnMainThreadException —— 实测壳会吞掉
+        // 该异常返回空串，表现为「调用成功但没有数据」。
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+            // ── 主路线（TVBox 原版方式）────────────────────────────
+            // Guard 类定义在壳 dex 里（class_def 表 75 类全在），宿主提供
+            // com.github.catvod.crawler.Spider 基类后 loadClass 即成功；
+            // 类的构造/方法调用时才触发 DexNative 解密。
+            val directClass = resolveGuardClass(loader, spiderKey)
 
-            // getSpider 的 key 形式做两个候选：csp_ 原文 / 去前缀
-            val keyCandidates =
-                listOf(spiderKey, spiderKey.removePrefix("csp_")).filter { it.isNotBlank() }.distinct()
-            val getSpider = initInstance.javaClass.getMethod("getSpider", String::class.java)
+            val sCls: Class<*>
+            val spiderObj: Any
 
-            var lastErr: Throwable? = null
-            var spiderObj: Any? = null
+            if (directClass != null) {
+                logger.d { "蜘蛛类直接加载成功: ${directClass.name}" }
+                sCls = directClass
+                spiderObj = loadedSpiders.getOrPut(spiderKey) { sCls.getDeclaredConstructor().newInstance() }
+            } else {
+                // ── 后备路线：壳 API Init.getSpider(key)（native 层管理实例）──
+                val initInstance = ensureShellInit(loader, ctx)
+                val keyCandidates =
+                    listOf(spiderKey, spiderKey.removePrefix("csp_")).filter { it.isNotBlank() }.distinct()
+                val getSpider = initInstance.javaClass.getMethod("getSpider", String::class.java)
 
-            // 解密等待已集中在 loadSpiderJar（全局探针）；这里只做短重试兜底。
-            // ⚠️ 重试条件是「整轮候选都没命中」—— 旧实现在内层把两个候选**无条件都问一遍**，
-            // 于是后一个候选返回 null 时会覆盖掉前一个已经拿到手的实例，
-            // 明明成功也会被判定成「未取到实例」。pickSpiderInstance 用
-            // firstNotNullOfOrNull 从结构上保证「取到即停」。
-            for (attempt in 0..2) {
-                if (attempt > 0) kotlinx.coroutines.delay(attempt * 2000L)
-                spiderObj =
-                    pickSpiderInstance(keyCandidates) { key ->
-                        try {
-                            getSpider.invoke(initInstance, key)
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: InvocationTargetException) {
-                            lastErr = e.targetException ?: e
-                            null
-                        } catch (e: Throwable) {
-                            lastErr = e
-                            null
+                var lastErr: Throwable? = null
+                var spiderObj2: Any? = null
+                for (attempt in 0..2) {
+                    if (attempt > 0) kotlinx.coroutines.delay(attempt * 2000L)
+                    spiderObj2 =
+                        pickSpiderInstance(keyCandidates) { key ->
+                            try {
+                                getSpider.invoke(initInstance, key)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: InvocationTargetException) {
+                                lastErr = e.targetException ?: e
+                                null
+                            } catch (e: Throwable) {
+                                lastErr = e
+                                null
+                            }
                         }
+                    if (spiderObj2 != null) {
+                        if (attempt > 0) logger.i { "getSpider 在第 ${attempt + 1} 轮成功" }
+                        break
                     }
-                if (spiderObj != null) {
-                    if (attempt > 0) logger.i { "getSpider 在第 ${attempt + 1} 轮成功" }
-                    break
                 }
+                if (spiderObj2 == null) {
+                    return@withContext fail("getSpider 未取到蜘蛛实例: $spiderKey（${lastErr?.message ?: "壳返回 null"}）")
+                }
+                sCls = spiderObj2.javaClass
+                spiderObj = spiderObj2
             }
-
-            if (spiderObj == null) {
-                return mapOf<String, Any?>(
-                    "code" to -1,
-                    "msg" to "getSpider 未取到蜘蛛实例: $spiderKey（${lastErr?.message ?: "壳未解密"}）",
-                )
-            }
-
-            val sCls = spiderObj.javaClass
 
             // 站点级初始化：init(Context, ext) —— ext 是站点级配置（TVBox 约定）。
             // 每个站点只做一次；双参签名失败时回退单参 init(Context)。
@@ -259,10 +282,11 @@ actual class JavaBridgeManager private constructor() {
 
             val prepared = prepareInvoke(method, args)
             if (prepared == null) {
-                return mapOf<String, Any?>("code" to -1, "msg" to "未知蜘蛛方法: $method")
+                return@withContext fail("未知蜘蛛方法: $method（$spiderKey）")
             }
             val (paramTypes, values) = prepared
             val m = findMethod(sCls, method, paramTypes)
+            lastFailure = ""
             val raw = m.invoke(spiderObj, *values.toTypedArray())
             val result = convertResult(raw)
             if (result["code"] != -1) {
@@ -271,31 +295,52 @@ actual class JavaBridgeManager private constructor() {
                 //   list 缺失或长度为 0 → 站点自身没吐数据，不是 app 的缺陷。
                 // 原文前若干字符用于确认返回的是 JSON 还是别的形态（少数蜘蛛返回纯文本）。
                 val listSize = (result["list"] as? List<*>)?.size
+                val firstEntry = (result["list"] as? List<*>)?.firstOrNull()
                 val preview =
                     (raw as? String)?.take(RAW_PREVIEW_CHARS)
                         ?: raw?.javaClass?.simpleName
                         ?: "null"
                 logger.i {
                     "蜘蛛方法成功: $spiderKey.$method → keys=${result.keys.take(8)} " +
-                        "list=${listSize ?: "-"} | 原文: $preview"
+                        "list=${listSize ?: "-"} | 首条: $firstEntry | 原文: $preview"
                 }
+            } else {
+                logger.w { "蜘蛛方法返回错误: $spiderKey.$method → ${result["msg"]}" }
             }
             result
         } catch (e: ClassNotFoundException) {
             logger.e(e) { "蜘蛛类未找到: $spiderKey" }
-            mapOf<String, Any?>("code" to -1, "msg" to "蜘蛛类未找到: ${e.message}")
+            fail("蜘蛛类未找到: ${e.message}")
         } catch (e: NoSuchMethodException) {
             logger.e(e) { "蜘蛛方法不存在: $spiderKey.$method" }
-            mapOf<String, Any?>("code" to -1, "msg" to "方法不存在: $method")
+            // 把类上真实的同名方法列出来 —— 签名不匹配时这是唯一的线索
+            val available =
+                runCatching {
+                    classLoader
+                        ?.loadClass(spiderKey)
+                        ?.methods
+                        ?.filter { it.name == method }
+                        ?.joinToString(", ") { "${it.name}(${it.parameterTypes.joinToString { p -> p.simpleName }})" }
+                }.getOrNull()
+            fail(
+                "方法不存在: $method" +
+                    if (available.isNullOrBlank()) "" else "；类上同名方法: $available",
+            )
         } catch (e: InvocationTargetException) {
+            val cause = e.targetException ?: e
             logger.e(e) { "蜘蛛方法执行异常: $spiderKey.$method" }
-            mapOf<String, Any?>("code" to -1, "msg" to "方法执行异常: ${e.targetException?.message ?: e.message}")
+            fail("方法执行异常: $method → ${cause.javaClass.name}: ${cause.message}")
+        } catch (e: IllegalArgumentException) {
+            // 参数类型对不上（例如把装箱 Boolean 传给基本类型参数）
+            logger.e(e) { "蜘蛛方法参数不匹配: $spiderKey.$method" }
+            fail("参数不匹配: $method(${args.entries.joinToString { "${it.key}=${it.value?.javaClass?.simpleName}" }}) → ${e.message}")
         } catch (e: kotlinx.coroutines.CancellationException) {
             // 协程取消必须向上传播，不能吞掉 —— 否则外层 loadJob 取消语义失效
             throw e
         } catch (e: Exception) {
             logger.e(e) { "调用蜘蛛方法失败: $spiderKey.$method" }
-            mapOf<String, Any?>("code" to -1, "msg" to (e.message ?: "未知错误"))
+            fail("调用失败: $method → ${e.javaClass.name}: ${e.message ?: "未知错误"}")
+        }
         }
     }
 
@@ -313,6 +358,37 @@ actual class JavaBridgeManager private constructor() {
     }
 
     // ==================== 内部辅助 ====================
+
+    /**
+     * 直接 loadClass Guard 类（TVBox 原版方式）。
+     *
+     * 候选序：全限定类名 → `com.github.catvod.spider.X` → `com.github.catvod.crawler.SpiderX`。
+     * 依赖宿主提供 `com.github.catvod.crawler.Spider` 基类（见 Spider.java）。
+     */
+    private fun resolveGuardClass(
+        loader: DexClassLoader,
+        spiderKey: String,
+    ): Class<*>? {
+        val candidates =
+            buildList {
+                if (spiderKey.contains('.')) {
+                    add(spiderKey)
+                } else {
+                    val simple = spiderKey.removePrefix("csp_")
+                    add("com.github.catvod.spider.$simple")
+                    add("com.github.catvod.crawler.Spider$simple")
+                }
+            }
+        for (name in candidates) {
+            try {
+                return loader.loadClass(name)
+            } catch (e: Throwable) {
+                lastFailure = "$name → ${e.javaClass.simpleName}: ${e.message}"
+            }
+        }
+        logger.w { "Guard 类 loadClass 失败: $lastFailure" }
+        return null
+    }
 
     /**
      * 按 TVBox 标准签名准备反射调用。
@@ -420,6 +496,9 @@ actual class JavaBridgeManager private constructor() {
     actual companion object {
         /** 饭太硬加固壳的初始化入口（实测壳 dex 中存在 `com.github.catvod.spider.Init`）。 */
         private const val SHELL_INIT_CLASS = "com.github.catvod.spider.Init"
+
+        /** 解密探针用的 Guard 类：壳 dex class_def 表确认真实定义（对应配置 csp_DouDouGuard）。 */
+        private const val PROBE_CLASS_NAME = "com.github.catvod.spider.DouDouGuard"
 
         /** 解密探针用的站点 key：壳 dex 字符串表里确认存在 DouDouGuard（对应配置 csp_DouDouGuard）。 */
         private const val PROBE_SITE_KEY = "csp_DouDouGuard"

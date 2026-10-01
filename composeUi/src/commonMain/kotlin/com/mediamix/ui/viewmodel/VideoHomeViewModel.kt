@@ -210,8 +210,11 @@ class VideoHomeViewModel(
                     logger.w { "Load site classes failed: ${e.message}" }
                     _notice.value = "「${node.name}」的站内分类读取失败：${e.message ?: "未知错误"}"
                 }
+                // 站内分类和首页推荐共用同一个 job 顺序执行：
+                // 之前分成两个 job 会互相 cancel —— 分类刚拿到数据就被取消，
+                // 影片 job 的重复调用又被壳吞掉，表现为「数据回来但界面是空的」。
+                loadVideosInternal(site)
             }
-        loadVideos()
     }
 
     /** 点击二级目录里的站内分类 */
@@ -303,7 +306,9 @@ class VideoHomeViewModel(
     ) {
         val tid = _selectedClass.value?.typeId
         val result = gateway.loadList(site = site, siteKey = node.key, tid = tid, page = page)
-        val incoming = result.list.filter { it.vodId.isNotEmpty() }
+        // 豆瓣系源（豆豆等）的字段名可能与标准 vod_* 有出入 —— vodId 为空的条目
+        // 只要名字在就保留，避免整列表被过滤光。
+        val incoming = result.list.filter { it.vodId.isNotEmpty() || it.vodName.isNotEmpty() }
         _videos.value = if (append) mergeVideoItems(_videos.value + incoming) else mergeVideoItems(incoming)
         currentPage = result.page.coerceAtLeast(page)
         pageCount = result.pageCount.coerceAtLeast(1)
@@ -391,6 +396,11 @@ class VideoHomeViewModel(
 
     private fun mergeVideoItems(items: List<VideoItem>): List<VideoItem> {
         val seen = mutableSetOf<String>()
-        return items.filter { it.vodId.isNotEmpty() && seen.add(it.vodId) }
+        return items.filter {
+            // 豆瓣系源（豆豆等）不返回 vod_id —— 用「id，或 名字+海报」做去重键，
+            // 不能因为 id 为空就把整列表丢光（曾导致豆豆 20 条全灭、列表恒空）
+            val dedupeKey = it.vodId.ifEmpty { "${it.vodName}|${it.vodPic}" }
+            dedupeKey.isNotEmpty() && seen.add(dedupeKey)
+        }
     }
 }

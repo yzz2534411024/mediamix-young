@@ -35,3 +35,9 @@
 -keep class * implements java.io.Serializable { *; }
 -keepattributes Signature
 -keepattributes Exceptions
+
+# TVBox 蜘蛛契约类：spider.jar（dex）里的 csp_* 类 extends 本基类，
+# 由 DexClassLoader 按名解析，裁剪或改名都会导致壳类加载失败
+-keep class com.github.catvod.crawler.** { *; }
+-keep class com.github.catvod.spider.** { *; }
+-dontwarn com.github.catvod.**

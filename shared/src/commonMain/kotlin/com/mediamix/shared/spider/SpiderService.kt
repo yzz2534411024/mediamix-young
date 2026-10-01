@@ -278,6 +278,7 @@ class SpiderService(
         add: (String) -> Unit,
     ): String? {
         add("---- 站点 ${spider.key}（${spider.name}）----")
+        val bridge = JavaBridgeManager.instance
 
         val home =
             try {
@@ -287,6 +288,12 @@ class SpiderService(
                 return null
             }
         add("  homeContent: class=${home.categories.size} list=${home.recommend.size}")
+        if (home.categories.isEmpty() && home.recommend.isEmpty()) {
+            // 空结果有两种完全不同的原因：站点真没数据，或反射调用失败被折叠成
+            // code=-1。桥会保留最后一次失败原因，这里直接摊开 —— 排查不必再依赖 logcat。
+            val reason = bridge.lastErrorMessage
+            add("  ⚠ 空结果，桥侧原因: ${reason.ifBlank { "（无，壳正常返回了空数据）" }}")
+        }
 
         probeCategory(spider, home.categories.firstOrNull()?.typeId, add)
 

@@ -17,6 +17,16 @@ expect class JavaBridgeManager {
     /** 是否已初始化 */
     val isInitialized: Boolean
 
+    /**
+     * 最近一次调用失败的原因（未失败为空串）。
+     *
+     * **为什么需要它**：`invokeMethod` 把失败折叠成 `code=-1` 的 Map，
+     * 而映射层只会看到「空结果」—— 于是「站点没数据」和「反射调用抛异常」
+     * 在界面上长得一模一样。诊断页的探测报告直接读这个字段，
+     * 就不必再依赖真机 logcat（部分 OEM 的日志缓冲并不可靠）。
+     */
+    val lastErrorMessage: String
+
     /** 加载蜘蛛 JAR */
     suspend fun loadSpiderJar(jarPath: String): Boolean
 

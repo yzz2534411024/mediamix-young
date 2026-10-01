@@ -94,6 +94,11 @@ class JavaBridgeSpider(
             (map["list"] as? List<*>)
                 ?.mapNotNull { entry -> videoItemOf(entry) }
                 .orEmpty()
+        // 定位「壳返回了 list 但 UI 没数据」：原始条数 vs 映射后条数
+        val rawListSize = (map["list"] as? List<*>)?.size ?: -1
+        co.touchlab.kermit.Logger.withTag("JavaBridgeSpider").i {
+            "homeContent 映射: 原始 $rawListSize 条 → 映射后 ${recommend.size} 条（$key）"
+        }
 
         return SpiderHomeResult(categories = categories, recommend = recommend)
     }

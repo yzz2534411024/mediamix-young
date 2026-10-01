@@ -460,7 +460,12 @@ private fun HomeContent(
                     }
                 }
 
-                gridItems(videos, key = { it.vodId }) { item ->
+                // 豆瓣系源（豆豆等）不返回 vod_id —— key 用「id，或 名字+海报」兜底，
+                // 否则空 key 全部重复直接崩 LazyGrid（实测 IllegalArgumentException: Key ""）
+                gridItems(
+                    videos,
+                    key = { "${it.vodId}|${it.vodName}|${it.vodPic}" },
+                ) { item ->
                     VideoGridCard(item = item, onClick = { onOpenDetail(item) })
                 }
 
