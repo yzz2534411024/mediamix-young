@@ -46,6 +46,7 @@ fun DebugScreen(
     val metrics by viewModel.metrics.collectAsState()
     val cacheStats by viewModel.cacheStats.collectAsState()
     val sources by viewModel.sources.collectAsState()
+    val bridge by viewModel.bridge.collectAsState()
 
     // 只在页面可见时轮询
     DisposableEffect(Unit) {
@@ -92,6 +93,11 @@ fun DebugScreen(
             } else {
                 items(cacheStats.size) { i -> EntryRow(cacheStats[i]) }
             }
+
+            item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
+
+            item { SectionTitle("TVBox 蜘蛛桥") }
+            items(bridge.size) { i -> EntryRow(bridge[i]) }
 
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 

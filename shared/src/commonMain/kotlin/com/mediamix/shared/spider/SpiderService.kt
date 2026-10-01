@@ -137,6 +137,20 @@ class SpiderService(
     /** 获取所有蜘蛛 */
     val allSpiders: List<SpiderAdapter> get() = registry.all
 
+    /**
+     * 蜘蛛包（dex/jar）加载状态 —— 诊断页用。
+     *
+     * 排查「TVBox 源为什么不可用」时的关键观测点：
+     * - 包未加载 → csp_* jar 蜘蛛全部建不出来
+     * - 已加载但站点仍空 → 类名解析/壳解密/反射调用失败，看 logcat tag=JavaBridgeManager
+     */
+    val spiderBridgeStatus: String
+        get() {
+            val jm = registry.javaBridgeManager
+            val jarLoaded = jm?.isInitialized == true
+            return "蜘蛛包=${if (jarLoaded) "已加载" else "未加载"} · 已建蜘蛛 ${allSpiders.size} 个"
+        }
+
     /** 通过蜘蛛获取首页内容 */
     suspend fun fetchHome(
         spider: SpiderAdapter,

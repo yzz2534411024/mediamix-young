@@ -24,11 +24,19 @@ class MetricsEngineImpl : MetricsEngine {
      *
      * 此前该开关只被写进偏好存储、没有任何消费方，属于「存了却不生效」的假功能。
      */
-    private var enabled = true
+    /**
+     * 「使用数据分享」开关 —— 只控制**对外上报/分享**的语义。
+     *
+     * ⚠️ 此前它同时 gate 了本地记录（startSession/recordEvent 直接 return），
+     * 导致「使用数据分享」默认关闭时，播放诊断页永远显示「没有活动的播放会话」
+     * —— 本地诊断是用户看自己的数据，不该被隐私开关拦住。
+     * 现在改为：本地记录恒开，该开关仅保留接口语义（未来接入上报时用）。
+     */
+    private var sharingEnabled = true
 
     override fun setEnabled(enabled: Boolean) {
-        this.enabled = enabled
-        logger.i { "Metrics collection ${if (enabled) "enabled" else "disabled"}" }
+        sharingEnabled = enabled
+        logger.i { "Metrics sharing ${if (enabled) "enabled" else "disabled"}（本地诊断记录不受影响）" }
     }
 
     // ========== First frame ==========
@@ -57,7 +65,6 @@ class MetricsEngineImpl : MetricsEngine {
     // ========================================================================
 
     override fun startSession(videoId: String) {
-        if (!enabled) return
         _hasRecordedFirstFrame = false
         hasActiveSession = true
         sessionVideoId = videoId
@@ -118,7 +125,6 @@ class MetricsEngineImpl : MetricsEngine {
         errorMessage: String?,
         avSyncOffsetMs: Int?,
     ) {
-        if (!enabled) return
         eventCounts[event] = (eventCounts[event] ?: 0) + 1
 
         if (errorMessage != null) {

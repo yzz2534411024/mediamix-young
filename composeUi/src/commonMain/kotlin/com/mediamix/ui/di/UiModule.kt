@@ -81,6 +81,7 @@ val uiModule: Module =
                 metricsEngine = get(),
                 videoCacheService = get(),
                 sourceRepository = get(),
+                spiderService = get(),
             )
         }
     }

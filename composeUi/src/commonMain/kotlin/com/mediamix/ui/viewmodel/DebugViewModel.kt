@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.mediamix.shared.cache.VideoCacheService
 import com.mediamix.shared.player.engines.MetricsEngine
+import com.mediamix.shared.spider.SpiderService
 import com.mediamix.ui.source.SourceRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +32,7 @@ class DebugViewModel(
     private val metricsEngine: MetricsEngine,
     private val videoCacheService: VideoCacheService,
     private val sourceRepository: SourceRepository,
+    private val spiderService: SpiderService,
 ) : ViewModel() {
     private val logger = Logger.withTag("DebugViewModel")
 
@@ -42,6 +44,9 @@ class DebugViewModel(
 
     private val _sources = MutableStateFlow<List<DebugEntry>>(emptyList())
     val sources: StateFlow<List<DebugEntry>> = _sources.asStateFlow()
+
+    private val _bridge = MutableStateFlow<List<DebugEntry>>(emptyList())
+    val bridge: StateFlow<List<DebugEntry>> = _bridge.asStateFlow()
 
     private var pollingJob: Job? = null
 
@@ -66,6 +71,7 @@ class DebugViewModel(
         refreshMetrics()
         refreshCache()
         refreshSources()
+        refreshBridge()
     }
 
     private fun refreshMetrics() {
@@ -120,6 +126,24 @@ class DebugViewModel(
                     )
                 }
         _sources.value = entries
+    }
+
+    /**
+     * TVBox 蜘蛛桥状态 —— 排查「饭太硬等 TVBox 源为什么不可用」的首要观测点。
+     */
+    private fun refreshBridge() {
+        _bridge.value =
+            try {
+                listOf(
+                    DebugEntry("蜘蛛桥", spiderService.spiderBridgeStatus),
+                    DebugEntry(
+                        "TVBox 源",
+                        sourceRepository.sites.value.count { it.isTvBox }.toString() + " 个",
+                    ),
+                )
+            } catch (e: Exception) {
+                listOf(DebugEntry("错误", e.message ?: "读取蜘蛛桥状态失败"))
+            }
     }
 
     private fun formatValue(
