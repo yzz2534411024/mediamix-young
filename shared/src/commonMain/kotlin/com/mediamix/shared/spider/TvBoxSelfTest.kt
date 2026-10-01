@@ -91,7 +91,7 @@ class TvBoxSelfTestRunner(
             val expectedMd5 = Regex(""";md5;([0-9a-fA-F]{32})""").find(spiderSpec)?.groupValues?.get(1)
             val realUrl = spiderSpec.substringBefore(";")
             try {
-                val bytes = withTimeout(30_000) { httpClient.get(realUrl).readRawBytes() }
+                val bytes = withTimeout(90_000) { httpClient.get(realUrl).readRawBytes() }
                 val actual = bytes.md5Hex()
                 val md5Ok = expectedMd5 == null || actual.equals(expectedMd5, ignoreCase = true)
                 val zipReport = inspectZip(bytes)

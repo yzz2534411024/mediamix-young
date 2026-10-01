@@ -180,6 +180,42 @@ data class CmsApiSite(
                             "http://www.xn--sss604efuw.top/tv",
                         ),
                 ),
+                // ===== 以下为 2026-10-01 实测可用的同类型 TVBox 源 =====
+                // 判定标准：HTTP 200 + JSON 可解析 + 含非空 sites 与 spider 字段。
+                // **默认不启用**：TVBox 源首次加载需拉配置（8~30 秒），默认全开会让
+                // 首屏白等；在「设置 → 数据源管理」里按需启用即可。
+                CmsApiSite(
+                    key = "laoliubei",
+                    name = "老刘备 (234站)",
+                    apiUrl = "https://raw.liucn.cc/box/m.json",
+                    isBuiltIn = true,
+                    isTvBox = true,
+                    enabled = false,
+                ),
+                CmsApiSite(
+                    key = "wangerxiao",
+                    name = "王二小 (96站·网盘4K)",
+                    apiUrl = "https://9280.kstore.vip/newwex.json",
+                    isBuiltIn = true,
+                    isTvBox = true,
+                    enabled = false,
+                ),
+                CmsApiSite(
+                    key = "xiaohezi",
+                    name = "小盒子 (54站)",
+                    apiUrl = "http://xhztv.top/xhz",
+                    isBuiltIn = true,
+                    isTvBox = true,
+                    enabled = false,
+                ),
+                CmsApiSite(
+                    key = "junlao",
+                    name = "俊佬 (24站)",
+                    apiUrl = "http://home.jundie.top:81/top98.json",
+                    isBuiltIn = true,
+                    isTvBox = true,
+                    enabled = false,
+                ),
             )
 
         /**

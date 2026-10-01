@@ -58,19 +58,29 @@ fun main(args: Array<String>) {
  * 退出码：全部通过 = 0，任一环节失败 = 1。
  */
 private fun runSelfTestCli() {
-    val site = CmsApiSite.defaultSites.firstOrNull { it.isTvBox }
+    val sites = CmsApiSite.defaultSites.filter { it.isTvBox }
     val httpClient = HttpClientFactory.createHttpClient(
-        connectTimeoutSeconds = 8,
-        requestTimeoutSeconds = 20,
+        connectTimeoutSeconds = 10,
+        // 蜘蛛包可能上兆（老刘备 fty.jar 实测 >20s），请求超时给足
+        requestTimeoutSeconds = 60,
     )
     val runner = TvBoxSelfTestRunner(spiderService = SpiderService(), httpClient = httpClient)
-    val results = runBlocking { runner.run(site) }
-    println("=== MediaMix TVBox 接口自检 ===")
-    results.forEach { item ->
-        println("${if (item.ok) "[PASS]" else "[FAIL]"} ${item.name}: ${item.detail}")
+    var failed = 0
+    var total = 0
+    runBlocking {
+        sites.forEach { site ->
+            println()
+            println("########## ${site.name} [${site.key}] ##########")
+            val results = runner.run(site)
+            results.forEach { item ->
+                println("${if (item.ok) "[PASS]" else "[FAIL]"} ${item.name}: ${item.detail}")
+            }
+            total += results.size
+            failed += results.count { !it.ok }
+        }
     }
-    val failed = results.count { !it.ok }
-    println("=== 结果: ${results.size - failed}/${results.size} 通过 ===")
+    println()
+    println("=== 全部 TVBox 源（${sites.size} 个）：$total 项检查，${total - failed} 通过 / $failed 失败 ===")
     if (failed > 0) kotlin.system.exitProcess(1)
 }
 

@@ -95,33 +95,37 @@ fun FavoriteScreen(
                     }
                 }
             else ->
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.padding(padding),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    items(favorites, key = { it.id }) { item ->
-                        Box(
-                            modifier =
-                                Modifier.combinedClickable(
+                // 响应式列数（与首页同规则）：固定 3 列在桌面端卡片会过大
+                BoxWithConstraints(modifier = Modifier.padding(padding)) {
+                    val columns = (maxWidth / 165.dp).toInt().coerceIn(3, 8)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(favorites, key = { it.id }) { item ->
+                            Box(
+                                modifier =
+                                    Modifier.combinedClickable(
+                                        onClick = {
+                                            onNavigateToDetail(item.vodId, item.sourceKey)
+                                        },
+                                        onLongClick = {
+                                            itemToRemove = item
+                                        },
+                                    ),
+                            ) {
+                                VideoCard(
+                                    title = item.vodName,
+                                    coverUrl = item.vodPic,
+                                    subtitle = item.typeName,
                                     onClick = {
                                         onNavigateToDetail(item.vodId, item.sourceKey)
                                     },
-                                    onLongClick = {
-                                        itemToRemove = item
-                                    },
-                                ),
-                        ) {
-                            VideoCard(
-                                title = item.vodName,
-                                coverUrl = item.vodPic,
-                                subtitle = item.typeName,
-                                onClick = {
-                                    onNavigateToDetail(item.vodId, item.sourceKey)
-                                },
-                            )
+                                )
+                            }
                         }
                     }
                 }
