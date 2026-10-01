@@ -71,6 +71,10 @@ actual class PlayerEngine actual constructor() {
         val widMem = Memory(8).apply { setLong(0, wid) }
         mpv.mpv_set_option(h, "wid", MpvLib.MPV_FORMAT_INT64, widMem)
 
+        // ★ 开启 mpv 内部日志（warn 级）：mpv 的报错会在事件循环里转成应用日志。
+        // GUI 启动器没有控制台，这是拿到 mpv 原始报错的唯一途径。
+        mpv.mpv_request_log_messages(h, "warn")
+
         val rc = mpv.mpv_initialize(h)
         if (rc < 0) {
             mpv.mpv_destroy(h)
@@ -620,8 +624,37 @@ actual class PlayerEngine actual constructor() {
                 if (data != null) handlePropertyChange(data)
             }
 
+            MpvLib.MPV_EVENT_LOG_MESSAGE -> {
+                if (data != null) handleLogMessage(data)
+            }
+
             MpvLib.MPV_EVENT_IDLE -> {
                 updateState(PlayerState.IDLE)
+            }
+        }
+    }
+
+    /**
+     * mpv 内部日志（MPV_EVENT_LOG_MESSAGE）。
+     *
+     * 结构 mpv_event_log_message (64-bit):
+     *   offset 0  prefix (char*)
+     *   offset 8  level  (char*)
+     *   offset 16 text   (char*)
+     *   offset 24 log_level (int)
+     *
+     * 播放排查的关键证据链 —— GUI 启动器没有控制台，mpv 的 stderr 抓不到，
+     * 只能靠它把原始报错（vo 失败、解码器缺失、网络错误）送进应用日志。
+     */
+    private fun handleLogMessage(data: Pointer) {
+        runCatching {
+            val prefix = data.getPointer(0)?.getString(0) ?: "mpv"
+            val level = data.getPointer(8)?.getString(0) ?: "?"
+            val text = data.getPointer(16)?.getString(0) ?: return
+            when (level) {
+                "error", "fatal" -> logger.e { "[$prefix/$level] $text" }
+                "warn" -> logger.w { "[$prefix/$level] $text" }
+                else -> logger.i { "[$prefix/$level] $text" }
             }
         }
     }

@@ -24,6 +24,11 @@ import org.koin.core.context.startKoin
 import java.io.File
 
 fun main(args: Array<String>) {
+    // 日志落盘必须在任何输出之前：jpackage 启动器是 GUI 子系统程序，
+    // stdout/stderr 不会进父进程（批处理）的重定向 —— 用户实测
+    // 「日志模式.bat」抓不到任何内容。改为应用自己写文件。
+    installFileLogging(args)
+
     // 命令行自检模式：MediaMix.exe --self-test
     // 跳过 UI/Koin/数据库，独立跑 TVBox 接口自检，结果打印到 stdout —— 供自动化测试。
     if ("--self-test" in args) {
@@ -69,6 +74,43 @@ fun main(args: Array<String>) {
                 App()
             }
         }
+    }
+}
+
+/**
+ * 日志落盘。
+ *
+ * ⚠️ 为什么不能靠 `MediaMix.exe > run-log.txt`：jpackage 生成的启动器是 Windows
+ * **GUI 子系统**程序，没有控制台，stdout 不会流向父进程（批处理）的重定向 ——
+ * 实测用户拿到的 run-log.txt 是空的。因此改为应用自己把 System.out/err 重定向到
+ * 文件，Kermit 的默认 writer（println）与异常堆栈都会随之进去。
+ *
+ * mpv 的原生报错另经 `MPV_EVENT_LOG_MESSAGE` 事件转成 Kermit 日志 ——
+ * GUI 抓不到 mpv 的 stderr，只能走事件（见 MpvPlayerEngine.handleLogMessage）。
+ *
+ * 默认路径 `%USERPROFILE%\mediamix-logs\mediamix-<时间戳>.log`；
+ * 也可用 `--log-file <path>` 指定。
+ */
+private fun installFileLogging(args: Array<String>) {
+    val explicit =
+        if ("--log-file" in args) {
+            args.getOrNull(args.indexOf("--log-file") + 1)
+        } else {
+            null
+        }
+    val file =
+        explicit?.let { File(it) } ?: run {
+            val dir = File(System.getProperty("user.home"), "mediamix-logs")
+            dir.mkdirs()
+            val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(java.util.Date())
+            File(dir, "mediamix-$stamp.log")
+        }
+    runCatching {
+        file.parentFile?.mkdirs()
+        val ps = java.io.PrintStream(java.io.FileOutputStream(file, true), true, "UTF-8")
+        System.setOut(ps)
+        System.setErr(ps)
+        println("[log] 本次运行日志: ${file.absolutePath}")
     }
 }
 
