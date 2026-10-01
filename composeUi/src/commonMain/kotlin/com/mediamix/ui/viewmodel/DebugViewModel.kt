@@ -10,8 +10,15 @@ import com.mediamix.shared.spider.SpiderService
 import com.mediamix.shared.spider.TvBoxSelfTestRunner
 import com.mediamix.ui.source.SourceRepository
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.datetime.Clock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -134,6 +141,61 @@ class DebugViewModel(
 
     fun clearProbeReport() {
         _probeReport.value = emptyList()
+    }
+
+    /**
+     * 一键测速：逐个探测「数据源延迟」列表里的源，记录实测毫秒数。
+     *
+     * 此前这些数据只能去「设置 → 数据源管理」跑「检测全部」，而诊断页只显示
+     * 「未测速」——用户看到列表却找不到触发入口（实测反馈「功能存在但没启用」）。
+     * 与 [refreshSources] 同口径：只测非 TVBox 的 CMS 源（TVBox 源走接口自检）。
+     */
+    fun runSourceSpeedTest() {
+        if (_isProbing.value) return
+        probeJob?.cancel()
+        probeJob =
+            viewModelScope.launch {
+                _isProbing.value = true
+                val sites = sourceRepository.sites.value.filterNot { it.isTvBox }
+                _probeReport.value = listOf("正在测速…（${sites.size} 个数据源，逐个探测）")
+                val lines = mutableListOf<String>()
+                try {
+                    coroutineScope {
+                        sites
+                            .map { site ->
+                                async {
+                                    val start = Clock.System.now().toEpochMilliseconds()
+                                    val ok =
+                                        runCatching {
+                                            httpClient
+                                                .get(site.apiUrl) {
+                                                    timeout { requestTimeoutMillis = 8_000 }
+                                                }.bodyAsText()
+                                        }.isSuccess
+                                    val ms = Clock.System.now().toEpochMilliseconds() - start
+                                    Triple(site, ok, ms)
+                                }
+                            }.awaitAll()
+                            .forEach { (site, ok, ms) ->
+                                if (ok) {
+                                    sourceRepository.recordLatency(site.key, ms)
+                                    lines += "✓ ${site.name}: ${ms}ms"
+                                } else {
+                                    lines += "✗ ${site.name}: 不可达"
+                                }
+                            }
+                    }
+                    refreshSources()
+                    val reachable = lines.count { it.startsWith("✓") }
+                    _probeReport.value =
+                        listOf("测速完成：$reachable/${sites.size} 个源可达（列表已按快慢排序）") + lines
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _probeReport.value = listOf("测速异常: ${e.message ?: "未知错误"}")
+                }
+                _isProbing.value = false
+            }
     }
 
     private var pollingJob: Job? = null

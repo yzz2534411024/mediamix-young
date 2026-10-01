@@ -123,10 +123,26 @@ fun DebugScreen(
 
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 
-            item { SectionTitle("数据源延迟（按快慢排序）") }
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    SectionTitle("数据源延迟（按快慢排序）")
+                    Spacer(Modifier.weight(1f))
+                    // 就地提供触发入口：此前只能去「设置 → 数据源管理」跑检测，
+                    // 诊断页只显示「未测速」，看着像功能没启用（实测反馈）。
+                    OutlinedButton(
+                        onClick = { viewModel.runSourceSpeedTest() },
+                        enabled = !isProbing,
+                    ) {
+                        Text(if (isProbing) "测速中…" else "一键测速")
+                    }
+                }
+            }
             if (sources.isEmpty()) {
                 item {
-                    EmptyHint("还没有测速数据，去「设置 → 数据源管理」跑一次检测")
+                    EmptyHint("还没有测速数据，点右上角「一键测速」跑一次检测")
                 }
             } else {
                 items(sources.size) { i -> EntryRow(sources[i]) }
