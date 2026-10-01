@@ -103,3 +103,31 @@ $ADB logcat -d | grep -E "JavaBridgeManager|SpiderService|VideoHome"
 - 诊断页新增「TVBox 蜘蛛桥」区块：`蜘蛛包=已加载/未加载 · 已建蜘蛛 N 个`
 - 注意：荣耀每次 adb server 重启要求重新授权（单次会话内完成全部操作）；
   Git Bash 需 `MSYS_NO_PATHCONV=1`；手机息屏会导致点击无效。
+
+---
+
+## 7. ✅ 2026-10-01 19:57：饭太硬全链路打通
+
+真机（荣耀 Magic6 Pro）逐层调试，最后三块拼图：
+
+1. **宿主缺 `com.github.catvod.crawler.Spider` 基类**（终极根因）—— 壳 dex 75 个
+   Guard 类全部继承它，基类须由宿主 APK 提供。已补 `Spider.kt`
+   （⚠️ 必须 Kotlin：KMP 的 androidTarget **不编译** `src/androidMain/java` 目录，
+   Java 版实测未进 APK）。ProGuard 已加 keep 规则。
+   → 探针 L1(Init)/L2(DouDouGuard) 双命中。
+2. **NetworkOnMainThreadException** —— 壳的 homeContent 内部是 okhttp 同步请求；
+   `invokeMethod` 已包 `withContext(Dispatchers.IO)`。壳会吞该异常返回空串，
+   表象为「调用成功但没有数据」。
+3. **豆瓣源无 `vod_id`**（豆豆影片只有 vod_name/vod_pic/vod_remarks）——
+   三处按 vodId 过滤/去重的代码已适配（id 空时用 名字+海报 兜底）：
+   `loadSpiderVideos` 过滤、`mergeVideoItems` 去重键、`LazyGrid` item key
+   （原空 key 重复会直接崩 App）。
+
+**真机实证（19:57 截屏）**：豆豆┃片单 → 豆瓣热榜真实数据：
+轮播「兰香如故 7.5」+ 影片网格（神探之痕迹/无可替代…带评分）+ 7 个站内分类，零崩溃。
+
+**遗留小项**：
+- 双路线中 getSpider 后备路线仍未验证（主路线已通）；
+- P0 多线路切换已由 gateway 实现（.com/.top 备选 + 换线路写回），
+  冷启动偶发「加载失败」为 .net 线路抖动，重试即可；
+- diagnostics「蜘蛛桥」区块与 JavaBridgeManager.lastErrorMessage 已接通（desktop 补齐 actual）。

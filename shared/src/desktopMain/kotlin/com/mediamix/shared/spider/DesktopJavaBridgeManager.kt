@@ -27,7 +27,13 @@ actual class JavaBridgeManager private constructor() {
     private val loadedSpiders = mutableMapOf<String, Any>()
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** 最近一次失败原因（诊断用）；无失败时为 null。 */
+    private var lastError: String? = null
+
     actual val isInitialized: Boolean get() = classLoader != null
+
+    /** 最近一次失败原因（诊断用）；无失败时为空串。 */
+    actual val lastErrorMessage: String get() = lastError ?: ""
 
     actual suspend fun loadSpiderJar(jarPath: String): Boolean {
         return try {
@@ -47,6 +53,7 @@ actual class JavaBridgeManager private constructor() {
             true
         } catch (e: Exception) {
             logger.e(e) { "加载蜘蛛 JAR 失败: $jarPath" }
+            lastError = e.message ?: e.javaClass.simpleName
             false
         }
     }
