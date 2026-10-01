@@ -32,6 +32,7 @@ import com.mediamix.ui.components.*
 import com.mediamix.ui.platform.ApplyScreenOrientation
 import com.mediamix.ui.platform.ScreenOrientationMode
 import com.mediamix.ui.platform.VideoSurface
+import com.mediamix.ui.platform.onPointerActivity
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.prefs.AppPreferences
 import com.mediamix.ui.prefs.label
@@ -187,8 +188,11 @@ fun PlayerScreen(
         viewModel.installEpisodeResolver(session)
     }
 
-    // 控制栏自动隐藏：拖拽/预览/锁定时不隐藏
-    LaunchedEffect(controlsVisible, showSeekPreview, isLocked) {
+    // 控制栏自动隐藏：拖拽/预览/锁定时不隐藏。
+    // `activityTick` 由「鼠标移动」（桌面）或点按递增 —— 它变化会重启这个计时器，
+    // 否则 controlsVisible 已是 true 时再置 true 不触发重组，计时不会被重置。
+    var activityTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(controlsVisible, showSeekPreview, isLocked, activityTick) {
         if (controlsVisible && !showSeekPreview && !isLocked) {
             delay(HIDE_CONTROLS_DELAY_MS)
             controlsVisible = false
@@ -205,7 +209,13 @@ fun PlayerScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Black),
+                .background(Color.Black)
+                // 桌面端：鼠标一移动就显示控制栏（并重置自动隐藏计时）。
+                // 移动端 actual 是 no-op，点按切换行为不变。
+                .onPointerActivity {
+                    if (!controlsVisible) controlsVisible = true
+                    activityTick++
+                },
     ) {
         // 用容器宽高比判断横竖屏，而不是读平台配置 —— commonMain 拿不到
         // Android 的 LocalConfiguration，桌面端也没有"屏幕方向"这个概念。
