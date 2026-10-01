@@ -14,12 +14,17 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import co.touchlab.kermit.Logger
+import java.io.File
 
 /**
  * Android actual 实现 PlayerEngine
@@ -118,13 +123,56 @@ actual class PlayerEngine actual constructor() {
         exoPlayer =
             ExoPlayer
                 .Builder(context, buildRenderersFactory(context))
-                .setMediaSourceFactory(DefaultMediaSourceFactory(newDataSourceFactory()))
-                .setLoadControl(buildLoadControl())
+                .setMediaSourceFactory(
+                    DefaultMediaSourceFactory(
+                        // 边播边缓存：CacheDataSource 包住 HTTP 源 —— 已播分片落盘，
+                        // 复播/续播命中本地不再走网络；m3u8 分片同样按 URL 落盘。
+                        // upstream 就是 [newDataSourceFactory] 的实例，切集时更新的
+                        // UA/Referer 请求头对它依然生效。
+                        cacheDataSourceFactory(context),
+                    ),
+                ).setLoadControl(buildLoadControl())
                 .build()
                 .apply { addListener(playerListener) }
         currentState = PlayerState.IDLE
         firstFrameReported = false
     }
+
+    /**
+     * 带「边播边缓存」能力的数据源工厂。
+     *
+     * 结构：`CacheDataSource( SimpleCache, DefaultHttpDataSource )` ——
+     * 读请求先查本地缓存，未命中的分片走 HTTP 上游并把响应同时写入缓存。
+     *
+     * 设计要点：
+     * - `SimpleCache` **必须全局单例**：同目录建多实例会触发数据库锁冲突。
+     *   引擎会被反复 `initialize()` 重建，缓存实例放 companion 持有。
+     * - `LeastRecentlyUsedCacheEvictor(512MB)`：超限自动按 LRU 淘汰，无需手动清理；
+     *   与 `VideoCacheService` 的下载缓存（用户主动保存的视频）目录隔离，互不影响。
+     * - `FLAG_IGNORE_CACHE_ON_ERROR`：缓存层出错时自动降级直连，绝不因缓存问题阻断播放。
+     * - UA/Referer 防盗链头挂在 upstream（[DefaultHttpDataSource.Factory]）上，
+     *   `setSource` 切集时更新默认头依然生效。
+     */
+    @OptIn(UnstableApi::class)
+    private fun cacheDataSourceFactory(context: Context): CacheDataSource.Factory {
+        val upstream = newDataSourceFactory()
+        return CacheDataSource
+            .Factory()
+            .setCache(getPlayerCache(context))
+            .setUpstreamDataSourceFactory(upstream)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    private fun getPlayerCache(context: Context): SimpleCache =
+        playerCache
+            ?: synchronized(this) {
+                playerCache
+                    ?: SimpleCache(
+                        File(context.cacheDir, "exo_stream_cache"),
+                        LeastRecentlyUsedCacheEvictor(512L * 1024 * 1024),
+                        StandaloneDatabaseProvider(context),
+                    ).also { playerCache = it }
+            }
 
     /**
      * 缓冲策略。
@@ -436,6 +484,10 @@ actual class PlayerEngine actual constructor() {
 
     companion object {
         private var appContext: Context? = null
+
+        /** 全局唯一的播放缓存实例（SimpleCache 同目录多实例会锁冲突，必须单例）。 */
+        @Volatile
+        private var playerCache: SimpleCache? = null
 
         /**
          * 默认请求头。

@@ -52,6 +52,7 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
             implementation(libs.media3.exoplayer.dash)
+            // 边播边缓存的 CacheDataSource/SimpleCache 在 media3-datasource（上面 exoplayer 的传递依赖）
         }
         val desktopMain by getting {
             dependencies {

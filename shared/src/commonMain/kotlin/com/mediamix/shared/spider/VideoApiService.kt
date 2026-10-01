@@ -241,7 +241,9 @@ class VideoApiService {
             prefetchCacheMutex.withLock {
                 val entry = prefetchCache[cacheKey]
                 if (entry != null && (now - entry.timeMs) < prefetchCacheTtlMs) {
-                    prefetchCache.remove(cacheKey)
+                    // 命中后**不删除**：详情页「返回 → 再进」是高频路径，
+                    // 此前命中即删导致每次重进都要重等 2~9 秒的接口请求。
+                    // 保留条目让 TTL（10 分钟）自然过期即可。
                     entry
                 } else {
                     null
