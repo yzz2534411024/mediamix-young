@@ -179,11 +179,15 @@ class JavaBridgeSpider(
         // 同时把 danmaku 地址做同样处理。
         fun stripLocalProxy(u: String?): String? {
             val raw = u ?: return null
-            val match = Regex("""http://127\.0\.0\.1:[-0-9]+/proxy\?do=([a-z0-9]+)&url=([^&\s]+)""").find(raw) ?: return raw
+            // ⚠️ 只剥 do=m3u8（直链代理）。其它 do 类型（如网盘解析 do=py）的
+            // proxy 地址是壳解析流程的一部分，剥掉会破坏网盘源播放。
+            val match =
+                Regex("""http://127\.0\.0\.1:[-0-9]+/proxy\?do=m3u8&url=([^&\s]+)""").find(raw)
+                    ?: return raw
             val decoded =
                 runCatching {
-                    java.net.URLDecoder.decode(match.groupValues[2], "UTF-8")
-                }.getOrDefault(match.groupValues[2])
+                    java.net.URLDecoder.decode(match.groupValues[1], "UTF-8")
+                }.getOrDefault(match.groupValues[1])
             return decoded
         }
 
