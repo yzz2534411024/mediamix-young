@@ -17,6 +17,15 @@ import kotlinx.datetime.Clock
 private const val FIRST_FRAME_TIMEOUT_MS = 10_000L
 private const val PRELOAD_TRIGGER_POSITION = 0.8
 private const val AV_SYNC_CHECK_INTERVAL_MS = 2_000L
+
+/**
+ * AV 同步基线的最大有效年龄：超过就不再作为漂移依据，直接重新取基线。
+ *
+ * 位置上报间隔是 250ms，2s 一次检查时基线应当是「刚刚」的；一旦超过 5s，
+ * 说明中间发生过暂停/卡顿/位置未上报 —— 此时 elapsed 已经不能代表真实播放进度，
+ * 继续用它推算会把「暂停时长」算成漂移并触发无意义的 seek。
+ */
+private const val MAX_AV_SYNC_BASELINE_AGE_MS = 5_000L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
 /** 播放进度上报间隔（驱动进度条 / 时长 / 字幕同步），需远高于持久化频率 */
@@ -1331,8 +1340,16 @@ class PlayerCoreManager(
     internal fun checkAVSync() {
         if (isDisposed || !playerEngine.isPlaying()) return
         val now = Clock.System.now().toEpochMilliseconds()
+        // 基线未建立（还没收到任何位置）→ 不比较，否则 elapsed = now - 0 = 墙钟时间
+        if (lastPositionUpdateTimeMs <= 0L) return
         val elapsed = now - lastPositionUpdateTimeMs
         if (elapsed <= 120) return
+        // 基线过期（暂停/卡顿/位置长时间没更新）→ 重新取基线，而不是把它当成漂移
+        if (elapsed > MAX_AV_SYNC_BASELINE_AGE_MS) {
+            lastPositionUpdateTimeMs = now
+            lastVideoPositionMs = playerEngine.getPosition()
+            return
+        }
 
         val expectedMs = lastVideoPositionMs + elapsed
         val actualMs = playerEngine.getPosition()
@@ -1397,7 +1414,15 @@ class PlayerCoreManager(
                         val position = playerEngine.getPosition()
                         val duration = playerEngine.getDuration()
                         val buffered = playerEngine.getBufferedPercentage()
-                        if (position > 0L) lastVideoPositionMs = position
+                        if (position > 0L) {
+                            lastVideoPositionMs = position
+                            // ⚠️ 基线**时间戳**必须一起更新：checkAVSync 用
+                            // 「上次位置 + 经过时间」推算预期位置，只更新位置不更新时间
+                            // 会让 elapsed 越滚越大 → 误判「严重失步」→ 频繁 seek 校正
+                            // → 播放卡顿跳帧（实测日志出现 1.79e12ms 的漂移值，
+                            // 那就是墙钟时间被当成漂移量）。
+                            lastPositionUpdateTimeMs = Clock.System.now().toEpochMilliseconds()
+                        }
                         onProgress?.invoke(position, duration, buffered)
                         checkPreloadTrigger(position)
                     } catch (e: Exception) {
