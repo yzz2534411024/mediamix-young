@@ -13,7 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.mediamix.ui.components.VideoCard
+import com.mediamix.ui.components.PosterCard
 import com.mediamix.ui.viewmodel.FavoriteItem
 import com.mediamix.ui.viewmodel.FavoriteViewModel
 import org.koin.compose.koinInject
@@ -117,9 +117,10 @@ fun FavoriteScreen(
                                         },
                                     ),
                             ) {
-                                VideoCard(
+                                // S3：与首页统一为 PosterCard（2:3 比例 + 渐变遮罩 + 圆角角标）
+                                PosterCard(
                                     title = item.vodName,
-                                    coverUrl = item.vodPic,
+                                    posterUrl = item.vodPic,
                                     subtitle = item.typeName,
                                     onClick = {
                                         onNavigateToDetail(item.vodId, item.sourceKey)

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.VideoItem
+import com.mediamix.ui.components.PosterCard
 import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.SkeletonCard
 import com.mediamix.ui.platform.horizontalWheelScroll
@@ -50,7 +51,17 @@ private const val GRID_COLUMNS = 3
 /** 影片卡片的最小宽度：网格列数 = 可用宽度 / 此值（手机 3 列、桌面约 7 列）。 */
 private const val CARD_MIN_WIDTH_DP = 165
 
-private const val BANNER_HEIGHT_DP = 168
+/**
+ * 轮播图用 16:9 而不是固定高度。
+ *
+ * 原先是 `fillMaxWidth() + height(168.dp)` —— 宽度随窗口变、高度写死，
+ * 于是宽屏上被拉成 6:1 的细长条，画面被裁得只剩中间一条（用户截图反馈"比例很难受"）。
+ * 16:9 是影视内容的安全框，无论多宽多窄都不会失真。
+ */
+private const val BANNER_ASPECT_RATIO = 16f / 9f
+
+/** 宽屏上限：超过这个高度就居中留白，避免桌面端出现巨幅横幅。 */
+private const val BANNER_MAX_HEIGHT_DP = 260
 
 /**
  * 首页。
@@ -486,7 +497,14 @@ private fun HomeContent(
                         videos,
                         key = { "${it.vodId}|${it.vodName}|${it.vodPic}" },
                     ) { item ->
-                        VideoGridCard(item = item, onClick = { onOpenDetail(item) })
+                        // S3：改用统一组件 PosterCard（2:3 比例 + 渐变遮罩 + 圆角角标），
+                        // 替代原先各页面自己写的卡片（比例 0.68 偏方、角标无圆角）
+                        PosterCard(
+                            title = item.vodName,
+                            posterUrl = item.vodPic,
+                            badge = item.vodRemarks?.takeIf { it.isNotBlank() },
+                            onClick = { onOpenDetail(item) },
+                        )
                     }
 
                     if (isLoading && videos.isNotEmpty()) {
@@ -537,6 +555,7 @@ private fun SecondaryAction(onClick: () -> Unit) {
 
 @Composable
 private fun EmptyState() {
+    // S3：改用统一 EmptyState（图标底托 + 三级文字层次 + 可选行动按钮）
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -588,7 +607,8 @@ private fun BannerSection(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(BANNER_HEIGHT_DP.dp)
+                    .heightIn(max = BANNER_MAX_HEIGHT_DP.dp)
+                    .aspectRatio(BANNER_ASPECT_RATIO)
                     .clip(RoundedCornerShape(12.dp)),
         ) { page ->
             val item = items[page]
@@ -753,13 +773,15 @@ private fun SkeletonContent() {
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 10.dp)
-                    .height(BANNER_HEIGHT_DP.dp)
+                    .heightIn(max = BANNER_MAX_HEIGHT_DP.dp)
+                    .aspectRatio(BANNER_ASPECT_RATIO)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
         )
         // 骨架列数与真实网格保持一致（否则加载完成瞬间 3 列变 7 列会跳一下）
         BoxWithConstraints {
             val columns = (maxWidth / CARD_MIN_WIDTH_DP.dp).toInt().coerceIn(3, 8)
+            // S3：真实网格下方补 shimmer 骨架（此前只有 banner 灰色块，网格位置是空白）
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

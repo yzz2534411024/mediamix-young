@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mediamix.ui.theme.Radius
 import coil3.compose.AsyncImage
 
 @Composable
@@ -29,7 +30,7 @@ fun VideoCard(
             modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(Radius.card),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column {
@@ -39,7 +40,7 @@ fun VideoCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .aspectRatio(0.75f)
+                        .aspectRatio(2f / 3f)
                         .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
@@ -47,8 +48,10 @@ fun VideoCard(
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
+                    // S3：与 PosterCard 统一为 titleMedium，卡片标题才有层次
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (subtitle != null) {

@@ -221,7 +221,9 @@ private fun PreviewSection(title: String, content: @Composable () -> Unit) {
             shape = RoundedCornerShape(Radius.card),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Box(modifier = Modifier.padding(Spacing.lg)) { content() }
+            // ⚠️ 必须用 Column：Box 的多个直接子元素是**重叠**放置的，
+            // 之前 10 个色板 / 6 行文字全叠在一起（用户截图反馈）。
+            Column(modifier = Modifier.padding(Spacing.lg)) { content() }
         }
     }
 }
@@ -239,7 +241,12 @@ private fun ColorSwatch(name: String, color: androidx.compose.ui.graphics.Color)
                     .size(28.dp)
                     .background(color, RoundedCornerShape(6.dp)),
         )
-        Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
         Text(
             "#${color.value.toString(16).takeLast(6).uppercase()}",
             style = MaterialTheme.typography.bodySmall,

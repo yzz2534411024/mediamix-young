@@ -1,5 +1,8 @@
 package com.mediamix.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +30,7 @@ import com.mediamix.shared.models.SourceRef
 import com.mediamix.shared.models.VideoDetail
 import com.mediamix.shared.models.VideoEpisode
 import com.mediamix.shared.models.VideoItem
+import com.mediamix.ui.components.CatFavoriteButton
 import com.mediamix.ui.components.ErrorContent
 import com.mediamix.ui.components.LoadingScreen
 import com.mediamix.ui.player.PlaybackSessionStore
@@ -86,18 +90,13 @@ fun VideoDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleFavorite() }) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                            tint =
-                                if (isFavorite) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                        )
-                    }
+                    // S3：改用统一组件 CatFavoriteButton —— 品牌强调色（图标耳内淡粉）
+                    // + spring 心跳缩放。此前用 error 红，与"操作类"红色混淆。
+                    CatFavoriteButton(
+                        favorited = isFavorite,
+                        onToggle = { viewModel.toggleFavorite() },
+                        icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    )
                 },
             )
         },
@@ -178,11 +177,19 @@ fun VideoDetailScreen(
                             }
                             Text(
                                 text = descText,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 19.sp,
+                                // S3：maxLines 硬切会让文字"跳"一下，
+                                // 改用 animateContentSize 平滑展开
                                 maxLines = if (isContentExpanded) Int.MAX_VALUE else 3,
                                 overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.animateContentSize(
+                                    animationSpec =
+                                        tween(
+                                            durationMillis = 220,
+                                            easing = FastOutSlowInEasing,
+                                        ),
+                                ),
                             )
                             Spacer(Modifier.height(18.dp))
                         }
