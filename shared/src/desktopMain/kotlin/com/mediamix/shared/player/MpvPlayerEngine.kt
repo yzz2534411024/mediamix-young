@@ -81,6 +81,22 @@ actual class PlayerEngine actual constructor() {
         mpv.mpv_set_option_string(h, "demuxer-max-back-bytes", "50MiB")
         mpv.mpv_set_option_string(h, "network-timeout", "30")
 
+        // ★ 桌面端启用 mpv 内置 OSC（On-Screen Controller）。
+        //
+        // 为什么不用 Compose 画控制条：VideoSurface 用 SwingPanel{ Canvas }，
+        // 而 AWT Canvas 是 **heavyweight 组件（独立原生 HWND）**，在 AWT 层级里
+        // 永远盖在 Skia/Compose 的 lightweight 绘制之上 —— Compose 写的控制层
+        // 会被完全遮住，连鼠标事件也收不到（实测：播放页所有控件点不动）。
+        // OSC 由 mpv 自己绘制在视频帧内，天然位于最上层，是桌面端唯一的
+        // 沉浸式控制条方案（VLC / PotPlayer 同类做法）。
+        mpv.mpv_set_option_string(h, "osc", "yes")
+        // OSC 默认样式偏小，按窗口比例放大一点更符合桌面大屏
+        mpv.mpv_set_option_string(h, "osd-level", "3")
+        // 允许 OSC 响应滚轮/拖拽（进度、音量）
+        mpv.mpv_set_option_string(h, "osc-scaling", "yes")
+        // 暂停时不显示 OSC（避免暂停画面被条子挡住）
+        mpv.mpv_set_option_string(h, "pause", "no")
+
         // ★ 渲染窗口：必须在 mpv_initialize() 之前设置
         val widMem = Memory(8).apply { setLong(0, wid) }
         mpv.mpv_set_option(h, "wid", MpvLib.MPV_FORMAT_INT64, widMem)
