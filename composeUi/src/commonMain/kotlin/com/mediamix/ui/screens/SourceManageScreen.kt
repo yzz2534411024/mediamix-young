@@ -19,6 +19,7 @@ import com.mediamix.shared.models.CmsApiSite
 import com.mediamix.shared.models.SourceStatus
 import com.mediamix.ui.viewmodel.SourceManageViewModel
 import org.koin.compose.koinInject
+import com.mediamix.ui.icons.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +62,7 @@ fun SourceManageScreen(
                                 strokeWidth = 2.dp,
                             )
                         } else {
-                            Icon(Icons.Default.NetworkCheck, contentDescription = "检测全部")
+                            Icon(AppIcons.NetworkCheck, contentDescription = "检测全部")
                         }
                     }
                     IconButton(onClick = { showAddDialog = true }) {
@@ -215,10 +216,10 @@ private fun SourceTile(
         leadingContent = {
             val statusPair: Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> =
                 when {
-                    status == null -> Icons.Default.Cloud to Color.Gray
-                    status.isAvailable && status.latencyMs < 500 -> Icons.Default.CloudDone to Color(0xFF4CAF50)
-                    status.isAvailable -> Icons.Default.CloudQueue to Color(0xFFFF9800)
-                    else -> Icons.Default.CloudOff to Color(0xFFF44336)
+                    status == null -> AppIcons.Cloud to Color.Gray
+                    status.isAvailable && status.latencyMs < 500 -> AppIcons.CloudDone to Color(0xFF4CAF50)
+                    status.isAvailable -> AppIcons.CloudQueue to Color(0xFFFF9800)
+                    else -> AppIcons.CloudOff to Color(0xFFF44336)
                 }
             Icon(statusPair.first, contentDescription = null, tint = statusPair.second)
         },
@@ -228,7 +229,7 @@ private fun SourceTile(
                 if (onDelete != null) {
                     IconButton(onClick = onDelete) {
                         Icon(
-                            Icons.Default.DeleteOutline,
+                            AppIcons.DeleteOutline,
                             contentDescription = "删除",
                             tint = MaterialTheme.colorScheme.error,
                         )

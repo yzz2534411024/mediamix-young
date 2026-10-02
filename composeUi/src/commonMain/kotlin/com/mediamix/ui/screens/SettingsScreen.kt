@@ -23,6 +23,7 @@ import com.mediamix.ui.theme.label
 import com.mediamix.ui.util.formatFileSize
 import com.mediamix.ui.viewmodel.SettingsViewModel
 import org.koin.compose.koinInject
+import com.mediamix.ui.icons.AppIcons
 
 /**
  * 设置页。
@@ -81,7 +82,7 @@ fun SettingsScreen(
             item { SectionHeader("数据源") }
             item {
                 SettingsTile(
-                    icon = Icons.Default.Source,
+                    icon = AppIcons.Source,
                     title = "数据源管理",
                     subtitle = "启用 / 停用 CMS 数据源，检测可用性",
                     onClick = onNavigateToSourceManage,
@@ -94,14 +95,14 @@ fun SettingsScreen(
             item { SectionHeader("通用") }
             item {
                 SettingsTile(
-                    icon = Icons.Default.Download,
+                    icon = AppIcons.Download,
                     title = "下载管理",
                     onClick = onNavigateToDownloads,
                 )
             }
             item {
                 SettingsTile(
-                    icon = Icons.Default.BrightnessAuto,
+                    icon = AppIcons.BrightnessAuto,
                     title = "主题",
                     subtitle = themeMode.label(),
                     onClick = { showThemeSheet = true },
@@ -109,7 +110,7 @@ fun SettingsScreen(
             }
             item {
                 SettingsTile(
-                    icon = Icons.Default.Memory,
+                    icon = AppIcons.Memory,
                     title = "解码方式",
                     subtitle = decodeMode.label(),
                     onClick = { showDecodeSheet = true },
@@ -117,7 +118,7 @@ fun SettingsScreen(
             }
             item {
                 SettingsTile(
-                    icon = Icons.Default.FastForward,
+                    icon = AppIcons.FastForward,
                     title = "快进 / 快退间隔",
                     subtitle = "$skipInterval 秒 · 双击画面左右两侧也按此间隔跳转",
                     onClick = { showSkipIntervalSheet = true },
@@ -130,7 +131,7 @@ fun SettingsScreen(
             item { SectionHeader("隐私与数据") }
             item {
                 SettingsSwitchTile(
-                    icon = Icons.Default.Analytics,
+                    icon = AppIcons.Analytics,
                     title = "使用数据分享",
                     subtitle = if (shareUsageData) "已开启 — 记录播放指标帮助排查问题" else "已关闭",
                     checked = shareUsageData,
@@ -139,7 +140,7 @@ fun SettingsScreen(
             }
             item {
                 SettingsTile(
-                    icon = Icons.Default.Storage,
+                    icon = AppIcons.Storage,
                     title = "清除缓存",
                     subtitle = "当前占用 ${formatFileSize(cacheStats.totalSize)}（${cacheStats.entryCount} 个文件）",
                     onClick = { showClearCacheDialog = true },
@@ -147,7 +148,7 @@ fun SettingsScreen(
             }
             item {
                 SettingsTile(
-                    icon = Icons.Default.FileDownload,
+                    icon = AppIcons.FileDownload,
                     title = "导出数据",
                     subtitle = "把收藏与历史导出为 JSON 文件",
                     onClick = { viewModel.exportData() },
@@ -160,7 +161,7 @@ fun SettingsScreen(
             item { SectionHeader("关于") }
             item {
                 SettingsTile(
-                    icon = Icons.Default.BugReport,
+                    icon = AppIcons.BugReport,
                     title = "播放诊断",
                     subtitle = "播放指标、缓存占用、各源实测延迟",
                     onClick = onNavigateToDebug,
@@ -314,7 +315,7 @@ private fun SettingsTile(
         },
         trailingContent = {
             Icon(
-                Icons.Default.ChevronRight,
+                AppIcons.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

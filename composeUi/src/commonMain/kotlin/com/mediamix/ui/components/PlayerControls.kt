@@ -6,19 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.ClosedCaptionOff
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediamix.shared.player.PlayMode
+import com.mediamix.ui.icons.AppIcons
 
 // ============================================================================
 // 顶部控制栏
@@ -104,7 +94,7 @@ fun TopControlsBar(
         if (showEpisodeEntry) {
             IconButton(onClick = onEpisodeClick, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    imageVector = Icons.Default.PlaylistPlay,
+                    imageVector = AppIcons.PlaylistPlay,
                     contentDescription = "选集",
                     tint = Color.White,
                     modifier = Modifier.size(21.dp),
@@ -129,9 +119,9 @@ fun TopControlsBar(
             Icon(
                 imageVector =
                     if (hasSubtitles) {
-                        Icons.Default.ClosedCaption
+                        AppIcons.ClosedCaption
                     } else {
-                        Icons.Default.ClosedCaptionOff
+                        AppIcons.ClosedCaptionOff
                     },
                 contentDescription = "字幕",
                 tint = Color.White.copy(alpha = if (hasSubtitles) 1f else 0.45f),
@@ -143,7 +133,7 @@ fun TopControlsBar(
         // （有些用户习惯躺着竖屏看，强制横屏反而别扭）。
         IconButton(onClick = onRotateClick, modifier = Modifier.size(40.dp)) {
             Icon(
-                imageVector = Icons.Default.ScreenRotation,
+                imageVector = AppIcons.ScreenRotation,
                 contentDescription = if (isLandscape) "竖屏播放" else "横屏播放",
                 tint = Color.White,
                 modifier = Modifier.size(21.dp),
@@ -204,9 +194,9 @@ fun BottomControlsBar(
             Icon(
                 imageVector =
                     when (playMode) {
-                        PlayMode.SEQUENTIAL -> Icons.Default.PlaylistPlay
-                        PlayMode.LOOP_SINGLE -> Icons.Default.RepeatOne
-                        PlayMode.LOOP_ALL -> Icons.Default.Repeat
+                        PlayMode.SEQUENTIAL -> AppIcons.PlaylistPlay
+                        PlayMode.LOOP_SINGLE -> AppIcons.RepeatOne
+                        PlayMode.LOOP_ALL -> AppIcons.Repeat
                     },
                 contentDescription = "播放模式",
                 tint = Color.White.copy(alpha = 0.9f),
@@ -217,7 +207,7 @@ fun BottomControlsBar(
         if (hasPrevEpisode) {
             IconButton(onClick = onPrevEpisode, modifier = Modifier.size(44.dp)) {
                 Icon(
-                    imageVector = Icons.Default.SkipPrevious,
+                    imageVector = AppIcons.SkipPrevious,
                     contentDescription = "上一集",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp),
@@ -226,7 +216,7 @@ fun BottomControlsBar(
         }
 
         SkipButton(
-            icon = Icons.Default.FastRewind,
+            icon = AppIcons.FastRewind,
             contentDescription = "后退 $skipInterval 秒",
             seconds = skipInterval,
             onClick = onRewind,
@@ -244,7 +234,7 @@ fun BottomControlsBar(
         ) {
             IconButton(onClick = onPlayPause, modifier = Modifier.size(56.dp)) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    imageVector = if (isPlaying) AppIcons.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
                     tint = Color.Black,
                     modifier = Modifier.size(30.dp),
@@ -253,7 +243,7 @@ fun BottomControlsBar(
         }
 
         SkipButton(
-            icon = Icons.Default.FastForward,
+            icon = AppIcons.FastForward,
             contentDescription = "前进 $skipInterval 秒",
             seconds = skipInterval,
             onClick = onForward,
@@ -263,7 +253,7 @@ fun BottomControlsBar(
         if (hasNextEpisode) {
             IconButton(onClick = onNextEpisode, modifier = Modifier.size(44.dp)) {
                 Icon(
-                    imageVector = Icons.Default.SkipNext,
+                    imageVector = AppIcons.SkipNext,
                     contentDescription = "下一集",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp),

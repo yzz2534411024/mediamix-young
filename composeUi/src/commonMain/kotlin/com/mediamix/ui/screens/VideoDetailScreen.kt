@@ -34,6 +34,7 @@ import com.mediamix.ui.viewmodel.VideoDetailViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import com.mediamix.ui.icons.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -166,9 +167,9 @@ fun VideoDetailScreen(
                                     Icon(
                                         imageVector =
                                             if (isContentExpanded) {
-                                                Icons.Filled.ExpandLess
+                                                AppIcons.ExpandLess
                                             } else {
-                                                Icons.Filled.ExpandMore
+                                                AppIcons.ExpandMore
                                             },
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
@@ -325,9 +326,9 @@ private fun Header(detail: VideoDetail) {
 
             val chips =
                 listOfNotNull(
-                    detail.typeName?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.Category to it },
-                    detail.vodYear?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.CalendarToday to it },
-                    detail.vodArea?.takeIf { it.isNotEmpty() }?.let { Icons.Filled.Public to it },
+                    detail.typeName?.takeIf { it.isNotEmpty() }?.let { AppIcons.Category to it },
+                    detail.vodYear?.takeIf { it.isNotEmpty() }?.let { AppIcons.CalendarToday to it },
+                    detail.vodArea?.takeIf { it.isNotEmpty() }?.let { AppIcons.Public to it },
                 )
             chips.forEach { (icon, text) -> InfoChip(icon, text) }
 
@@ -439,7 +440,7 @@ private fun EmptyPlaySourceHint() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Filled.PlayCircle,
+                AppIcons.PlayCircle,
                 contentDescription = null,
                 modifier = Modifier.size(44.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),

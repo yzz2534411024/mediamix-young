@@ -16,10 +16,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +42,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.compose.koinInject
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import com.mediamix.ui.icons.AppIcons
 
 /** 骨架屏用的低列数（真实网格按宽度自适应，见 [CARD_MIN_WIDTH_DP]）。 */
 private const val GRID_COLUMNS = 3
@@ -408,7 +407,7 @@ private fun NoticeBanner(
             if (showSwitchAction) {
                 TextButton(onClick = onSwitchSource) {
                     Icon(
-                        Icons.Default.SwapHoriz,
+                        AppIcons.SwapHoriz,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                     )
@@ -529,7 +528,7 @@ private fun HomeContent(
 private fun SecondaryAction(onClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         TextButton(onClick = onClick) {
-            Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(AppIcons.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text("换个数据源")
         }
@@ -541,7 +540,7 @@ private fun EmptyState() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.Movie,
+                AppIcons.Movie,
                 contentDescription = null,
                 modifier = Modifier.size(56.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),

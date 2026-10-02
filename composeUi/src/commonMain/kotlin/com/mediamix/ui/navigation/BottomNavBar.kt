@@ -2,8 +2,6 @@ package com.mediamix.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -11,6 +9,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mediamix.ui.icons.AppIcons
 
 data class BottomNavItem(
     val screen: Screen,
@@ -20,8 +19,8 @@ data class BottomNavItem(
 
 val bottomNavItems =
     listOf(
-        BottomNavItem(Screen.Home, "\u89c6\u9891", Icons.Filled.Movie),
-        BottomNavItem(Screen.History, "\u5386\u53f2", Icons.Filled.History),
+        BottomNavItem(Screen.Home, "\u89c6\u9891", AppIcons.Movie),
+        BottomNavItem(Screen.History, "\u5386\u53f2", AppIcons.History),
         BottomNavItem(Screen.Favorite, "\u6536\u85cf", Icons.Filled.Favorite),
         BottomNavItem(Screen.Settings, "\u8bbe\u7f6e", Icons.Filled.Settings),
     )

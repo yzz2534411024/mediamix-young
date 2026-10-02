@@ -8,14 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +22,7 @@ import com.mediamix.shared.player.AspectMode
 import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.SubtitleTrack
 import com.mediamix.shared.player.TrackInfo
+import com.mediamix.ui.icons.AppIcons
 
 // ============================================================================
 // 倍速
@@ -341,7 +336,7 @@ fun PlayerMoreSheet(
             modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 12.dp),
         )
 
-        SettingGroup(icon = Icons.Default.AspectRatio, title = "画面比例") {
+        SettingGroup(icon = AppIcons.AspectRatio, title = "画面比例") {
             // 全量模式（手机与桌面行为由引擎分工实现）：
             //  - 自适应/铺满裁剪/拉伸铺满/原始比例：手机端由 Compose 按视频真实宽高比
             //    约束 TextureView 尺寸，桌面端映射为 mpv 的 keepaspect/panscan；
@@ -360,7 +355,7 @@ fun PlayerMoreSheet(
             }
         }
 
-        SettingGroup(icon = Icons.Default.PlaylistPlay, title = "播放模式") {
+        SettingGroup(icon = AppIcons.PlaylistPlay, title = "播放模式") {
             val modes =
                 listOf(
                     PlayMode.SEQUENTIAL to "顺序播放",
@@ -378,7 +373,7 @@ fun PlayerMoreSheet(
             }
         }
 
-        SettingGroup(icon = Icons.Default.Memory, title = "解码方式") {
+        SettingGroup(icon = AppIcons.Memory, title = "解码方式") {
             Text(
                 text = "$decodeLabel · 可在「设置 → 解码方式」中修改",
                 style = MaterialTheme.typography.bodySmall,
@@ -389,7 +384,7 @@ fun PlayerMoreSheet(
         // 画质（= 播放线路）：详情页给的多条线路通过 qualityUrls 进入播放器，
         // switchQuality 早就能用，缺的只是入口。
         if (qualityLabels.size > 1) {
-            SettingGroup(icon = Icons.Default.HighQuality, title = "画质") {
+            SettingGroup(icon = AppIcons.HighQuality, title = "画质") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     qualityLabels.forEachIndexed { index, label ->
                         FilterChip(
@@ -405,7 +400,7 @@ fun PlayerMoreSheet(
         // 音轨 / 视频轨：列表为空时隐藏入口（Desktop mpv 可能不上报轨道），
         // 不做「点了没反应」的假按钮。
         if (audioTracks.isNotEmpty() || videoTracks.isNotEmpty()) {
-            SettingGroup(icon = Icons.Default.GraphicEq, title = "轨道") {
+            SettingGroup(icon = AppIcons.GraphicEq, title = "轨道") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (audioTracks.isNotEmpty()) {
                         OutlinedButton(onClick = onOpenAudioTracks) {
@@ -427,7 +422,7 @@ fun PlayerMoreSheet(
             onClick = onDownload,
             modifier = Modifier.padding(horizontal = 12.dp),
         ) {
-            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(AppIcons.Download, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("下载本集")
         }

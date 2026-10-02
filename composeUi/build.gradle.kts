@@ -47,7 +47,11 @@ kotlin {
                 exclude(group = "org.jetbrains.skiko")
             }
             implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(compose.materialIconsExtended)
+            // ⚠️ 不要引入 compose.materialIconsExtended：它把 3000+ 图标全部打进包，
+            // 桌面发行包因此多 36 MB、Android dex 也明显变大，而项目只用了几十个。
+            // 用到的图标已内联进 ui/icons/AppIcons.kt（路径数据取自同版本官方源码，
+            // 视觉一致）。新增图标时从 extended 源码里复制定义即可，别再加这个依赖。
+            // core 由 material3 传递提供（AppIcons 里的 materialIcon/materialPath 来自它）。
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kermit)

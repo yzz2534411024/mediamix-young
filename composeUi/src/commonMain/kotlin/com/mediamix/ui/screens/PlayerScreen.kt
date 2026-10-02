@@ -9,8 +9,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +40,7 @@ import com.mediamix.ui.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 import kotlin.math.abs
+import com.mediamix.ui.icons.AppIcons
 
 private const val HIDE_CONTROLS_DELAY_MS = 4000L
 private const val SPEED_INDICATOR_DURATION_MS = 2000L
@@ -787,7 +786,7 @@ private fun PlaybackErrorPanel(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                imageVector = Icons.Default.ErrorOutline,
+                imageVector = AppIcons.ErrorOutline,
                 contentDescription = null,
                 tint = Color(0xFFFF7043),
                 modifier = Modifier.size(46.dp),
@@ -825,7 +824,7 @@ private fun PlaybackErrorPanel(
                 }
                 if (onPickAnother != null) {
                     Button(onClick = onPickAnother) {
-                        Icon(Icons.Default.PlaylistPlay, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(AppIcons.PlaylistPlay, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("换一集")
                     }

@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediamix.ui.icons.AppIcons
 
 /**
  * Format milliseconds to MM:SS or HH:MM:SS
@@ -193,7 +194,7 @@ fun BrightnessIndicator(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                imageVector = Icons.Default.BrightnessMedium,
+                imageVector = AppIcons.BrightnessMedium,
                 contentDescription = "Brightness",
                 tint = Color.White,
                 modifier = Modifier.size(32.dp),
@@ -229,7 +230,7 @@ fun VolumeIndicator(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                imageVector = if (volume == 0f) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                imageVector = if (volume == 0f) AppIcons.VolumeOff else AppIcons.VolumeUp,
                 contentDescription = "Volume",
                 tint = Color.White,
                 modifier = Modifier.size(32.dp),
@@ -310,7 +311,7 @@ fun ErrorOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                imageVector = Icons.Default.ErrorOutline,
+                imageVector = AppIcons.ErrorOutline,
                 contentDescription = "Error",
                 tint = Color.Red,
                 modifier = Modifier.size(48.dp),

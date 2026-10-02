@@ -17,6 +17,7 @@ import com.mediamix.ui.util.formatFileSize
 import com.mediamix.ui.viewmodel.DownloadTaskStatus
 import com.mediamix.ui.viewmodel.DownloadViewModel
 import org.koin.compose.koinInject
+import com.mediamix.ui.icons.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +45,7 @@ fun DownloadScreen(
                     IconButton(
                         onClick = { viewModel.clearCompleted() },
                     ) {
-                        Icon(Icons.Default.CleaningServices, contentDescription = "\u6e05\u9664\u5df2\u5b8c\u6210")
+                        Icon(AppIcons.CleaningServices, contentDescription = "\u6e05\u9664\u5df2\u5b8c\u6210")
                     }
                 },
             )
@@ -60,7 +61,7 @@ fun DownloadScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.Download,
+                        AppIcons.Download,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = Color.Gray,
@@ -142,11 +143,11 @@ private fun DownloadTaskTile(
 
     val statusIcon =
         when (task.status) {
-            DownloadTaskStatus.WAITING -> Icons.Default.Schedule
-            DownloadTaskStatus.DOWNLOADING -> Icons.Default.Downloading
-            DownloadTaskStatus.PAUSED -> Icons.Default.PauseCircle
+            DownloadTaskStatus.WAITING -> AppIcons.Schedule
+            DownloadTaskStatus.DOWNLOADING -> AppIcons.Downloading
+            DownloadTaskStatus.PAUSED -> AppIcons.PauseCircle
             DownloadTaskStatus.COMPLETED -> Icons.Default.CheckCircle
-            DownloadTaskStatus.FAILED -> Icons.Default.Error
+            DownloadTaskStatus.FAILED -> AppIcons.Error
         }
 
     ListItem(
@@ -223,10 +224,10 @@ private fun DownloadTaskTile(
                 when (task.status) {
                     DownloadTaskStatus.DOWNLOADING -> {
                         IconButton(onClick = onPause) {
-                            Icon(Icons.Default.Pause, contentDescription = "\u6682\u505c")
+                            Icon(AppIcons.Pause, contentDescription = "\u6682\u505c")
                         }
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Cancel, contentDescription = "\u53d6\u6d88")
+                            Icon(AppIcons.Cancel, contentDescription = "\u53d6\u6d88")
                         }
                     }
                     DownloadTaskStatus.PAUSED -> {
@@ -234,12 +235,12 @@ private fun DownloadTaskTile(
                             Icon(Icons.Default.PlayArrow, contentDescription = "\u7ee7\u7eed")
                         }
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Cancel, contentDescription = "\u53d6\u6d88")
+                            Icon(AppIcons.Cancel, contentDescription = "\u53d6\u6d88")
                         }
                     }
                     DownloadTaskStatus.WAITING -> {
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Cancel, contentDescription = "\u53d6\u6d88")
+                            Icon(AppIcons.Cancel, contentDescription = "\u53d6\u6d88")
                         }
                     }
                     DownloadTaskStatus.COMPLETED -> {
@@ -247,14 +248,14 @@ private fun DownloadTaskTile(
                         if (task.localPath.isNotEmpty()) {
                             IconButton(onClick = onPlay) {
                                 Icon(
-                                    Icons.Default.PlayCircle,
+                                    AppIcons.PlayCircle,
                                     contentDescription = "\u64ad\u653e",
                                     tint = Color(0xFF4CAF50),
                                 )
                             }
                         }
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "\u5220\u9664")
+                            Icon(AppIcons.DeleteOutline, contentDescription = "\u5220\u9664")
                         }
                     }
                     DownloadTaskStatus.FAILED -> {
@@ -262,7 +263,7 @@ private fun DownloadTaskTile(
                             Icon(Icons.Default.Refresh, contentDescription = "\u91cd\u8bd5")
                         }
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "\u5220\u9664")
+                            Icon(AppIcons.DeleteOutline, contentDescription = "\u5220\u9664")
                         }
                     }
                 }
