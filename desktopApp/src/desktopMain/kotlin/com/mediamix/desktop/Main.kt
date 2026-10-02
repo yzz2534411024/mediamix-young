@@ -129,7 +129,7 @@ private fun installFileLogging(args: Array<String>) {
             val dir = File(System.getProperty("user.home"), "catvideo-logs")
             dir.mkdirs()
             val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(java.util.Date())
-            File(dir, "mediamix-$stamp.log")
+            File(dir, "catvideo-$stamp.log")
         }
     runCatching {
         file.parentFile?.mkdirs()
@@ -273,12 +273,41 @@ private fun runMpvProbe(args: Array<String>) {
         lastPos = pos
     }
 
+    // ── 复现「退出播放页再进入」：渲染窗口换了，会触发引擎侧的句柄重建 ──
+    // 这条路径此前会让播放中的进度轮询（每 250ms 一次 JNA）踩到已销毁的句柄，
+    // use-after-free 直接让进程消失 —— 也就是用户报的「播放闪退」。
+    println("[probe] 模拟换渲染窗口（第 2 个 Canvas → 触发句柄重建）…")
+    val canvas2 = java.awt.Canvas()
+    canvas2.background = java.awt.Color.BLACK
+    frame.add(canvas2)
+    frame.validate()
+    Thread.sleep(1500)
+    val hwnd2 = com.mediamix.shared.player.awtComponentId(canvas2)
+    println("  新 HWND: $hwnd2")
+    runCatching { engine.setSurface(hwnd2) }
+    Thread.sleep(1000)
+    // 重建后再走一遍装载 + 播放，并继续按 250ms 的节奏读 position（正是崩溃时的调用模式）
+    runCatching {
+        engine.setSource(url)
+        engine.play()
+    }
+    var crashed = false
+    repeat(8) {
+        Thread.sleep(500)
+        runCatching {
+            val p = engine.getPosition()
+            val d = engine.getDuration()
+            engine.getBufferedPercentage()
+            if (it == 3) println("  重建后 position=$p duration=$d")
+        }.onFailure { crashed = true }
+    }
+    println("[probe] 换窗口后仍存活 ✓（若此前会闪退，这里会直接看不到后续输出）")
+
     runCatching { engine.release() }
     runCatching { frame.dispose() }
     println(if (advanced) "=== 结果: ✓ 画面推进正常（position 有增长）===" else "=== 结果: ✗ position 未推进 ===")
     kotlin.system.exitProcess(if (advanced) 0 else 1)
 }
-
 private fun runSelfTestCli() {
     // mpv 运行库可用性 —— 桌面端播放的前提，先测它省得等用户点播放才发现缺 dll。
     // 打包内置的 libmpv-2.dll 会由 MpvLib 从 jar 资源解压到临时目录后加载。

@@ -27,6 +27,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 生命周期 ====================
 
+    @Synchronized
     actual fun initialize() {
         // ⚠️ 这里**不能**直接 mpv_create + initialize：
         // mpv 的 `wid`（渲染窗口句柄）必须在 mpv_initialize() **之前**设置，而 HWND
@@ -117,6 +118,7 @@ actual class PlayerEngine actual constructor() {
         }
     }
 
+    @Synchronized
     actual fun release() {
         running = false
         // 清空等待中的请求：release 后不应再被重放（否则下一次进播放页会用旧地址开播）
@@ -132,15 +134,23 @@ actual class PlayerEngine actual constructor() {
             }
         } catch (_: InterruptedException) {
         }
-        synchronized(this) {
-            handle?.let { mpv.mpv_destroy(it) }
+        if (thread?.isAlive == true) {
+            // 事件线程仍活着：销毁句柄会被它访问到（use-after-free → 进程崩溃）。
+            // 这里宁可泄漏一个句柄（进程随后退出，由 OS 回收），也不让用户看到闪退。
+            logger.e { "mpv 事件线程未退出，跳过句柄销毁以避免崩溃（句柄交由进程退出回收）" }
             handle = null
+        } else {
+            synchronized(this) {
+                handle?.let { mpv.mpv_destroy(it) }
+                handle = null
+            }
         }
         currentState = PlayerState.IDLE
     }
 
     // ==================== 播放控制 ====================
 
+    @Synchronized
     actual fun setSource(
         url: String,
         headers: Map<String, String>?,
@@ -168,11 +178,13 @@ actual class PlayerEngine actual constructor() {
     }
 
     /** Desktop 侧由 mpv 自行决定解码器，这里保留接口一致性。 */
+    @Synchronized
     actual fun setDecodeMode(preferSoftware: Boolean) {
         val h = handle ?: return
         setPropertyString(h, "hwdec", if (preferSoftware) "no" else "auto-safe")
     }
 
+    @Synchronized
     actual fun play() {
         val h = handle
         if (h == null) {
@@ -184,12 +196,14 @@ actual class PlayerEngine actual constructor() {
         mpv.mpv_set_property(h, "pause", MpvLib.MPV_FORMAT_FLAG, mem)
     }
 
+    @Synchronized
     actual fun pause() {
         val h = handle ?: return
         val mem = Memory(4).apply { setInt(0, 1) } // true = paused
         mpv.mpv_set_property(h, "pause", MpvLib.MPV_FORMAT_FLAG, mem)
     }
 
+    @Synchronized
     actual fun stop() {
         val h = handle ?: return
         mpv.mpv_command(h, arrayOf("stop"))
@@ -207,6 +221,7 @@ actual class PlayerEngine actual constructor() {
      * - 拉伸铺满：`keepaspect=no`（变形铺满）
      * - 固定比例：`video-aspect-override`（16:9 / 4:3 / 21:9）
      */
+    @Synchronized
     actual fun setAspectMode(mode: AspectMode) {
         aspectMode = mode
         applyAspectMode()
@@ -216,6 +231,7 @@ actual class PlayerEngine actual constructor() {
     actual val handlesAspectInternally: Boolean get() = true
 
     /** mpv 会根据窗口与视频尺寸算比例，无需上层告知（返回 0f 表示未知）。 */
+    @Synchronized
     actual fun getVideoAspectRatio(): Float = 0f
 
     private fun applyAspectMode() {
@@ -251,17 +267,20 @@ actual class PlayerEngine actual constructor() {
         }
     }
 
+    @Synchronized
     actual fun seekTo(positionMs: Long) {
         val h = handle ?: return
         val seconds = positionMs / 1000.0
         mpv.mpv_command(h, arrayOf("seek", "%.3f".format(seconds), "absolute"))
     }
 
+    @Synchronized
     actual fun setPlaybackSpeed(speed: Float) {
         val h = handle ?: return
         setPropertyDouble(h, "speed", speed.toDouble())
     }
 
+    @Synchronized
     actual fun setVolume(volume: Float) {
         val h = handle ?: return
         // mpv 音量范围 0-100，接口范围 0.0-1.0
@@ -270,6 +289,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 状态查询 ====================
 
+    @Synchronized
     actual fun getPosition(): Long {
         val h = handle ?: return 0L
         return (getPropertyDouble(h, "time-pos") * 1000).toLong()
@@ -285,6 +305,7 @@ actual class PlayerEngine actual constructor() {
     @Volatile
     private var cachedDurationMs: Long = 0L
 
+    @Synchronized
     actual fun getDuration(): Long {
         val h = handle ?: return 0L
         if (cachedDurationMs > 0L) return cachedDurationMs
@@ -293,18 +314,22 @@ actual class PlayerEngine actual constructor() {
         return d
     }
 
+    @Synchronized
     actual fun isPlaying(): Boolean {
         val h = handle ?: return false
         // pause == false 表示正在播放
         return !getPropertyFlag(h, "pause")
     }
 
+    @Synchronized
     actual fun getPlayerState(): PlayerState = currentState
 
+    @Synchronized
     actual fun setListener(listener: PlayerEngineListener?) {
         this.listener = listener
     }
 
+    @Synchronized
     actual fun getBufferedPercentage(): Int {
         val h = handle ?: return 0
         val cacheDuration = getPropertyDouble(h, "demuxer-cache-duration")
@@ -316,6 +341,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== Surface ====================
 
+    @Synchronized
     actual fun setSurface(surface: Any?) {
         logger.i { "setSurface: $surface（handle=${if (handle != null) "已创建" else "未创建"}, pendingWid=$pendingWid）" }
         if (surface !is Long) return
@@ -338,6 +364,15 @@ actual class PlayerEngine actual constructor() {
             t?.interrupt()
             t?.join(3000)
         }
+        if (t != null && t.isAlive) {
+            // ⚠️ 事件线程没能在 3s 内退出 —— 此时销毁句柄可能被它继续访问
+            // （use-after-free 会让进程直接崩溃，Java 层抓不到任何异常，
+            // 用户看到的就是「播放闪退」）。宁可本次换窗口不生效，也不冒崩溃风险。
+            logger.w { "mpv 事件线程未退出，跳过句柄重建（本次渲染窗口保持原样）" }
+            running = true
+            eventThread = t
+            return
+        }
         synchronized(this) {
             handle?.let { mpv.mpv_destroy(it) }
             handle = null
@@ -346,6 +381,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 视频轨道 ====================
 
+    @Synchronized
     actual fun getVideoTracks(): List<TrackInfo> {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
@@ -355,6 +391,7 @@ actual class PlayerEngine actual constructor() {
             .map { it.copy(isSelected = it.id == currentVid) }
     }
 
+    @Synchronized
     actual fun setVideoTrack(trackId: String): Boolean {
         val h = handle ?: return false
         return try {
@@ -367,6 +404,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 音频轨道 ====================
 
+    @Synchronized
     actual fun getAudioTracks(): List<TrackInfo> {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
@@ -376,6 +414,7 @@ actual class PlayerEngine actual constructor() {
             .map { it.copy(isSelected = it.id == currentAid) }
     }
 
+    @Synchronized
     actual fun setAudioTrack(trackId: String): Boolean {
         val h = handle ?: return false
         return try {
@@ -388,6 +427,7 @@ actual class PlayerEngine actual constructor() {
 
     // ==================== 字幕轨道 ====================
 
+    @Synchronized
     actual fun getSubtitleTracks(): List<TrackInfo> {
         val h = handle ?: return emptyList()
         val tracks = parseTrackList(h)
@@ -397,6 +437,7 @@ actual class PlayerEngine actual constructor() {
             .map { it.copy(isSelected = it.id == currentSid) }
     }
 
+    @Synchronized
     actual fun setSubtitleTrack(trackId: String): Boolean {
         val h = handle ?: return false
         return try {
