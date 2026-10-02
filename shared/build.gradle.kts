@@ -67,6 +67,9 @@ kotlin {
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
+                // libmpv 按需下载：官方 dev 包是 7z（BCJ2 过滤器），Java 侧用它们解
+                implementation(libs.commons.compress)
+                implementation(libs.xz)
                 // Force a sqlite-jdbc version compatible with JDK 21
                 implementation("org.xerial:sqlite-jdbc:3.45.1.0")
             }

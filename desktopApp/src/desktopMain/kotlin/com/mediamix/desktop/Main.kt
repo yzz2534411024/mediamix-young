@@ -87,6 +87,14 @@ fun main(args: Array<String>) {
             LaunchedEffect(Unit) {
                 println("[启动] 首帧渲染: +${System.currentTimeMillis() - bootT0}ms")
             }
+            // 后台预热 mpv 运行库（桌面端按需下载，约 45 MB）：
+            // 启动后就开始下，等用户点播放时多半已就绪，避免"点开等下载"。
+            // 失败静默 —— 真正播放时还会重试并给出明确提示。
+            LaunchedEffect(Unit) {
+                runCatching { com.mediamix.shared.player.ensureNativeRuntime(null) }
+                    .onSuccess { println("[native-runtime] mpv 运行库就绪") }
+                    .onFailure { println("[native-runtime] 预热失败: ${it.message}") }
+            }
             val themeMode by ThemeConfig.themeMode.collectAsState()
             MediaMixTheme(themeMode = themeMode) {
                 App()
@@ -173,6 +181,20 @@ private fun runMpvProbe(args: Array<String>) {
 
     println("=== MediaMix 播放链路自检 ===")
     println("测试地址: $url")
+
+    // 运行库按需下载：这一步会真正走下载 + 解压 + MD5 校验链路（首次运行约 45 MB）
+    println("[native-runtime] 准备 mpv 运行库…")
+    runCatching {
+        kotlinx.coroutines.runBlocking {
+            com.mediamix.shared.player.ensureNativeRuntime { p ->
+                if ((p * 100).toInt() % 20 == 0) println("  下载中 ${(p * 100).toInt()}%")
+            }
+        }
+    }.onSuccess { println("[native-runtime] 就绪 ✓") }
+        .onFailure {
+            println("[native-runtime] 失败: ${it.message}")
+            kotlin.system.exitProcess(1)
+        }
 
     val frame = javax.swing.JFrame("MediaMix mpv probe")
     val canvas = java.awt.Canvas()

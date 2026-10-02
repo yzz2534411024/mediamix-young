@@ -146,15 +146,18 @@ interface MpvLib : Library {
          * 加载 mpv 客户端库。
          *
          * 顺序：
-         *  1. **打包内置**：从 jar 资源 `native/windows-x64/`（按 `files.txt` 清单）
-         *     解压到临时目录后加载 —— 分发包自带 mpv，用户无需手工放 DLL；
-         *  2. 系统搜索（用户自装 mpv / 手工放到 exe 同目录）：
-         *     老版本 DLL 名是 `mpv-1.dll`，新 libmpv（mpv-dev-x86_64-*.7z）是
-         *     `libmpv-2.dll`，按序回退。
+         *  1. **本地运行库**（[MpvNativeRuntime]：`%LOCALAPPDATA%\CatVideo\native\` 缓存
+         *     或 exe 同目录）—— 按需下载/用户手工放置的都在这里；
+         *  2. **打包内置**（若某次构建又内置了，从 jar 资源解压后加载）；
+         *  3. 系统搜索（用户自装 mpv）：`mpv-1` / `libmpv-2` / `libmpv` 依次回退。
          *
-         * 全部失败时抛带明确指引的 [UnsatisfiedLinkError]。
+         * 本方法**不触发下载**（保持同步语义）；需要下载时由上层先调
+         * `MpvNativeRuntime.ensure()`。
          */
         fun getInstance(): MpvLib {
+            MpvNativeRuntime.existing()?.let { file ->
+                runCatching { return Native.load(file.absolutePath, MpvLib::class.java) }
+            }
             extractBundledNative()?.let { path ->
                 return Native.load(path, MpvLib::class.java)
             }
@@ -168,9 +171,8 @@ interface MpvLib : Library {
                 }
             }
             throw UnsatisfiedLinkError(
-                "无法加载 mpv 运行库（已尝试：内置资源、${candidates.joinToString()}）。" +
-                    "Desktop 端播放需要 mpv-1.dll 或 libmpv-2.dll；" +
-                    "请把该 DLL 放到应用可执行文件（MediaMix.exe）同目录。" +
+                "无法加载 mpv 运行库。Desktop 端播放需要 ${MpvNativeRuntime.runtimeDir}/libmpv-2.dll；" +
+                    "首次播放会自动下载（约 45 MB），也可手动把该 DLL 放到上面的目录。" +
                     "底层错误：${lastError?.message}",
             )
         }

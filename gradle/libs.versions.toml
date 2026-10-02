@@ -71,6 +71,10 @@ coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.re
 
 # Other
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+
+# 7z 解压（libmpv 按需下载：官方 dev 包是 7z + BCJ2 过滤器）
+commons-compress = { module = "org.apache.commons:commons-compress", version = "1.27.1" }
+xz = { module = "org.tukaani:xz", version = "1.10" }
 multiplatform-settings = { module = "com.russhwolf:multiplatform-settings", version.ref = "multiplatformSettings" }
 multiplatform-settings-test = { module = "com.russhwolf:multiplatform-settings-test", version.ref = "multiplatformSettings" }
 multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatformSettings" }

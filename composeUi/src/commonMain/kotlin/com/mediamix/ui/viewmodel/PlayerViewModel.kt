@@ -109,6 +109,13 @@ class PlayerViewModel(
     private val _videoAspectRatio = MutableStateFlow(0f)
     val videoAspectRatio: StateFlow<Float> = _videoAspectRatio.asStateFlow()
 
+    /**
+     * 首次播放前的原生运行库准备进度（桌面端 mpv 按需下载）。
+     * null = 无需准备（已就绪 / Android）；0f..1f = 正在下载。
+     */
+    private val _runtimeProgress = MutableStateFlow<Float?>(null)
+    val runtimeProgress: StateFlow<Float?> = _runtimeProgress.asStateFlow()
+
     /** 引擎是否自行处理画面比例（桌面 mpv = true → UI 层不再约束尺寸）。 */
     val engineHandlesAspect: Boolean get() = playerCoreManager.engineHandlesAspectInternally
 
@@ -195,6 +202,10 @@ class PlayerViewModel(
         playerCoreManager.consumePendingError()?.let { _lastError.value = it.message }
         // 视频比例：`onVideoSizeChanged` 后 UI 层按比例约束画面（Android）
         playerCoreManager.onVideoAspectRatioChanged = { ratio -> _videoAspectRatio.value = ratio }
+        // 首次播放组件准备（桌面端按需下载 mpv）：给 UI 一个进度提示，
+        // 否则用户看到的是长时间黑屏 —— 与之前的「白屏」观感一模一样。
+        playerCoreManager.onNativeRuntimeProgress = { p -> _runtimeProgress.value = p }
+        playerCoreManager.onNativeRuntimeReady = { _runtimeProgress.value = null }
         // 剧集变化事件（切集 / 自动连播）——取代了原来的 500ms 轮询
         playerCoreManager.onEpisodeChanged = { _, _ -> syncEpisodeState() }
         playerCoreManager.onTracksChanged = { audio, video ->

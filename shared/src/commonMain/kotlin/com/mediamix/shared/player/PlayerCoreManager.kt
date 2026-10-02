@@ -131,6 +131,12 @@ class PlayerCoreManager(
     /** 引擎是否自行处理画面比例（桌面 mpv = true，UI 层不再约束尺寸）。 */
     val engineHandlesAspectInternally: Boolean get() = playerEngine.handlesAspectInternally
 
+    /** 首次播放前准备原生运行库的进度（0..1）—— UI 用来提示「正在准备播放组件」。 */
+    var onNativeRuntimeProgress: ((Float) -> Unit)? = null
+
+    /** 运行库已就绪（UI 收起提示）。 */
+    var onNativeRuntimeReady: (() -> Unit)? = null
+
     /**
      * 最近一次未被消费的错误。
      *
@@ -562,6 +568,24 @@ class PlayerCoreManager(
 
         // Open video and start periodic tasks
         scope.launch {
+            // ★ 首次播放前准备原生运行库（桌面端 mpv 按需下载，约 45 MB）。
+            // 必须在装载之前：MpvLib 加载 dll 是同步调用，库里没有就直接抛。
+            // 后台预热通常已经下好，这里兜底重试并负责失败提示。
+            try {
+                ensureNativeRuntime { p -> onNativeRuntimeProgress?.invoke(p) }
+                onNativeRuntimeReady?.invoke()
+            } catch (t: Throwable) {
+                logger.e { "原生运行库准备失败: ${t.message}" }
+                emitError(
+                    ErrorEvent(
+                        "播放组件准备失败：${t.message ?: "未知错误"}\n" +
+                            "可手动下载 libmpv-2.dll 放到：${nativeRuntimeHint()}",
+                    ),
+                )
+                isInitializing = false
+                return@launch
+            }
+
             openVideoWithCacheCheck(url, videoId)
 
             // Set playback speed

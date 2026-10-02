@@ -81,6 +81,8 @@ fun PlayerScreen(
     val isSeeking by viewModel.isSeeking.collectAsState()
     // 视频真实宽高比（Android 用它约束画面尺寸；桌面端恒为 0，由 mpv 自理）
     val videoAspectRatio by viewModel.videoAspectRatio.collectAsState()
+    // 首次播放组件准备（桌面端 mpv 按需下载）的进度；null = 无需准备
+    val runtimeProgress by viewModel.runtimeProgress.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val brightness by viewModel.brightness.collectAsState()
     val subtitleTracks by viewModel.subtitleTracks.collectAsState()
@@ -275,6 +277,34 @@ fun PlayerScreen(
                 onSurfaceCreated = { surface -> viewModel.setSurface(surface) },
                 onSurfaceDestroyed = { viewModel.setSurface(null) },
             )
+        }
+
+        // ---- 首次播放组件准备（桌面端 mpv 按需下载）----
+        // 放在最上层：这段时间里既没有画面也没有控制栏，必须给出明确反馈，
+        // 否则用户看到的就是与「白屏 bug」一模一样的长时间黑屏。
+        runtimeProgress?.let { p ->
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.88f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("正在准备播放组件", color = Color.White)
+                    Spacer(Modifier.height(14.dp))
+                    LinearProgressIndicator(
+                        progress = { p },
+                        modifier = Modifier.width(260.dp),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "首次播放需下载约 45 MB，之后不再重复下载 · ${(p * 100).toInt()}%",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 12.sp,
+                    )
+                }
+            }
         }
 
         GestureLayer(
