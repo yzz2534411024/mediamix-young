@@ -3,6 +3,7 @@ package com.mediamix.desktop
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
@@ -27,10 +28,13 @@ import org.koin.core.context.startKoin
 import java.io.File
 
 fun main(args: Array<String>) {
+    // 启动耗时剖析基准点：JVM 起来后的最早时刻
+    val bootT0 = System.currentTimeMillis()
     // 日志落盘必须在任何输出之前：jpackage 启动器是 GUI 子系统程序，
     // stdout/stderr 不会进父进程（批处理）的重定向 —— 用户实测
     // 「日志模式.bat」抓不到任何内容。改为应用自己写文件。
     installFileLogging(args)
+    println("[启动] 日志就绪: +${System.currentTimeMillis() - bootT0}ms")
 
     // 命令行自检模式：MediaMix.exe --self-test
     // 跳过 UI/Koin/数据库，独立跑 TVBox 接口自检，结果打印到 stdout —— 供自动化测试。
@@ -62,6 +66,7 @@ fun main(args: Array<String>) {
     startKoin {
         modules(sharedModule, uiModule)
     }
+    println("[启动] Koin 就绪: +${System.currentTimeMillis() - bootT0}ms")
     application {
         val appIcon = remember { loadAppIcon() }
         val (initialWidth, initialHeight) = remember { preferredWindowSize() }
@@ -78,6 +83,10 @@ fun main(args: Array<String>) {
                     position = WindowPosition(Alignment.Center),
                 ),
         ) {
+            // 首帧就绪的近似时刻（组合完成并进入渲染阶段）—— 用于启动耗时剖析
+            LaunchedEffect(Unit) {
+                println("[启动] 首帧渲染: +${System.currentTimeMillis() - bootT0}ms")
+            }
             val themeMode by ThemeConfig.themeMode.collectAsState()
             MediaMixTheme(themeMode = themeMode) {
                 App()
@@ -116,10 +125,28 @@ private fun installFileLogging(args: Array<String>) {
         }
     runCatching {
         file.parentFile?.mkdirs()
-        val ps = java.io.PrintStream(java.io.FileOutputStream(file, true), true, "UTF-8")
+        // 每行自动加毫秒时间戳：排查启动/加载耗时的前提（Kermit 默认输出没有时间，
+        // 而它的 LogWriter API 各版本差异大，直接包一层 PrintStream 最稳）
+        val ps = TimestampedPrintStream(java.io.FileOutputStream(file, true))
         System.setOut(ps)
         System.setErr(ps)
         println("[log] 本次运行日志: ${file.absolutePath}")
+    }
+}
+
+/**
+ * 给每一行输出加 `HH:mm:ss.SSS` 前缀的 PrintStream。
+ *
+ * 只重写 `println(String)` —— Kermit 2.x 的默认 writer 走的就是 println(message)，
+ * 异常栈则由 `printStackTrace` 直接写 stream（多行不加前缀，可接受）。
+ */
+private class TimestampedPrintStream(
+    out: java.io.OutputStream,
+) : java.io.PrintStream(out, true, "UTF-8") {
+    private val format = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+
+    override fun println(x: String) {
+        super.println("${java.time.LocalTime.now().format(format)} $x")
     }
 }
 
