@@ -86,7 +86,7 @@ actual class PlayerEngine actual constructor() {
 
         // ★ 开启 mpv 内部日志（warn 级）：mpv 的报错会在事件循环里转成应用日志。
         // GUI 启动器没有控制台，这是拿到 mpv 原始报错的唯一途径。
-        mpv.mpv_request_log_messages(h, "warn")
+        mpv.mpv_request_log_messages(h, "info")
 
         val rc = mpv.mpv_initialize(h)
         if (rc < 0) {
@@ -94,6 +94,7 @@ actual class PlayerEngine actual constructor() {
             throw RuntimeException("mpv_initialize failed: ${mpv.mpv_error_string(rc)}")
         }
         handle = h
+        logger.i { "mpv 实例已创建并绑定渲染窗口 wid=$wid" }
 
         // 观察关键属性
         mpv.mpv_observe_property(h, 1, "time-pos", MpvLib.MPV_FORMAT_DOUBLE)
@@ -316,6 +317,7 @@ actual class PlayerEngine actual constructor() {
     // ==================== Surface ====================
 
     actual fun setSurface(surface: Any?) {
+        logger.i { "setSurface: $surface（handle=${if (handle != null) "已创建" else "未创建"}, pendingWid=$pendingWid）" }
         if (surface !is Long) return
         if (handle != null && pendingWid != null && pendingWid != surface) {
             // 渲染窗口换了（退出播放页再进 / 页面重建）—— mpv 的 wid 是**初始化选项**，

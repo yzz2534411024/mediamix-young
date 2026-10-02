@@ -113,10 +113,9 @@ compose.desktop {
                 // 解压版目录可写即生效，装到只读目录时 JVM 会自行忽略，不会报错。
                 "-XX:+AutoCreateSharedArchive",
                 "-XX:SharedArchiveFile=\$APPDIR/catvideo.jsa",
-                // JIT 分层：只编译到 C1，跳过 C2 的深度优化阶段 —— 启动更快、编译线程吃 CPU 更少。
-                // 权衡：长时间运行的重计算方法拿不到 C2 峰值性能；但本应用的解码/渲染都在
-                // native（mpv/skiko），JVM 只做 UI 编排与网络，实测无明显代价。
-                "-XX:TieredStopAtLevel=1",
+                // ❌ 已撤掉 -XX:TieredStopAtLevel=1：实测它省下的启动时间只有 ~70ms，
+                // 却让 JVM 长期停在 C1（C2 峰值优化全无），且是本轮唯一可能影响
+                // JNI/native 调用行为的新参数 —— 收益与风险不成比例。
                 // 预分配堆，减少启动阶段的堆扩容与 GC
                 "-Xms256m",
             )
