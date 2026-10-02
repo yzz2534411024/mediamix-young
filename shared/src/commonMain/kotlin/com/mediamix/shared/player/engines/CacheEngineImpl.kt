@@ -48,6 +48,16 @@ class CacheEngineImpl(
     // URL resolution
     // ========================================================================
 
+    /**
+     * 把本地缓存文件路径转成播放器可识别的 URI。
+     *
+     * 裸路径（Windows 上形如 `C:\...\xxx.mp4`，常含中文与空格）直接交给播放器并不稳妥：
+     * mpv 会把反斜杠当转义、ExoPlayer 会当成相对 URL。统一转成 `file:///...` 规范形式，
+     * 由 `File.toURI()` 顺带完成百分号编码。
+     */
+    private fun playableUri(path: String): String =
+        runCatching { java.io.File(path).toURI().toString() }.getOrDefault(path)
+
     override suspend fun resolveVideoUrl(
         url: String,
         videoId: String,
@@ -59,7 +69,7 @@ class CacheEngineImpl(
                 logger.i("Cache hit, using local file: $videoId")
                 _isUsingCache = true
                 preloadedVideoIds.remove(videoId)
-                return cachedPath
+                return playableUri(cachedPath)
             }
 
             _isUsingCache = false
@@ -102,7 +112,7 @@ class CacheEngineImpl(
                 logger.i("Cache exact hit: $videoId@$quality")
                 _isUsingCache = true
                 preloadedVideoIds.remove(videoId)
-                return CacheResolveResult(url = exactPath, isUsingCache = true)
+                return CacheResolveResult(url = playableUri(exactPath), isUsingCache = true)
             }
 
             // 2. Fallback match: other quality cached
@@ -113,7 +123,7 @@ class CacheEngineImpl(
                 _isUsingCache = true
                 preloadedVideoIds.remove(videoId)
                 return CacheResolveResult(
-                    url = fallbackPath,
+                    url = playableUri(fallbackPath),
                     isUsingCache = true,
                     fallbackQuality = fallbackQuality,
                 )

@@ -158,6 +158,7 @@ actual class PlayerEngine actual constructor() {
                 ?.joinToString(",") { "${it.key}: ${it.value}" }
                 ?: ""
         setPropertyString(h, "http-header-fields", headerValue)
+        cachedDurationMs = 0L // 换源后时长失效
         mpv.mpv_command(h, arrayOf("loadfile", url, "replace"))
         // loadfile 会重置部分渲染参数 —— 换集后重放一次当前比例设置
         applyAspectMode()
@@ -273,9 +274,22 @@ actual class PlayerEngine actual constructor() {
         return (getPropertyDouble(h, "time-pos") * 1000).toLong()
     }
 
+    /**
+     * 时长缓存（毫秒）。
+     *
+     * duration 在整部片子里是常量，但进度上报每 250ms 要读一次 —— 每次都走 JNA 到
+     * native 取属性纯属浪费（缓冲百分比还要连带读第二遍）。这里只在装载后取一次并缓存，
+     * 下次换源时失效。
+     */
+    @Volatile
+    private var cachedDurationMs: Long = 0L
+
     actual fun getDuration(): Long {
         val h = handle ?: return 0L
-        return (getPropertyDouble(h, "duration") * 1000).toLong()
+        if (cachedDurationMs > 0L) return cachedDurationMs
+        val d = (getPropertyDouble(h, "duration") * 1000).toLong()
+        if (d > 0L) cachedDurationMs = d
+        return d
     }
 
     actual fun isPlaying(): Boolean {
@@ -293,7 +307,8 @@ actual class PlayerEngine actual constructor() {
     actual fun getBufferedPercentage(): Int {
         val h = handle ?: return 0
         val cacheDuration = getPropertyDouble(h, "demuxer-cache-duration")
-        val duration = getPropertyDouble(h, "duration")
+        // 用缓存的时长，省掉一次 JNA 往返
+        val duration = if (cachedDurationMs > 0L) cachedDurationMs / 1000.0 else getPropertyDouble(h, "duration")
         if (duration <= 0) return 0
         return ((cacheDuration / duration) * 100).toInt().coerceIn(0, 100)
     }
