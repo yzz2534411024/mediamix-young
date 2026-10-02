@@ -52,6 +52,7 @@ import org.koin.compose.koinInject
 fun DebugScreen(
     viewModel: DebugViewModel = koinInject(),
     onBack: () -> Unit = {},
+    onNavigateToComponentPreview: () -> Unit = {},
 ) {
     val metrics by viewModel.metrics.collectAsState()
     val cacheStats by viewModel.cacheStats.collectAsState()
@@ -146,6 +147,16 @@ fun DebugScreen(
                 }
             } else {
                 items(sources.size) { i -> EntryRow(sources[i]) }
+            }
+
+            // S2 设计系统的验收入口：一屏看到所有组件在当前主题下的样子
+            item {
+                OutlinedButton(
+                    onClick = onNavigateToComponentPreview,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                ) {
+                    Text("组件预览（设计系统）")
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.mediamix.ui.screens
 
+import com.mediamix.ui.theme.CatTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -200,9 +201,9 @@ private fun SourceTile(
                 if (status != null) {
                     val color =
                         when {
-                            status.isAvailable && status.latencyMs < 500 -> Color(0xFF4CAF50)
-                            status.isAvailable -> Color(0xFFFF9800)
-                            else -> Color(0xFFF44336)
+                            status.isAvailable && status.latencyMs < 500 -> CatTheme.colors.success
+                            status.isAvailable -> CatTheme.colors.warning
+                            else -> MaterialTheme.colorScheme.error
                         }
                     Text(
                         text = if (status.isAvailable) "可用 · ${status.latencyMs}ms" else "不可用",
@@ -217,9 +218,9 @@ private fun SourceTile(
             val statusPair: Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> =
                 when {
                     status == null -> AppIcons.Cloud to Color.Gray
-                    status.isAvailable && status.latencyMs < 500 -> AppIcons.CloudDone to Color(0xFF4CAF50)
-                    status.isAvailable -> AppIcons.CloudQueue to Color(0xFFFF9800)
-                    else -> AppIcons.CloudOff to Color(0xFFF44336)
+                    status.isAvailable && status.latencyMs < 500 -> AppIcons.CloudDone to CatTheme.colors.success
+                    status.isAvailable -> AppIcons.CloudQueue to CatTheme.colors.warning
+                    else -> AppIcons.CloudOff to MaterialTheme.colorScheme.error
                 }
             Icon(statusPair.first, contentDescription = null, tint = statusPair.second)
         },

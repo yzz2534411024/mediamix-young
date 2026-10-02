@@ -82,7 +82,13 @@ fun App() {
                 )
             }
             composable(Screen.Debug.route) {
-                DebugScreen(onBack = { navController.popBackStack() })
+                DebugScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToComponentPreview = { navController.navigate(Screen.ComponentPreview.route) },
+                )
+            }
+            composable(Screen.ComponentPreview.route) {
+                ComponentPreviewScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Detail.PATTERN) { backStackEntry ->
                 val vodId = backStackEntry.arguments?.getString("vodId") ?: ""

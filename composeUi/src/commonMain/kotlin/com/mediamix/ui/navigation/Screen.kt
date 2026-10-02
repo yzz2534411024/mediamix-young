@@ -55,6 +55,9 @@ sealed class Screen(
 
     data object Debug : Screen("debug")
 
+    /** 组件预览（S2 设计系统的验收工具） */
+    data object ComponentPreview : Screen("component-preview")
+
     companion object {
         val bottomNavItems = listOf(Home, History, Favorite, Settings)
     }

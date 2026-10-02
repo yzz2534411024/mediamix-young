@@ -1,5 +1,6 @@
 ﻿package com.mediamix.ui.screens
 
+import com.mediamix.ui.theme.CatTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -136,9 +137,9 @@ private fun DownloadTaskTile(
         when (task.status) {
             DownloadTaskStatus.WAITING -> Color.Gray
             DownloadTaskStatus.DOWNLOADING -> MaterialTheme.colorScheme.primary
-            DownloadTaskStatus.PAUSED -> Color(0xFFFF9800)
-            DownloadTaskStatus.COMPLETED -> Color(0xFF4CAF50)
-            DownloadTaskStatus.FAILED -> Color(0xFFF44336)
+            DownloadTaskStatus.PAUSED -> CatTheme.colors.warning
+            DownloadTaskStatus.COMPLETED -> CatTheme.colors.success
+            DownloadTaskStatus.FAILED -> MaterialTheme.colorScheme.error
         }
 
     val statusIcon =
@@ -199,7 +200,7 @@ private fun DownloadTaskTile(
                     LinearProgressIndicator(
                         progress = { task.progress / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color(0xFFFF9800),
+                        color = CatTheme.colors.warning,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -250,7 +251,7 @@ private fun DownloadTaskTile(
                                 Icon(
                                     AppIcons.PlayCircle,
                                     contentDescription = "\u64ad\u653e",
-                                    tint = Color(0xFF4CAF50),
+                                    tint = CatTheme.colors.success,
                                 )
                             }
                         }
