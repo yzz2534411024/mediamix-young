@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.Surface
 import android.view.TextureView
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
@@ -147,6 +148,16 @@ actual class PlayerEngine actual constructor() {
                         cacheDataSourceFactory(context),
                     ),
                 ).setLoadControl(buildLoadControl())
+                // ★ 音频属性必须显式配置：不配时 ExoPlayer 不申请音频焦点、USAGE 为 UNKNOWN，
+                // 实测在 Android 上表现为「有画面没声音」（用户反馈）。
+                .setAudioAttributes(
+                    AudioAttributes
+                        .Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                        .build(),
+                    /* handleAudioFocus = */ true,
+                )
                 .build()
                 .apply { addListener(playerListener) }
         currentState = PlayerState.IDLE

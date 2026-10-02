@@ -837,7 +837,9 @@ class PlayerCoreManager(
 
     fun setVolume(v: Float) {
         volume = v.coerceIn(0f, 1f)
-        if (!isDisposed) playerEngine.setVolume(volume * 100f)
+        // ⚠️ 不要乘 100：ExoPlayer 的 volume 是 0f..1f（mpv 也一样，引擎内部各自处理量纲）。
+        // 之前 `volume * 100f` 会被 clamp 成 1f → 永远最大声，用户怎么调都没变化。
+        if (!isDisposed) playerEngine.setVolume(volume)
     }
 
     fun setBrightness(b: Float) {

@@ -47,7 +47,8 @@ actual fun ApplyScreenOrientation(mode: ScreenOrientationMode) {
  * Compose 的 LocalContext 在有些宿主里拿到的是 ContextWrapper（如 ContextThemeWrapper），
  * 不是 Activity 本身，直接强转会失败。
  */
-private fun Context.findActivity(): Activity? {
+/** 从 Context 向上找宿主 Activity（屏幕方向与亮度两个平台实现共用）。 */
+internal fun Context.findActivity(): Activity? {
     var ctx: Context? = this
     while (ctx is ContextWrapper) {
         if (ctx is Activity) return ctx

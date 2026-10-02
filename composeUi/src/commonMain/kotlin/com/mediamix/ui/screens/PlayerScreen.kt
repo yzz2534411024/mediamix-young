@@ -27,6 +27,7 @@ import com.mediamix.shared.player.AspectMode
 import com.mediamix.shared.player.PlayMode
 import com.mediamix.shared.player.PlayerState
 import com.mediamix.ui.components.*
+import com.mediamix.ui.platform.ApplyScreenBrightness
 import com.mediamix.ui.platform.ApplyScreenOrientation
 import com.mediamix.ui.platform.ScreenOrientationMode
 import com.mediamix.ui.platform.VideoSurface
@@ -85,6 +86,9 @@ fun PlayerScreen(
     val runtimeProgress by viewModel.runtimeProgress.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val brightness by viewModel.brightness.collectAsState()
+    // 把亮度状态真正落到屏幕（Android 走窗口亮度，离开播放页自动恢复系统亮度）。
+    // 此前亮度只存在于状态里，手势只有动画没有效果（用户实测反馈）。
+    ApplyScreenBrightness(brightness)
     val subtitleTracks by viewModel.subtitleTracks.collectAsState()
     val currentSubtitleTrack by viewModel.currentSubtitleTrack.collectAsState()
     val currentEpisodeName by viewModel.currentEpisodeName.collectAsState()
