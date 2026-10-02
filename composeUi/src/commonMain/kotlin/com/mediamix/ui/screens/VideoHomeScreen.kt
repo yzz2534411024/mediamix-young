@@ -108,7 +108,7 @@ fun VideoHomeScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("MediaMix", fontWeight = FontWeight.Bold) },
+                title = { Text("CatVideo", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onNavigateToSearch) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")

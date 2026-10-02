@@ -59,3 +59,7 @@ MediaMix-桌面版/
 
 # libmpv 运行库（121MB，本地放置，见 memory 说明）
 shared/src/desktopMain/resources/native/**/*.dll
+
+# CatVideo 分发目录（150MB，不入库）
+CatVideo-桌面版/
+CatVideo-桌面版.zip

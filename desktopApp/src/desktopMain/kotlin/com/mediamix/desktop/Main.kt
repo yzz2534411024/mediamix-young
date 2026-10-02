@@ -72,7 +72,7 @@ fun main(args: Array<String>) {
         val (initialWidth, initialHeight) = remember { preferredWindowSize() }
         Window(
             onCloseRequest = ::exitApplication,
-            title = "MediaMix",
+            title = "CatVideo",
             // 窗口 / 任务栏图标。打包进 exe 的图标由 build.gradle.kts 的 windows.iconFile 指定，
             // 这里管的是运行期窗口本身（含任务栏缩略图）。
             icon = appIcon,
@@ -126,7 +126,7 @@ private fun installFileLogging(args: Array<String>) {
         }
     val file =
         explicit?.let { File(it) } ?: run {
-            val dir = File(System.getProperty("user.home"), "mediamix-logs")
+            val dir = File(System.getProperty("user.home"), "catvideo-logs")
             dir.mkdirs()
             val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(java.util.Date())
             File(dir, "mediamix-$stamp.log")
@@ -179,7 +179,7 @@ private fun runMpvProbe(args: Array<String>) {
         args.getOrNull(idx + 1)
             ?: "https://media.w3.org/2010/05/sintel/trailer.mp4"
 
-    println("=== MediaMix 播放链路自检 ===")
+    println("=== CatVideo 播放链路自检 ===")
     println("测试地址: $url")
 
     // 运行库按需下载：这一步会真正走下载 + 解压 + MD5 校验链路（首次运行约 45 MB）
@@ -196,7 +196,7 @@ private fun runMpvProbe(args: Array<String>) {
             kotlin.system.exitProcess(1)
         }
 
-    val frame = javax.swing.JFrame("MediaMix mpv probe")
+    val frame = javax.swing.JFrame("CatVideo mpv probe")
     val canvas = java.awt.Canvas()
     canvas.background = java.awt.Color.BLACK
     frame.add(canvas)
@@ -282,7 +282,7 @@ private fun runMpvProbe(args: Array<String>) {
 private fun runSelfTestCli() {
     // mpv 运行库可用性 —— 桌面端播放的前提，先测它省得等用户点播放才发现缺 dll。
     // 打包内置的 libmpv-2.dll 会由 MpvLib 从 jar 资源解压到临时目录后加载。
-    println("=== MediaMix 桌面端自检 ===")
+    println("=== CatVideo 桌面端自检 ===")
     val mpvStatus =
         runCatching {
             com.mediamix.shared.player.MpvLib.getInstance()

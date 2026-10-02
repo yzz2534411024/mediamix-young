@@ -82,10 +82,10 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
                 // org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
             )
-            packageName = "MediaMix"
+            packageName = "CatVideo"
             packageVersion = "1.0.0"
-            description = "MediaMix - Cross-platform video player"
-            copyright = "© 2026 MediaMix. All rights reserved."
+            description = "CatVideo - Cross-platform video player"
+            copyright = "© 2026 CatVideo. All rights reserved."
 
             // ⚠️ jlink 精简 runtime 的默认模块集很小（java.base/desktop/logging 等）：
             // - java.sql：SQLDelight 的 JDBC 驱动（历史/收藏/播放进度）
@@ -96,7 +96,7 @@ compose.desktop {
             modules("java.sql", "jdk.unsupported", "jdk.httpserver")
 
             windows {
-                menuGroup = "MediaMix"
+                menuGroup = "CatVideo"
                 upgradeUuid = "515f9605-df43-4595-94d6-aec464c14eec"
                 // 图标与 Android 端同源，均由 design/icon/build-icons.js 从 SVG 生成。
                 // 注意 iconFile 属于各平台块（windows/macOS/linux），不挂在 nativeDistributions 上。
@@ -107,6 +107,12 @@ compose.desktop {
             jvmArgs(
                 "-Xmx2g",
                 "-Dfile.encoding=UTF-8",
+                // 启动优化：CDS（类数据共享）。首次运行结束时自动生成归档，之后启动
+                // 直接映射已解析的类元数据，省掉大量类加载/校验（实测 JVM 启动 ~2.5s，
+                // 这项通常能砍掉 0.3~0.8s）。$APPDIR 由 jpackage 启动器展开；
+                // 解压版目录可写即生效，装到只读目录时 JVM 会自行忽略，不会报错。
+                "-XX:+AutoCreateSharedArchive",
+                "-XX:SharedArchiveFile=\$APPDIR/catvideo.jsa",
             )
         }
     }

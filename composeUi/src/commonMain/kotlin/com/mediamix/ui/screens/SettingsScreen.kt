@@ -170,7 +170,7 @@ fun SettingsScreen(
             item {
                 SettingsTile(
                     icon = Icons.Default.Info,
-                    title = "关于 MediaMix",
+                    title = "关于 CatVideo",
                     subtitle = "版本 0.2.0 · Compose Multiplatform",
                     onClick = { showAboutDialog = true },
                 )
@@ -250,7 +250,7 @@ fun SettingsScreen(
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("关于 MediaMix") },
+            title = { Text("关于 CatVideo") },
             text = {
                 Column {
                     Text("版本 0.2.0")

@@ -5,7 +5,7 @@
 
       ⚠️ 之前 AndroidManifest 里没有 android:theme，系统退回到 DeviceDefault，
       于是每个页面顶部都会多出一条系统 ActionBar —— 显示的就是 android:label
-      "MediaMix"。它和首页自己的 TopAppBar 叠在一起，看起来就是"两个标题、
+      "CatVideo"。它和首页自己的 TopAppBar 叠在一起，看起来就是"两个标题、
       排版很乱"。
 
       这里显式用 NoActionBar 主题，并把状态栏/导航栏设为透明，
