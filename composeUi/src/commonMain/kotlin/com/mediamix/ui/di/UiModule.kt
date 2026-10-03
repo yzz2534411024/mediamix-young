@@ -73,6 +73,7 @@ val uiModule: Module =
             PlayerViewModel(
                 playerCoreManager = get(),
                 playbackProgressDao = get(),
+                watchHistoryDao = get(),
                 subtitleService = get(),
                 appPreferences = get(),
                 sourceRepository = get(),

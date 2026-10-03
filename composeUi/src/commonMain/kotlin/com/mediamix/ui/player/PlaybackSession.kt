@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class PlaybackSession(
     val vodId: String,
     val vodName: String,
+    /** 海报地址：观看历史列表要用（Dao 允许 null，但没图的历史页很难看）。 */
+    val vodPic: String? = null,
     val sourceKey: String,
     val sourceIndex: Int,
     val playSources: List<PlaySource>,
@@ -114,6 +116,7 @@ class PlaybackSessionStore {
             PlaybackSession(
                 vodId = detail.vodId,
                 vodName = detail.vodName,
+                vodPic = detail.vodPic,
                 sourceKey = detail.sourceKey,
                 sourceIndex = sourceIndex,
                 playSources = detail.playSources,
@@ -145,6 +148,7 @@ class PlaybackSessionStore {
             PlaybackSession(
                 vodId = detail.vodId,
                 vodName = detail.vodName,
+                vodPic = detail.vodPic,
                 sourceKey = detail.sourceKey,
                 sourceIndex = sourceIndex,
                 playSources = detail.playSources,

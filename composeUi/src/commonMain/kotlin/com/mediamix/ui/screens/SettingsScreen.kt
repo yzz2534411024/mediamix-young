@@ -132,8 +132,10 @@ fun SettingsScreen(
             item {
                 SettingsSwitchTile(
                     icon = AppIcons.Analytics,
-                    title = "使用数据分享",
-                    subtitle = if (shareUsageData) "已开启 — 记录播放指标帮助排查问题" else "已关闭",
+                    title = "播放指标记录",
+                    subtitle =
+                        if (shareUsageData) "已开启 — 仅记录在本机，播放诊断页可查看，不会上传"
+                        else "已关闭 — 不记录任何播放数据",
                     checked = shareUsageData,
                     onCheckedChange = { viewModel.setShareUsageData(it) },
                 )

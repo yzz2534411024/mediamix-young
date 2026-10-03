@@ -16,6 +16,7 @@ import com.mediamix.shared.player.TrackInfo
 import com.mediamix.shared.services.PlaybackResolver
 import com.mediamix.shared.services.ResolvedPlay
 import com.mediamix.ui.player.PlaybackSession
+import com.mediamix.shared.database.WatchHistoryDao
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.prefs.AppPreferences
 import com.mediamix.ui.source.SourceRepository
@@ -43,6 +44,7 @@ class PlayerViewModel(
     private val sourceRepository: SourceRepository,
     private val resolver: PlaybackResolver,
     private val sessionStore: PlaybackSessionStore,
+    private val watchHistoryDao: WatchHistoryDao,
 ) : ViewModel() {
     private val logger = Logger.withTag("PlayerViewModel")
 
@@ -470,11 +472,34 @@ class PlayerViewModel(
         progressSaveJob = null
     }
 
+    /**
+     * 写观看历史。此前【全项目没有任何地方调用过 insertOrReplace】——
+     * 播放进度表一直在写、观看历史表永远是空的（用户实测反馈）。
+     * 在进度保存的同一个节拍里顺带刷新，播放中历史就在持续更新。
+     */
+    private fun recordWatchHistory() {
+        val session = sessionStore.session.value ?: return
+        if (session.vodId.isBlank()) return
+        try {
+            watchHistoryDao.insertOrReplace(
+                vodId = session.vodId,
+                vodName = session.vodName,
+                vodPic = session.vodPic,
+                sourceKey = session.sourceKey,
+                episodeName = _currentEpisodeName.value.ifBlank { null },
+                lastWatchTime = Clock.System.now().toEpochMilliseconds(),
+            )
+        } catch (e: Exception) {
+            logger.w { "Failed to record watch history: ${e.message}" }
+        }
+    }
+
     private fun saveCurrentProgress() {
         if (currentVideoUrl.isEmpty()) return
         val pos = _position.value
         val dur = _duration.value
         if (dur <= 0) return
+        recordWatchHistory()
         try {
             playbackProgressDao.insertOrReplace(
                 videoUrl = currentVideoUrl,

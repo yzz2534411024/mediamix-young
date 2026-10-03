@@ -83,7 +83,10 @@ class SourceManageViewModel(
                                     isBuiltIn = false,
                                     isTvBox = true,
                                 ),
-                            ).also { _importMessage.value = "已添加 TVBox 源（${validated.siteCount} 个站点）" }
+                            ).also {
+                                _importMessage.value = "已添加 TVBox 源（${validated.siteCount} 个站点）"
+                                checkSource(CmsApiSite(key = key, name = name.ifBlank { "TVBox 源" }, apiUrl = trimmed, isBuiltIn = false, isTvBox = true))
+                            }
 
                     is ImportResult.Cms ->
                         sourceRepository
