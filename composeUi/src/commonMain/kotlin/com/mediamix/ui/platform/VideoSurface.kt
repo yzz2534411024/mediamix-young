@@ -19,4 +19,6 @@ expect fun VideoSurface(
     modifier: Modifier = Modifier,
     onSurfaceCreated: (Any) -> Unit,
     onSurfaceDestroyed: () -> Unit,
+    /** 视频区域内的鼠标活动（移动/点击）。桌面端用它唤出 mpv OSC。 */
+    onMouseActivity: () -> Unit = {},
 )

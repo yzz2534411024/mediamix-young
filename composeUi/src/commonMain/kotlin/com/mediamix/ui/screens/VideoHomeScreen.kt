@@ -481,15 +481,7 @@ private fun HomeContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // Banner 只在「全部」分类下展示，且至少 3 部影片才够轮播
-                    if (videos.size >= 3) {
-                        item(span = { GridItemSpan(columns) }, key = "banner") {
-                            BannerSection(
-                                items = videos.take(5),
-                                onOpenDetail = onOpenDetail,
-                            )
-                        }
-                    }
+                    // Banner 已按用户要求移除（2026-10-03）：轮播图比例难控制且占首屏过大。
 
                     // 豆瓣系源（豆豆等）不返回 vod_id —— key 用「id，或 名字+海报」兜底，
                     // 否则空 key 全部重复直接崩 LazyGrid（实测 IllegalArgumentException: Key ""）

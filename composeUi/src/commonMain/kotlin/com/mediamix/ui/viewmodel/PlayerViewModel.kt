@@ -320,6 +320,11 @@ class PlayerViewModel(
         playerCoreManager.dispose()
     }
 
+    /** 鼠标在视频区活动（桌面端）→ 唤出 mpv OSC 沉浸式控制条。 */
+    fun notifyMouseActivity() {
+        playerCoreManager.showOsc()
+    }
+
     fun togglePlayPause() {
         playerCoreManager.togglePlayPause()
     }

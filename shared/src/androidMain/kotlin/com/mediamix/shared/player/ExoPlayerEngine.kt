@@ -353,6 +353,9 @@ actual class PlayerEngine actual constructor() {
 
     actual fun getPlayerState(): PlayerState = currentState
 
+    /** Android 无需 OSC（控制层由 Compose 覆盖渲染）。 */
+    actual fun showOsc() = Unit
+
     actual fun setListener(listener: PlayerEngineListener?) {
         this.listener = listener
     }

@@ -850,6 +850,11 @@ class PlayerCoreManager(
      * Set the video rendering surface.
      * @param surface platform-specific surface object (android.view.Surface on Android, Long HWND on Desktop)
      */
+    /** 唤出桌面端 mpv OSC（鼠标活动时由 UI 层调用）。移动端是 no-op。 */
+    fun showOsc() {
+        if (!isDisposed) runCatching { playerEngine.showOsc() }
+    }
+
     fun setSurface(surface: Any?) {
         pendingSurface = surface
         if (isDisposed) return

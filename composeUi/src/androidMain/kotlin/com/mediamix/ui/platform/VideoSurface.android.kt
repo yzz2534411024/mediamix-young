@@ -26,6 +26,7 @@ actual fun VideoSurface(
     modifier: Modifier,
     onSurfaceCreated: (Any) -> Unit,
     onSurfaceDestroyed: () -> Unit,
+    onMouseActivity: () -> Unit,
 ) {
     AndroidView(
         factory = { context ->

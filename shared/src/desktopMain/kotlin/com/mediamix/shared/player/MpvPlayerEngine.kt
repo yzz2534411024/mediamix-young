@@ -59,14 +59,18 @@ actual class PlayerEngine actual constructor() {
                 ?: throw RuntimeException("Failed to create mpv instance")
 
         // 禁用默认键绑定和 OSC
+        val flagOn = Memory(4).apply { setInt(0, 1) }
         val flagOff = Memory(4).apply { setInt(0, 0) }
-        mpv.mpv_set_option(h, "input-default-bindings", MpvLib.MPV_FORMAT_FLAG, flagOff)
-        mpv.mpv_set_option(h, "osc", MpvLib.MPV_FORMAT_FLAG, flagOff)
+        // 输入绑定必须开：wid 模式下 OSC 的鼠标交互（移动唤出/点击/滚轮）全靠它
+        mpv.mpv_set_option(h, "input-default-bindings", MpvLib.MPV_FORMAT_FLAG, flagOn)
+        // OSC 开启（沉浸式控制条，画在视频帧内）
+        mpv.mpv_set_option(h, "osc", MpvLib.MPV_FORMAT_FLAG, flagOn)
         // 禁用 OSD 消息显示。
         // ⚠️ MPV_FORMAT_INT64 必须配 8 字节缓冲：给 4 字节时 mpv 会按 8 字节读，
         // 越界读直接让 JNA 抛 "Invalid memory access"（Error，非 Exception）——
         // initialize() 阶段就崩，表现为播放页白屏（实测 2026-10-02）。
-        val osdLevel = Memory(8).apply { setLong(0, 0) }
+        // osd-level=3：常显时间码，OSC 激活时显示完整控制条。
+        val osdLevel = Memory(8).apply { setLong(0, 3) }
         mpv.mpv_set_option(h, "osd-level", MpvLib.MPV_FORMAT_INT64, osdLevel)
         // ★ 网络流缓冲（桌面端此前完全没配，mpv 默认偏保守，弱网易卡顿）：
         //  - cache：网络流启用 demuxer 缓存
@@ -89,13 +93,9 @@ actual class PlayerEngine actual constructor() {
         // 会被完全遮住，连鼠标事件也收不到（实测：播放页所有控件点不动）。
         // OSC 由 mpv 自己绘制在视频帧内，天然位于最上层，是桌面端唯一的
         // 沉浸式控制条方案（VLC / PotPlayer 同类做法）。
-        mpv.mpv_set_option_string(h, "osc", "yes")
-        // OSC 默认样式偏小，按窗口比例放大一点更符合桌面大屏
+        // OSC 交互所需的输入绑定已在上方初始化处统一开启。
+        // OSD 等级 3：默认显示时间码，OSC 激活时显示完整控制条。
         mpv.mpv_set_option_string(h, "osd-level", "3")
-        // 允许 OSC 响应滚轮/拖拽（进度、音量）
-        mpv.mpv_set_option_string(h, "osc-scaling", "yes")
-        // 暂停时不显示 OSC（避免暂停画面被条子挡住）
-        mpv.mpv_set_option_string(h, "pause", "no")
 
         // ★ 渲染窗口：必须在 mpv_initialize() 之前设置
         val widMem = Memory(8).apply { setLong(0, wid) }
@@ -297,6 +297,18 @@ actual class PlayerEngine actual constructor() {
     }
 
     @Synchronized
+    /**
+     * 唤出 mpv 内置 OSC 控制条。
+     *
+     * mpv 嵌在 AWT Canvas（wid 模式）里收不到鼠标移动消息，OSC 无法自行唤醒；
+     * 由 AWT 层监听鼠标移动后调用这里，用 `script-message osc-show` 强制显示。
+     * OSC 显示后自带 ~3s 自动隐藏，无需持续喂事件。
+     */
+    actual fun showOsc() {
+        val h = handle ?: return
+        runCatching { mpv.mpv_command(h, arrayOf("script-message", "osc-show")) }
+    }
+
     actual fun setVolume(volume: Float) {
         val h = handle ?: return
         // mpv 音量范围 0-100，接口范围 0.0-1.0

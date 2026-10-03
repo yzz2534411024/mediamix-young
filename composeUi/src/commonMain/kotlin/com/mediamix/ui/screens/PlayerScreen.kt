@@ -17,6 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -217,59 +225,45 @@ fun PlayerScreen(
         }
     }
 
-    // ── 桌面端与移动端的结构差异（AWT 层级限制）──
+    // ── 全覆盖沉浸式（桌面 + 移动统一）──
     //
-    // 桌面端播放控制由 **mpv 内置 OSC** 承担（见 MpvPlayerEngine 的 osc=yes）：
-    // VideoSurface 的 AWT Canvas 是 heavyweight 组件，永远盖在 Compose 绘制之上，
-    // Compose 写的控制层既看不见也点不到。OSC 由 mpv 画在视频帧内，不受此影响。
-    // 因此桌面端把「功能入口」（返回/选集/画质/字幕/更多）放在**视频区之外**的顶部栏，
-    // 移动端（TextureView 可被 Compose 覆盖）保持原有的全覆盖控制层。
-    Column(
+    // 桌面端播放控制由 mpv 内置 OSC 承担（osc=yes + AWT 鼠标事件转发 osc-show），
+    // 它画在视频帧内，不受 AWT Canvas 层级遮挡。
+    // 键盘快捷键（Esc/Space/←→）需要组合内持有焦点：进入页面主动 requestFocus。
+    val keyboardFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (!PlatformInfo.isAndroid) keyboardFocus.requestFocus()
+    }
+    BoxWithConstraints(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Black),
-    ) {
-        if (!PlatformInfo.isAndroid) {
-            TopControlsBar(
-                title = currentEpisodeName.ifEmpty { title },
-                subtitle =
-                    if (episodeList.size > 1) {
-                        "第 ${currentEpisodeIndex + 1} / ${episodeList.size} 集"
+                .background(Color.Black)
+                // 桌面端键盘控制：鼠标事件会被 AWT Canvas 吞掉，但键盘事件能到 Compose。
+                // Esc=返回 / Space=播放暂停 / ←→=快退快进
+                .focusRequester(keyboardFocus)
+                .focusable()
+                .then(
+                    if (!PlatformInfo.isAndroid) {
+                        Modifier.onPreviewKeyEvent { keyEvent ->
+                            if (keyEvent.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                            when (keyEvent.key) {
+                                Key.Escape -> { onBack(); true }
+                                Key.Spacebar -> { viewModel.togglePlayPause(); true }
+                                Key.DirectionLeft -> { viewModel.fastSeek(position - skipInterval * 1000L); true }
+                                Key.DirectionRight -> { viewModel.fastSeek(position + skipInterval * 1000L); true }
+                                else -> false
+                            }
+                        }
                     } else {
-                        null
+                        Modifier
                     },
-                showEpisodeEntry = episodeList.size > 1,
-                hasSubtitles = subtitleTracks.isNotEmpty(),
-                speed = playbackSpeed,
-                isLandscape = true,
-                onBack = onBack,
-                onEpisodeClick = { showEpisodeSheet = true },
-                onSpeedClick = { showSpeedDialog = true },
-                onSubtitleClick = { showSubtitleDialog = true },
-                // 桌面端窗口可任意缩放，不存在屏幕旋转
-                onRotateClick = {},
-                onMoreClick = { showMoreSheet = true },
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-            )
-        }
-
-        BoxWithConstraints(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    // 桌面端：鼠标一移动就显示控制栏（并重置自动隐藏计时）。
-                    // 移动端 actual 是 no-op，点按切换行为不变。
-                    .onPointerActivity {
-                        if (!controlsVisible) controlsVisible = true
-                        activityTick++
-                    },
-        ) {
+                )
+                .onPointerActivity {
+                    if (!controlsVisible) controlsVisible = true
+                    activityTick++
+                },
+    ) {
         // 用容器宽高比判断横竖屏，而不是读平台配置 —— commonMain 拿不到
         // Android 的 LocalConfiguration，桌面端也没有"屏幕方向"这个概念。
         val isLandscape = maxWidth > maxHeight
@@ -292,6 +286,7 @@ fun PlayerScreen(
             contentAlignment = Alignment.Center,
         ) {
             VideoSurface(
+                onMouseActivity = { viewModel.notifyMouseActivity() },
                 modifier =
                     when {
                         viewModel.engineHandlesAspect -> Modifier.fillMaxSize()
@@ -576,24 +571,6 @@ fun PlayerScreen(
                         null
                     },
                 modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
-
-
-        // ---- 桌面端播放控制条（视频区之外，保证可点）----
-        // 详见 DesktopPlayerBar 的注释：AWT Canvas 是 heavyweight，永远盖住 Compose。
-        if (!PlatformInfo.isAndroid) {
-            DesktopPlayerBar(
-                isPlaying = isPlaying,
-                positionMs = position,
-                durationMs = duration,
-                bufferedPercentage = bufferedPercentage,
-                onTogglePlayPause = { viewModel.togglePlayPause() },
-                onSeek = { viewModel.seekTo(it) },
-                onPrevEpisode = { viewModel.playPrevEpisode() },
-                onNextEpisode = { viewModel.playNextEpisode() },
-                title = currentEpisodeName.ifEmpty { title },
             )
         }
     }

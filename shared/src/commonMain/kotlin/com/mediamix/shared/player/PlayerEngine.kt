@@ -47,6 +47,9 @@ expect class PlayerEngine() {
     // 回调监听
     fun setListener(listener: PlayerEngineListener?)
 
+    /** 唤出引擎内置 OSD/OSC（桌面 mpv 专用；Android ExoPlayer 是 no-op）。 */
+    fun showOsc()
+
     // 缓冲
     fun getBufferedPercentage(): Int
 
