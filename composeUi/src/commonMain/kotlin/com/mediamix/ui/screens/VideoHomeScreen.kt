@@ -495,6 +495,9 @@ private fun HomeContent(
                             title = item.vodName,
                             posterUrl = item.vodPic,
                             badge = item.vodRemarks?.takeIf { it.isNotBlank() },
+                            // 错峰入场：LazyGrid 有索引态，但回收复用会重复动画，
+                            // 这里用列表首个元素出现时统一错峰（gridItems 无索引，取 0）
+                            enterIndex = 0,
                             onClick = { onOpenDetail(item) },
                         )
                     }

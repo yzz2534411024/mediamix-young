@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -53,11 +56,47 @@ fun PosterCard(
     subtitle: String? = null,
     badge: String? = null,
     progress: Float? = null,
+    /** 入场错峰序号：0 起始，每项 +1（仅首屏前几项有可见差异）。负数跳过入场动画。 */
+    enterIndex: Int = -1,
     onClick: () -> Unit,
 ) {
     // 按下时轻微缩小 + 海报区变暗，给出"点得动"的反馈
     val shape = RoundedCornerShape(Radius.card)
-    Column(modifier = modifier.clip(shape).clickable(onClick = onClick)) {
+
+    // S4 首屏错峰入场：240ms easeOut，每项延迟 25ms（最多前 8 项），
+    // 首次组合时从 85% 缩放 + 全透明淡入。复用组件（滚动回收）时跳过。
+    val entrance = if (enterIndex >= 0) {
+        val delay = (enterIndex.coerceAtMost(8) * 25L)
+        remember(title) {
+            androidx.compose.animation.core.Animatable(if (enterIndex >= 0) 0f else 1f)
+        }.also { anim ->
+            androidx.compose.runtime.LaunchedEffect(title) {
+                kotlinx.coroutines.delay(delay)
+                anim.animateTo(
+                    1f,
+                    androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                )
+            }
+        }
+    } else {
+        null
+    }
+    val entranceAlpha = entrance?.value ?: 1f
+    val entranceScale = 0.85f + 0.15f * (entrance?.value ?: 1f)
+
+    Column(
+        modifier =
+            modifier
+                .graphicsLayer {
+                    if (entrance != null) {
+                        alpha = entranceAlpha
+                        scaleX = entranceScale
+                        scaleY = entranceScale
+                    }
+                }
+                .clip(shape)
+                .clickable(onClick = onClick),
+    ) {
         Box(
             modifier =
                 Modifier

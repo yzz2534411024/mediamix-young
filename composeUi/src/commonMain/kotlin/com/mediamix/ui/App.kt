@@ -2,6 +2,12 @@ package com.mediamix.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -43,6 +49,18 @@ fun App() {
             navController = navController,
             startDestination = Screen.Home.route,
             modifier = paddingModifier,
+            // S4 页面转场：260ms 淡入淡出 + 24dp 轻位移（进退方向相反），
+            // 替换默认的硬切 —— 之前页面间跳转是瞬间替换，观感生硬
+            enterTransition = {
+                fadeIn(tween(260, easing = FastOutSlowInEasing)) +
+                    slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it / 16 }
+            },
+            exitTransition = { fadeOut(tween(200)) },
+            popEnterTransition = { fadeIn(tween(260, easing = FastOutSlowInEasing)) },
+            popExitTransition = {
+                fadeOut(tween(200)) +
+                    slideOutVertically(tween(260, easing = FastOutSlowInEasing)) { it / 16 }
+            },
         ) {
             composable(Screen.Home.route) {
                 VideoHomeScreen(
