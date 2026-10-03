@@ -455,6 +455,12 @@ class PlayerViewModel(
                 while (isActive) {
                     delay(5000) // 每 5 秒保存一次
                     saveCurrentProgress()
+                    // HLS 变体是异步解析的：轮询时顺带同步画质列表（有变化才写入）
+                    val labels = playerCoreManager.getQualityLabels()
+                    if (labels != _qualityLabels.value) {
+                        _qualityLabels.value = labels
+                        _currentQualityIndex.value = playerCoreManager.getCurrentQualityIndex()
+                    }
                 }
             }
     }

@@ -3,11 +3,13 @@ package com.mediamix.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -182,82 +184,90 @@ fun BottomControlsBar(
     onNextEpisode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    // S4 重构：Box 三段布局 —— 播放键**严格几何居中**（SpaceEvenly 会把主按钮
+    // 挤偏，用户实测反馈"暂停按钮太靠右"）。左右组各自靠边。
+    Box(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 20.dp, vertical = 4.dp)
+                .height(56.dp),
     ) {
-        IconButton(onClick = onPlayModeClick, modifier = Modifier.size(44.dp)) {
-            Icon(
-                imageVector =
-                    when (playMode) {
-                        PlayMode.SEQUENTIAL -> AppIcons.PlaylistPlay
-                        PlayMode.LOOP_SINGLE -> AppIcons.RepeatOne
-                        PlayMode.LOOP_ALL -> AppIcons.Repeat
-                    },
-                contentDescription = "播放模式",
-                tint = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier.size(22.dp),
-            )
-        }
-
-        if (hasPrevEpisode) {
-            IconButton(onClick = onPrevEpisode, modifier = Modifier.size(44.dp)) {
+        // 左侧组：播放模式 + 上一集
+        Row(
+            modifier = Modifier.align(Alignment.CenterStart),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            IconButton(onClick = onPlayModeClick, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    imageVector = AppIcons.SkipPrevious,
-                    contentDescription = "上一集",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp),
+                    imageVector =
+                        when (playMode) {
+                            PlayMode.SEQUENTIAL -> AppIcons.PlaylistPlay
+                            PlayMode.LOOP_SINGLE -> AppIcons.RepeatOne
+                            PlayMode.LOOP_ALL -> AppIcons.Repeat
+                        },
+                    contentDescription = "播放模式",
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(20.dp),
                 )
+            }
+
+            if (hasPrevEpisode) {
+                IconButton(onClick = onPrevEpisode, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = AppIcons.SkipPrevious,
+                        contentDescription = "上一集",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
 
-        SkipButton(
-            icon = AppIcons.FastRewind,
-            contentDescription = "后退 $skipInterval 秒",
-            seconds = skipInterval,
-            onClick = onRewind,
-            onLongClick = onRewind,
-        )
-
-        // 主按钮：白色实心圆底，视觉重心明确
+        // 中间：播放/暂停（56dp 白色实心圆，视觉重心）
         Box(
             modifier =
                 Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(28.dp))
+                    .align(Alignment.Center)
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(26.dp))
                     .background(Color.White),
             contentAlignment = Alignment.Center,
         ) {
-            IconButton(onClick = onPlayPause, modifier = Modifier.size(56.dp)) {
+            IconButton(onClick = onPlayPause, modifier = Modifier.size(52.dp)) {
                 Icon(
                     imageVector = if (isPlaying) AppIcons.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
                     tint = Color.Black,
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
 
-        SkipButton(
-            icon = AppIcons.FastForward,
-            contentDescription = "前进 $skipInterval 秒",
-            seconds = skipInterval,
-            onClick = onForward,
-            onLongClick = onForward,
-        )
+        // 右侧组：快进 + 下一集
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            SkipButton(
+                icon = AppIcons.FastForward,
+                contentDescription = "前进 $skipInterval 秒",
+                seconds = skipInterval,
+                onClick = onForward,
+                onLongClick = onForward,
+            )
 
-        if (hasNextEpisode) {
-            IconButton(onClick = onNextEpisode, modifier = Modifier.size(44.dp)) {
-                Icon(
-                    imageVector = AppIcons.SkipNext,
-                    contentDescription = "下一集",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp),
-                )
+            if (hasNextEpisode) {
+                IconButton(onClick = onNextEpisode, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = AppIcons.SkipNext,
+                        contentDescription = "下一集",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
     }
@@ -300,6 +310,7 @@ private fun SkipButton(
  * `onValueChange` 每一帧都会触发一次 seek，拖动过程中播放器会被反复打断。
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun PlayerProgressBar(
     positionMs: Long,
     durationMs: Long,
@@ -312,8 +323,21 @@ fun PlayerProgressBar(
     var dragValue by remember { mutableFloatStateOf(0f) }
 
     val sliderValue = if (dragging) dragValue else positionMs.toFloat().coerceIn(0f, maxMs.toFloat())
+    val fraction = (sliderValue / maxMs).coerceIn(0f, 1f)
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    // S4 重构：时间与进度条**同行**（YouTube 式），整个控件高度从 ~64dp 压到 ~28dp；
+    // 轨道 3dp 细线 + 12dp 小圆点，拖动区域仍保留默认的宽松触摸高度
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = formatDuration(sliderValue.toLong()),
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
         Slider(
             value = sliderValue,
             onValueChange = {
@@ -331,32 +355,39 @@ fun PlayerProgressBar(
                     activeTrackColor = Color.White,
                     inactiveTrackColor = Color.White.copy(alpha = 0.24f),
                 ),
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+            thumb = {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.White),
+                )
+            },
+            track = {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.White.copy(alpha = 0.24f)),
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth(fraction)
+                                .fillMaxHeight()
+                                .background(Color.White),
+                    )
+                }
+            },
+            modifier = Modifier.weight(1f),
         )
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 只留「当前 / 总时长」两端对齐。缓冲百分比原先挤在正中间，
-            // 既打断视线、又和 BufferingIndicator 的信息重复。
-            Text(
-                text = formatDuration(sliderValue.toLong()),
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = formatDuration(durationMs),
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-            )
-        }
+        Text(
+            text = formatDuration(durationMs),
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 11.sp,
+        )
     }
 }

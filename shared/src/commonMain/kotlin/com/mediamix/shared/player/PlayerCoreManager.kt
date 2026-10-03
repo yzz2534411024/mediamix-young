@@ -4,6 +4,9 @@ import co.touchlab.kermit.Logger
 import com.mediamix.shared.core.PowerManager
 import com.mediamix.shared.core.PowerMode
 import com.mediamix.shared.network.ThroughputPrediction
+import com.mediamix.shared.network.HttpClientFactory
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import com.mediamix.shared.player.engines.*
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.*
@@ -221,6 +224,8 @@ class PlayerCoreManager(
     private var currentEpisodeName = ""
     private var currentQualityIndex = 0
     private var qualityLabels: List<String> = emptyList()
+    /** HLS 变体解析任务（换源时取消上一个，避免旧结果覆盖新源）。 */
+    private var hlsVariantsJob: kotlinx.coroutines.Job? = null
     private var qualityUrls: List<String> = emptyList()
     private var volume = 1.0f
     private var brightness = 0.5f
@@ -1128,6 +1133,32 @@ class PlayerCoreManager(
             val sourceLabel = if (cacheEngine.isUsingCache) "local cache" else "network"
             val parserLabel = activeParser?.let { ", parser: ${it.name}" }.orEmpty()
             logger.i("Video URL resolved: $sourceLabel$parserLabel")
+
+            // ── HLS 多码率解析（清晰度选择）──
+            // master m3u8 内含多条不同分辨率的子流时，向画质面板提供
+            // 「自动 + 各档位」选项；选择后走现有 switchQuality(index) 重新装载。
+            // 解析失败/单码率/直链 mp4 → 静默跳过（不影响播放）。
+            if (resolvedMediaUrl.substringBefore('?').endsWith(".m3u8")) {
+                hlsVariantsJob?.cancel()
+                hlsVariantsJob =
+                    scope.launch {
+                        runCatching {
+                            val client =
+                                com.mediamix.shared.network.HttpClientFactory.createHttpClient(
+                                    connectTimeoutSeconds = 5,
+                                    requestTimeoutSeconds = 8,
+                                )
+                            val text = client.use { it.get(resolvedMediaUrl).bodyAsText() }
+                            val variants = HlsVariantParser.parse(text, resolvedMediaUrl)
+                            if (variants.size > 1 && !isDisposed) {
+                                qualityLabels = listOf("自动") + variants.map { it.label }
+                                qualityUrls = listOf(resolvedMediaUrl) + variants.map { it.url }
+                                logger.i("HLS variants detected: ${variants.map { it.label }}")
+                            }
+                        }.onFailure { logger.w("HLS variant parse failed: ${it.message}") }
+                    }
+            }
+
             playerEngine.setSource(resolvedMediaUrl, headers)
         } catch (e: Exception) {
             logger.w("Video URL resolution failed, using original URL: $e")
