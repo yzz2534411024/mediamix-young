@@ -806,7 +806,7 @@ private fun SeekPreviewOverlay(
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = (if (deltaMs > 0) "+" else "-") + formatDuration(abs(deltaMs)),
-                    color = Color(0xFF80CBC4),
+                    color = Color.White,
                     fontSize = 12.sp,
                 )
             }
@@ -861,7 +861,7 @@ private fun PlaybackErrorPanel(
             Icon(
                 imageVector = AppIcons.ErrorOutline,
                 contentDescription = null,
-                tint = Color(0xFFFF7043),
+                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(46.dp),
             )
             Spacer(Modifier.height(14.dp))

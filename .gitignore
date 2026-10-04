@@ -63,3 +63,4 @@ shared/src/desktopMain/resources/native/**/*.dll
 # CatVideo 分发目录（150MB，不入库）
 CatVideo-桌面版/
 CatVideo-桌面版.zip
+*.jks

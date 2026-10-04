@@ -42,7 +42,7 @@ class SpiderService(
         try {
             // 以 bytes 方式请求，支持图片伪装格式
             val response = httpClient.get(configUrl)
-            val bytes = response.readBytes()
+            val bytes = response.readRawBytes()
 
             if (bytes.isEmpty()) {
                 throw Exception("TVBox 配置响应为空")

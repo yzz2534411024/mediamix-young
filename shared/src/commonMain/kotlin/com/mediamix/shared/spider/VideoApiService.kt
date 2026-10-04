@@ -323,7 +323,7 @@ class VideoApiService {
                 throw Exception("HTTP $statusCode")
             }
 
-            val bytes = response.readBytes()
+            val bytes = response.readRawBytes()
 
             // TODO: 调用 Task 35 的 TvBoxImageDecoder.decode(bytes)
 
