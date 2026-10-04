@@ -274,17 +274,26 @@ class PlayerViewModel(
         _resumePositionMs.value = null
         resumeAsked = false
         runCatching {
-            playbackProgressDao.getByVideoUrl(url)?.let { saved ->
-                if (saved.position > 30_000L) _resumePositionMs.value = saved.position
+            // 查询时集名可能尚未就绪（保存时是"全集"、查询时还是"default"），
+            // 按 vodId 前缀取该影片**最新一条**进度，不依赖集名
+            progressKey()?.let { key ->
+                val vodPrefix = key.substringBefore('#') + "#"
+                val saved =
+                    playbackProgressDao.getAll()
+                        .filter { it.videoUrl.startsWith(vodPrefix) }
+                        .maxByOrNull { it.lastPlayTime }
+                if (saved != null && saved.position > 30_000L) {
+                    _resumePositionMs.value = saved.position
+                }
             }
         }
         localEpisodeNames = episodeNames ?: emptyList()
         localEpisodeUrls = episodeUrls ?: emptyList()
 
-        // 恢复播放进度
+        // 恢复播放进度（稳定键：vodId#集名，见 progressKey 注释）
         val savedProgress =
             try {
-                playbackProgressDao.getByVideoUrl(url)
+                progressKey()?.let { playbackProgressDao.getByVideoUrl(it) }
             } catch (e: Exception) {
                 logger.w { "Failed to load playback progress: ${e.message}" }
                 null
@@ -367,8 +376,8 @@ class PlayerViewModel(
 
     /** 从头播放（放弃续播确认后删掉旧进度，避免下次再弹）。 */
     fun startFromBeginning() {
-        currentVideoUrl.takeIf { it.isNotEmpty() }?.let {
-            runCatching { playbackProgressDao.deleteByVideoUrl(it) }
+        progressKey()?.let { key ->
+            runCatching { playbackProgressDao.deleteByVideoUrl(key) }
         }
         _resumePositionMs.value = null
         resumeAsked = true
@@ -524,6 +533,20 @@ class PlayerViewModel(
      * 播放进度表一直在写、观看历史表永远是空的（用户实测反馈）。
      * 在进度保存的同一个节拍里顺带刷新，播放中历史就在持续更新。
      */
+    /**
+     * 播放进度的稳定键。
+     *
+     * ⚠️ 不能用播放 URL：流媒体直链是带签名的临时地址，每次进入都会变，
+     * 按 URL 存的进度永远查不回（断点续播从不触发的根因，2026-10-04 实测）。
+     * 改用 vodId#集名 —— 列名沿用 videoUrl（避免动 schema）。
+     */
+    private fun progressKey(): String? {
+        val session = sessionStore.session.value ?: return null
+        if (session.vodId.isBlank()) return null
+        val ep = _currentEpisodeName.value.ifBlank { "default" }
+        return session.vodId + "#" + ep
+    }
+
     private fun recordWatchHistory() {
         val session = sessionStore.session.value ?: return
         if (session.vodId.isBlank()) return
@@ -549,7 +572,7 @@ class PlayerViewModel(
         recordWatchHistory()
         try {
             playbackProgressDao.insertOrReplace(
-                videoUrl = currentVideoUrl,
+                videoUrl = progressKey() ?: return,
                 position = pos,
                 duration = dur,
                 lastPlayTime = Clock.System.now().toEpochMilliseconds(),
