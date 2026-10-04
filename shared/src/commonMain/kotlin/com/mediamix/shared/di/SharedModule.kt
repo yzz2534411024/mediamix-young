@@ -7,6 +7,7 @@ import com.mediamix.shared.cache.MemoryCache
 import com.mediamix.shared.cache.VideoCacheService
 import com.mediamix.shared.cache.createLocalProxyServer
 import com.mediamix.shared.core.DeviceCapability
+import com.mediamix.shared.core.CrashLogService
 import com.mediamix.shared.core.PlatformPaths
 import com.mediamix.shared.core.PowerManager
 import com.mediamix.shared.database.DownloadDao
@@ -81,6 +82,7 @@ val sharedModule: Module =
         single { Settings() }
         single { MemoryCache() }
         single { DiskCache(cacheDir = PlatformPaths.cacheDir) }
+        single { CrashLogService(dataDir = PlatformPaths.dataDir) }
         single { CacheStrategyManager(settings = get()) }
         single {
             VideoCacheService(

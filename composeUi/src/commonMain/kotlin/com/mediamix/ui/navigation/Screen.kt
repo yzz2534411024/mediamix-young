@@ -48,15 +48,12 @@ sealed class Screen(
     data object Favorite : Screen("favorite")
 
     data object Settings : Screen("settings")
+    data object UsageStats : Screen("usage-stats")
+    data object CrashLog : Screen("crash-log")
 
     data object SourceManage : Screen("source-manage")
 
     data object Downloads : Screen("downloads")
-
-    data object Debug : Screen("debug")
-
-    /** 组件预览（S2 设计系统的验收工具） */
-    data object ComponentPreview : Screen("component-preview")
 
     companion object {
         val bottomNavItems = listOf(Home, History, Favorite, Settings)

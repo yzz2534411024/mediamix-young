@@ -28,6 +28,9 @@ import org.koin.core.context.startKoin
 import java.io.File
 
 fun main(args: Array<String>) {
+    // 正式版：未捕获异常写入本地崩溃日志（设置页可查看），再交回系统默认处理
+    com.mediamix.shared.core.CrashLogService(com.mediamix.shared.core.PlatformPaths.dataDir)
+        .installGlobalHandler { "desktop · ${System.getProperty("os.name")}" }
     // 启动耗时剖析基准点：JVM 起来后的最早时刻
     val bootT0 = System.currentTimeMillis()
     // 日志落盘必须在任何输出之前：jpackage 启动器是 GUI 子系统程序，

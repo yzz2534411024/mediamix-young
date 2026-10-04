@@ -81,6 +81,14 @@ val uiModule: Module =
                 sessionStore = get(),
             )
         }
+        factory {
+            UsageStatsViewModel(
+                watchHistoryDao = get(),
+                playbackProgressDao = get(),
+                favoriteDao = get(),
+            )
+        }
+        factory { CrashLogViewModel(crashLogService = get()) }
         factory { SearchViewModel(httpClient = get(), spiderService = get()) }
         factory { HistoryViewModel(watchHistoryDao = get()) }
         factory { FavoriteViewModel(favoriteDao = get()) }
@@ -107,15 +115,6 @@ val uiModule: Module =
                 downloadDao = get(),
                 downloadService = get(),
                 settings = get(),
-            )
-        }
-        factory {
-            DebugViewModel(
-                metricsEngine = get(),
-                cacheManager = get(),
-                sourceRepository = get(),
-                spiderService = get(),
-                httpClient = get(),
             )
         }
     }

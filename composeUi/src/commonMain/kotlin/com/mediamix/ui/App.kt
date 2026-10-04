@@ -15,6 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import com.mediamix.ui.navigation.MainScaffold
 import com.mediamix.ui.navigation.Screen
 import com.mediamix.ui.player.PlaybackSessionStore
+import com.mediamix.ui.screens.CrashLogScreen
+import com.mediamix.ui.screens.UsageStatsScreen
 import com.mediamix.ui.screens.*
 import org.koin.compose.koinInject
 
@@ -96,17 +98,15 @@ fun App() {
                 SettingsScreen(
                     onNavigateToSourceManage = { navController.navigate(Screen.SourceManage.route) },
                     onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) },
-                    onNavigateToDebug = { navController.navigate(Screen.Debug.route) },
+                    onNavigateToUsageStats = { navController.navigate(Screen.UsageStats.route) },
+                    onNavigateToCrashLog = { navController.navigate(Screen.CrashLog.route) },
                 )
             }
-            composable(Screen.Debug.route) {
-                DebugScreen(
-                    onBack = { navController.popBackStack() },
-                    onNavigateToComponentPreview = { navController.navigate(Screen.ComponentPreview.route) },
-                )
+            composable(Screen.UsageStats.route) {
+                UsageStatsScreen(onBack = { navController.popBackStack() })
             }
-            composable(Screen.ComponentPreview.route) {
-                ComponentPreviewScreen(onBack = { navController.popBackStack() })
+            composable(Screen.CrashLog.route) {
+                CrashLogScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Detail.PATTERN) { backStackEntry ->
                 val vodId = backStackEntry.arguments?.getString("vodId") ?: ""

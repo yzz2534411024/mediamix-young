@@ -41,6 +41,11 @@ class MainActivity : ComponentActivity() {
         // （Scaffold 的 contentWindowInsets / TopAppBar 的 windowInsets）。
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // 正式版：未捕获异常写入本地崩溃日志（设置页可查看），再交回系统默认处理
+        com.mediamix.shared.core.CrashLogService(com.mediamix.shared.core.PlatformPaths.dataDir)
+            .installGlobalHandler {
+                "android ${Build.VERSION.RELEASE} · ${android.os.Build.MODEL}"
+            }
         setContent {
             val themeMode by ThemeConfig.themeMode.collectAsState()
             MediaMixTheme(themeMode = themeMode) {

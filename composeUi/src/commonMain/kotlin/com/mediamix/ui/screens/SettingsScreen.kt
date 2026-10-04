@@ -41,7 +41,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinInject(),
     onNavigateToSourceManage: () -> Unit = {},
     onNavigateToDownloads: () -> Unit = {},
-    onNavigateToDebug: () -> Unit = {},
+    onNavigateToUsageStats: () -> Unit = {},
+    onNavigateToCrashLog: () -> Unit = {},
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val decodeMode by viewModel.decodeMode.collectAsState()
@@ -179,19 +180,27 @@ fun SettingsScreen(
                     onClick = { viewModel.exportData() },
                 )
             }
+            item {
+                SettingsTile(
+                    icon = AppIcons.Analytics,
+                    title = "使用记录",
+                    subtitle = "观影统计：看过几部、累计时长、最近活跃",
+                    onClick = onNavigateToUsageStats,
+                )
+            }
+            item {
+                SettingsTile(
+                    icon = AppIcons.BugReport,
+                    title = "崩溃日志",
+                    subtitle = "应用异常记录，仅保存在本机",
+                    onClick = onNavigateToCrashLog,
+                )
+            }
 
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 
             // ── 关于 ──
             item { SectionHeader("关于") }
-            item {
-                SettingsTile(
-                    icon = AppIcons.BugReport,
-                    title = "播放诊断",
-                    subtitle = "播放指标、缓存占用、各源实测延迟",
-                    onClick = onNavigateToDebug,
-                )
-            }
             item {
                 SettingsTile(
                     icon = Icons.Default.Info,
