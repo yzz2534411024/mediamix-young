@@ -107,12 +107,10 @@ compose.desktop {
             jvmArgs(
                 "-Xmx2g",
                 "-Dfile.encoding=UTF-8",
-                // 启动优化：CDS（类数据共享）。首次运行结束时自动生成归档，之后启动
-                // 直接映射已解析的类元数据，省掉大量类加载/校验（实测 JVM 启动 ~2.5s，
-                // 这项通常能砍掉 0.3~0.8s）。$APPDIR 由 jpackage 启动器展开；
-                // 解压版目录可写即生效，装到只读目录时 JVM 会自行忽略，不会报错。
-                "-XX:+AutoCreateSharedArchive",
-                "-XX:SharedArchiveFile=\$APPDIR/catvideo.jsa",
+                // ⚠️ CDS 已移除（2026-10-04 审查）：jpackage 的 jlink 精简 runtime
+                // 没有 base CDS 归档，AutoCreateSharedArchive 从一开始就是空转 ——
+                // 每次启动都打 "unsupported when base CDS archive is not loaded" 警告，
+                // catvideo.jsa 从未生成过。要用 CDS 需换完整 JDK runtime，收益不成比例。
                 // ❌ 已撤掉 -XX:TieredStopAtLevel=1：实测它省下的启动时间只有 ~70ms，
                 // 却让 JVM 长期停在 C1（C2 峰值优化全无），且是本轮唯一可能影响
                 // JNI/native 调用行为的新参数 —— 收益与风险不成比例。

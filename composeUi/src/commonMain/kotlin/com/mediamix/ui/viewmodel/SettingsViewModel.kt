@@ -74,6 +74,24 @@ class SettingsViewModel(
     private val _shareUsageData = MutableStateFlow(preferences.shareUsageData)
     val shareUsageData: StateFlow<Boolean> = _shareUsageData.asStateFlow()
 
+    private val _autoPlayNext = MutableStateFlow(preferences.autoPlayNext)
+    val autoPlayNext: StateFlow<Boolean> = _autoPlayNext.asStateFlow()
+
+    private val _defaultPlaybackSpeed = MutableStateFlow(preferences.defaultPlaybackSpeed)
+    val defaultPlaybackSpeed: StateFlow<Float> = _defaultPlaybackSpeed.asStateFlow()
+
+    fun setAutoPlayNext(enabled: Boolean) {
+        _autoPlayNext.value = enabled
+        preferences.autoPlayNext = enabled
+        notify(if (enabled) "已开启自动连播" else "已关闭自动连播")
+    }
+
+    fun setDefaultPlaybackSpeed(speed: Float) {
+        _defaultPlaybackSpeed.value = speed
+        preferences.defaultPlaybackSpeed = speed
+        notify("默认倍速已设为 ${speed}x")
+    }
+
     private val _skipInterval = MutableStateFlow(preferences.skipIntervalSeconds)
     val skipInterval: StateFlow<Int> = _skipInterval.asStateFlow()
 

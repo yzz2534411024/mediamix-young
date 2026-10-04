@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediamix.ui.components.SpeedSelectorDialog
 import com.mediamix.ui.prefs.AppPreferences
 import com.mediamix.ui.prefs.DecodeMode
 import com.mediamix.ui.prefs.description
@@ -45,6 +46,8 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val decodeMode by viewModel.decodeMode.collectAsState()
     val shareUsageData by viewModel.shareUsageData.collectAsState()
+    val autoPlayNext by viewModel.autoPlayNext.collectAsState()
+    val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
     val skipInterval by viewModel.skipInterval.collectAsState()
     val cacheStats by viewModel.cacheStats.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -55,6 +58,7 @@ fun SettingsScreen(
     var showDecodeSheet by remember { mutableStateOf(false) }
     var showSkipIntervalSheet by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showDefaultSpeedDialog by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.refreshCacheStats() }
@@ -122,6 +126,25 @@ fun SettingsScreen(
                     title = "快进 / 快退间隔",
                     subtitle = "$skipInterval 秒 · 双击画面左右两侧也按此间隔跳转",
                     onClick = { showSkipIntervalSheet = true },
+                )
+            }
+            item {
+                SettingsSwitchTile(
+                    icon = AppIcons.PlayCircle,
+                    title = "自动连播下一集",
+                    subtitle = if (autoPlayNext) "已开启 — 一集播完自动切换下一集" else "已关闭",
+                    checked = autoPlayNext,
+                    onCheckedChange = {
+                        viewModel.setAutoPlayNext(it)
+                    },
+                )
+            }
+            item {
+                SettingsTile(
+                    icon = AppIcons.PlayCircle,
+                    title = "默认倍速",
+                    subtitle = "每次开始播放使用 ${defaultPlaybackSpeed}x 倍速",
+                    onClick = { showDefaultSpeedDialog = true },
                 )
             }
 
@@ -224,6 +247,17 @@ fun SettingsScreen(
     }
 
     // ── 清除缓存确认 ──
+    if (showDefaultSpeedDialog) {
+        SpeedSelectorDialog(
+            speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f),
+            currentSpeed = defaultPlaybackSpeed,
+            onSelect = { speed ->
+                viewModel.setDefaultPlaybackSpeed(speed)
+                showDefaultSpeedDialog = false
+            },
+            onDismiss = { showDefaultSpeedDialog = false },
+        )
+    }
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },

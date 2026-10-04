@@ -115,6 +115,10 @@ class PlayerCoreManager(
 ) : PlayerEngineListener {
     private val logger = Logger.withTag("PlayerCoreManager")
     private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    init {
+        lastInstance = this
+    }
     private val lifecycleMutex = Mutex()
 
     @Volatile
@@ -1700,6 +1704,9 @@ class PlayerCoreManager(
     // ========================================================================
 
     companion object {
+        /** 平台层（如 Android PiP）在不经 Koin 的地方读取播放状态用的最后实例引用。 */
+        var lastInstance: PlayerCoreManager? = null
+            private set
         fun formatNetworkSpeed(kbps: Double): String =
             when {
                 kbps <= 0 -> ""

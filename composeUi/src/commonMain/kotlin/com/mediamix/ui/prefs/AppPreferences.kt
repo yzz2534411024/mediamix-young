@@ -73,6 +73,16 @@ class AppPreferences(
      * 全项目无人调用，而播放页又硬编码显示 10 秒 —— 整条链路是死的。
      * 现在以偏好为唯一真源，打开播放页时再推给播放器。
      */
+    /** 播完当前集自动播下一集（默认开）。 */
+    var autoPlayNext: Boolean
+        get() = settings.getBoolean(KEY_AUTO_PLAY_NEXT, true)
+        set(value) = settings.putBoolean(KEY_AUTO_PLAY_NEXT, value)
+
+    /** 每次开始播放的默认倍速（1.0/1.25/1.5/2.0）。 */
+    var defaultPlaybackSpeed: Float
+        get() = settings.getFloat(KEY_DEFAULT_SPEED, 1.0f)
+        set(value) = settings.putFloat(KEY_DEFAULT_SPEED, value)
+
     var skipIntervalSeconds: Int
         get() = settings.getInt(KEY_SKIP_INTERVAL, DEFAULT_SKIP_INTERVAL)
         set(value) =
@@ -91,5 +101,7 @@ class AppPreferences(
         private const val KEY_DECODE_MODE = "decode_mode"
         private const val KEY_SHARE_USAGE = "share_usage_data"
         private const val KEY_SKIP_INTERVAL = "skip_interval_seconds"
+        private const val KEY_AUTO_PLAY_NEXT = "auto_play_next"
+        private const val KEY_DEFAULT_SPEED = "default_playback_speed"
     }
 }

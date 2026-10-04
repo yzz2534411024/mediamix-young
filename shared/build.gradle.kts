@@ -46,6 +46,10 @@ kotlin {
             implementation(libs.multiplatform.settings.test)
         }
         androidMain.dependencies {
+        // 移动端 SLF4J provider（simple → System.err → logcat）：此前无 provider，
+        // 线上问题无从排查（审查发现）。桌面端另有文件日志。
+        implementation("org.slf4j:slf4j-simple:2.0.16")
+
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.driver.android)
             implementation(libs.kotlinx.coroutines.android)

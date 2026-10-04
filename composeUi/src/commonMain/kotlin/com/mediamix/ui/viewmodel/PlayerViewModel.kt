@@ -139,6 +139,16 @@ class PlayerViewModel(
     private val _hasNextEpisode = MutableStateFlow(false)
     val hasNextEpisode: StateFlow<Boolean> = _hasNextEpisode.asStateFlow()
 
+    private val _resumePositionMs = MutableStateFlow<Long?>(null)
+    /** 断点续播：非空时播放页弹"从上次位置继续"对话框。 */
+    val resumePositionMs: StateFlow<Long?> = _resumePositionMs.asStateFlow()
+
+    /** 自动连播防重复标记（每次换集重置）。 */
+    private var autoNextFired = false
+
+    /** 当前集是否已弹过续播确认（换集重置）。 */
+    private var resumeAsked = false
+
     private val _showSubtitles = MutableStateFlow(true)
     val showSubtitles: StateFlow<Boolean> = _showSubtitles.asStateFlow()
 
@@ -259,6 +269,15 @@ class PlayerViewModel(
     ) {
         disposed = false
         currentVideoUrl = url
+        setPlaybackSpeed(appPreferences.defaultPlaybackSpeed)
+        // 断点续播：新集装载后查本地进度（>30s 且未看完才询问，看过就静默 seek）
+        _resumePositionMs.value = null
+        resumeAsked = false
+        runCatching {
+            playbackProgressDao.getByVideoUrl(url)?.let { saved ->
+                if (saved.position > 30_000L) _resumePositionMs.value = saved.position
+            }
+        }
         localEpisodeNames = episodeNames ?: emptyList()
         localEpisodeUrls = episodeUrls ?: emptyList()
 
@@ -337,6 +356,34 @@ class PlayerViewModel(
 
     fun fastSeek(positionMs: Long) {
         playerCoreManager.fastSeek(positionMs)
+    }
+
+    /** 断点续播：确认后 seek 到上次位置。 */
+    fun resumeFromSaved() {
+        _resumePositionMs.value?.let { fastSeek(it) }
+        _resumePositionMs.value = null
+        resumeAsked = true
+    }
+
+    /** 从头播放（放弃续播确认后删掉旧进度，避免下次再弹）。 */
+    fun startFromBeginning() {
+        currentVideoUrl.takeIf { it.isNotEmpty() }?.let {
+            runCatching { playbackProgressDao.deleteByVideoUrl(it) }
+        }
+        _resumePositionMs.value = null
+        resumeAsked = true
+    }
+
+    /** 长按倍速：按下临时切到 speed，松手恢复 [resumeLongPressSpeed]。 */
+    private var resumeLongPressSpeed: Float = 1.0f
+    fun startLongPressSpeed() {
+        if (playerState.value != PlayerState.PLAYING) return
+        resumeLongPressSpeed = playerCoreManager.getPlaybackSpeed()
+        setPlaybackSpeed(3.0f)
+    }
+
+    fun stopLongPressSpeed() {
+        if (playerCoreManager.getPlaybackSpeed() == 3.0f) setPlaybackSpeed(resumeLongPressSpeed)
     }
 
     fun setPlaybackSpeed(speed: Float) {

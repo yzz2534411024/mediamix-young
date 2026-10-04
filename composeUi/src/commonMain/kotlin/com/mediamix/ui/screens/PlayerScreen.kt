@@ -136,6 +136,8 @@ fun PlayerScreen(
     var showVideoTrackDialog by remember { mutableStateOf(false) }
 
     val isPlaying = playerState == PlayerState.PLAYING
+    val resumePositionMs by viewModel.resumePositionMs.collectAsState()
+    var resumeAsked by remember { mutableStateOf(false) }
     // 会话查找键同时接受「剧集标识」与「解析后的地址」：TVBox 场景下导航参数是
     // 解析结果，而 sessionFor 用 resolveKey 对齐 —— 旧实现只比 startUrl 会静默拿不到会话。
     val sessionState by sessionStore.session.collectAsState()
@@ -350,6 +352,8 @@ fun PlayerScreen(
 
         GestureLayer(
             onTap = { controlsVisible = !controlsVisible },
+            onLongPressStart = { viewModel.startLongPressSpeed() },
+            onLongPressEnd = { viewModel.stopLongPressSpeed() },
             onDoubleTapLeft = { viewModel.fastSeek(position - skipInterval * 1000L) },
             onDoubleTapRight = { viewModel.fastSeek(position + skipInterval * 1000L) },
             onDoubleTapCenter = { viewModel.togglePlayPause() },
@@ -575,6 +579,28 @@ fun PlayerScreen(
         }
     }
 
+    // ---- 断点续播确认 ----
+    resumePositionMs?.let { savedPos ->
+        if (!resumeAsked) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { viewModel.startFromBeginning() },
+                title = { Text("继续播放？") },
+                text = {
+                    Text(
+                        "上次看到 " + formatDuration(savedPos) +
+                            "，是否从上次位置继续？（播放进度来自本地记录）",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.resumeFromSaved() }) { Text("继续播放") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.startFromBeginning() }) { Text("从头开始") }
+                },
+            )
+        }
+    }
+
     // ---- 对话框 / 面板（放在 Box 之外，避免被控制层的 clickable 吞掉） ----
 
     if (showSpeedDialog) {
@@ -692,6 +718,9 @@ fun PlayerScreen(
 @Composable
 private fun GestureLayer(
     onTap: () -> Unit,
+    /** 长按 3 倍速：按下触发、松手恢复（主流播放器交互）。null=不支持。 */
+    onLongPressStart: (() -> Unit)? = null,
+    onLongPressEnd: (() -> Unit)? = null,
     onDoubleTapLeft: () -> Unit,
     onDoubleTapRight: () -> Unit,
     onDoubleTapCenter: () -> Unit,
