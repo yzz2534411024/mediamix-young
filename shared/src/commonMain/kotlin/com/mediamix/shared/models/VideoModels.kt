@@ -172,12 +172,12 @@ data class CmsApiSite(
                     apiUrl = "http://www.xn--sss604efuw.net/tv",
                     isBuiltIn = true,
                     isTvBox = true,
-                    // 官方域名按「.com / .top / .net」三条并列发布，实测只有 .net 可达。
-                    // 写死单条时域名轮换就会整源失效，因此把另外两条作为备用线路。
+                    // 官方域名轮换频繁。2026-10-07 实测：.net（主）/ .cc / fty.333232.xyz 可用，
+                    // .com / .top 已死（各 12s 超时拖慢启动）—— 备用线路同步更新。
                     apiUrlCandidates =
                         listOf(
-                            "http://www.xn--sss604efuw.com/tv",
-                            "http://www.xn--sss604efuw.top/tv",
+                            "http://www.xn--sss604efuw.cc/tv",
+                            "http://fty.333232.xyz/tv",
                         ),
                 ),
                 // ===== 以下为 2026-10-01 实测可用的同类型 TVBox 源 =====

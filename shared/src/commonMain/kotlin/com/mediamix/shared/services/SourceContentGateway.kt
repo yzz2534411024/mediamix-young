@@ -363,6 +363,6 @@ class SourceContentGateway(
 
     private companion object {
         /** 单条线路的探测超时：8s 内没响应即认为该域名不可用，换下一条。 */
-        const val ENDPOINT_TIMEOUT_MS = 8_000L
+        const val ENDPOINT_TIMEOUT_MS = 15_000L
     }
 }
