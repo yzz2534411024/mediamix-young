@@ -43,6 +43,7 @@ fun SettingsScreen(
     onNavigateToDownloads: () -> Unit = {},
     onNavigateToUsageStats: () -> Unit = {},
     onNavigateToCrashLog: () -> Unit = {},
+    onNavigateToDebug: () -> Unit = {},
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val decodeMode by viewModel.decodeMode.collectAsState()
@@ -195,6 +196,16 @@ fun SettingsScreen(
                     subtitle = "应用异常记录，仅保存在本机",
                     onClick = onNavigateToCrashLog,
                 )
+            }
+            if (com.mediamix.ui.util.BuildFlavor.debugMode) {
+                item {
+                    SettingsTile(
+                        icon = AppIcons.BugReport,
+                        title = "播放诊断（调试）",
+                        subtitle = "播放指标、各源延迟 —— 仅 debug 构建可见",
+                        onClick = onNavigateToDebug,
+                    )
+                }
             }
 
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }

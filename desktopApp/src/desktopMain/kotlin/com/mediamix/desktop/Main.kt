@@ -28,6 +28,8 @@ import org.koin.core.context.startKoin
 import java.io.File
 
 fun main(args: Array<String>) {
+    // debug/release 分化：开发自用加 --debug 参数可见诊断页，打包产物视为正式版
+    com.mediamix.ui.util.BuildFlavor.debugMode = "--debug" in args
     // 正式版：未捕获异常写入本地崩溃日志（设置页可查看），再交回系统默认处理
     com.mediamix.shared.core.CrashLogService(com.mediamix.shared.core.PlatformPaths.dataDir)
         .installGlobalHandler { "desktop · ${System.getProperty("os.name")}" }

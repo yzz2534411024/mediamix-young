@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.mediamix.ui.App
+import com.mediamix.ui.util.BuildFlavor
 import com.mediamix.ui.theme.MediaMixTheme
 import com.mediamix.ui.theme.ThemeConfig
 
@@ -41,6 +42,8 @@ class MainActivity : ComponentActivity() {
         // （Scaffold 的 contentWindowInsets / TopAppBar 的 windowInsets）。
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // debug/release 分化：诊断页等测试功能仅 debug 包可见
+        BuildFlavor.debugMode = com.mediamix.android.BuildConfig.DEBUG
         // 正式版：未捕获异常写入本地崩溃日志（设置页可查看），再交回系统默认处理
         com.mediamix.shared.core.CrashLogService(com.mediamix.shared.core.PlatformPaths.dataDir)
             .installGlobalHandler {

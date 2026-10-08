@@ -51,6 +51,12 @@ sealed class Screen(
     data object UsageStats : Screen("usage-stats")
     data object CrashLog : Screen("crash-log")
 
+    /** 调试功能（仅 debug 构建注册路由，正式包不可见）。 */
+    data object Debug : Screen("debug")
+
+    /** 组件预览（S2 设计系统验收工具，仅 debug）。 */
+    data object ComponentPreview : Screen("component-preview")
+
     data object SourceManage : Screen("source-manage")
 
     data object Downloads : Screen("downloads")

@@ -89,6 +89,15 @@ val uiModule: Module =
             )
         }
         factory { CrashLogViewModel(crashLogService = get()) }
+        factory {
+            DebugViewModel(
+                metricsEngine = get(),
+                cacheManager = get(),
+                sourceRepository = get(),
+                spiderService = get(),
+                httpClient = get(),
+            )
+        }
         factory { SearchViewModel(httpClient = get(), spiderService = get()) }
         factory { HistoryViewModel(watchHistoryDao = get()) }
         factory { FavoriteViewModel(favoriteDao = get()) }

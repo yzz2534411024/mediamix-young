@@ -16,7 +16,10 @@ import com.mediamix.ui.navigation.MainScaffold
 import com.mediamix.ui.navigation.Screen
 import com.mediamix.ui.player.PlaybackSessionStore
 import com.mediamix.ui.screens.CrashLogScreen
+import com.mediamix.ui.screens.ComponentPreviewScreen
+import com.mediamix.ui.screens.DebugScreen
 import com.mediamix.ui.screens.UsageStatsScreen
+import com.mediamix.ui.util.BuildFlavor
 import com.mediamix.ui.screens.*
 import org.koin.compose.koinInject
 
@@ -100,6 +103,7 @@ fun App() {
                     onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) },
                     onNavigateToUsageStats = { navController.navigate(Screen.UsageStats.route) },
                     onNavigateToCrashLog = { navController.navigate(Screen.CrashLog.route) },
+                    onNavigateToDebug = { navController.navigate(Screen.Debug.route) },
                 )
             }
             composable(Screen.UsageStats.route) {
@@ -107,6 +111,18 @@ fun App() {
             }
             composable(Screen.CrashLog.route) {
                 CrashLogScreen(onBack = { navController.popBackStack() })
+            }
+            if (BuildFlavor.debugMode) {
+                // 调试功能仅 debug 构建注册：正式包完全不可见
+                composable(Screen.Debug.route) {
+                    DebugScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToComponentPreview = { navController.navigate(Screen.ComponentPreview.route) },
+                    )
+                }
+                composable(Screen.ComponentPreview.route) {
+                    ComponentPreviewScreen(onBack = { navController.popBackStack() })
+                }
             }
             composable(Screen.Detail.PATTERN) { backStackEntry ->
                 val vodId = backStackEntry.arguments?.getString("vodId") ?: ""
