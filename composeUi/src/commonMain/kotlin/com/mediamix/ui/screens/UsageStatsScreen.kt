@@ -31,7 +31,7 @@ import com.mediamix.ui.viewmodel.UsageStatsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.lifecycle.viewmodel.compose.viewModel
+import org.koin.compose.koinInject
 
 /**
  * 正式版"使用记录"页：本地观影统计（数据只在本机，不上传）。
@@ -41,7 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun UsageStatsScreen(
     onBack: () -> Unit,
-    viewModel: UsageStatsViewModel = viewModel(),
+    viewModel: UsageStatsViewModel = koinInject(),
 ) {
     val stats by viewModel.stats.collectAsState()
 

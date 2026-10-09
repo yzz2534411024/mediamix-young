@@ -137,7 +137,6 @@ fun PlayerScreen(
 
     val isPlaying = playerState == PlayerState.PLAYING
     val resumePositionMs by viewModel.resumePositionMs.collectAsState()
-    var resumeAsked by remember { mutableStateOf(false) }
     // 会话查找键同时接受「剧集标识」与「解析后的地址」：TVBox 场景下导航参数是
     // 解析结果，而 sessionFor 用 resolveKey 对齐 —— 旧实现只比 startUrl 会静默拿不到会话。
     val sessionState by sessionStore.session.collectAsState()
@@ -581,8 +580,7 @@ fun PlayerScreen(
 
     // ---- 断点续播确认 ----
     resumePositionMs?.let { savedPos ->
-        if (!resumeAsked) {
-            androidx.compose.material3.AlertDialog(
+        androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.startFromBeginning() },
                 title = { Text("继续播放？") },
                 text = {
@@ -594,11 +592,10 @@ fun PlayerScreen(
                 confirmButton = {
                     TextButton(onClick = { viewModel.resumeFromSaved() }) { Text("继续播放") }
                 },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.startFromBeginning() }) { Text("从头开始") }
-                },
-            )
-        }
+            dismissButton = {
+                TextButton(onClick = { viewModel.startFromBeginning() }) { Text("从头开始") }
+            },
+        )
     }
 
     // ---- 对话框 / 面板（放在 Box 之外，避免被控制层的 clickable 吞掉） ----
@@ -794,6 +791,14 @@ private fun GestureLayer(
                 }.pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { onTap() },
+                        // 长按 3 倍速：长按阈值触发 start，松手无条件通知 end
+                        //（stopLongPressSpeed 内部按"当前是否 3x"幂等恢复，未长按时 no-op）
+                        onPress = {
+                            // this = PressGestureScope：挂起至松手/取消，随后幂等恢复倍速
+                            tryAwaitRelease()
+                            onLongPressEnd?.invoke()
+                        },
+                        onLongPress = { onLongPressStart?.invoke() },
                         onDoubleTap = { offset ->
                             val w = size.width.toFloat()
                             when {

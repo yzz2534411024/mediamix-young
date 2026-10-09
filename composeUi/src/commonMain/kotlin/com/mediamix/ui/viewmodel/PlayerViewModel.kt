@@ -146,9 +146,6 @@ class PlayerViewModel(
     /** 自动连播防重复标记（每次换集重置）。 */
     private var autoNextFired = false
 
-    /** 当前集是否已弹过续播确认（换集重置）。 */
-    private var resumeAsked = false
-
     private val _showSubtitles = MutableStateFlow(true)
     val showSubtitles: StateFlow<Boolean> = _showSubtitles.asStateFlow()
 
@@ -201,7 +198,10 @@ class PlayerViewModel(
 
     fun initialize() {
         // Connect callbacks directly to StateFlow — no manual sync needed
-        playerCoreManager.onPlayerStateChanged = { state -> _playerState.value = state }
+        playerCoreManager.onPlayerStateChanged = { state ->
+            _playerState.value = state
+            handleAutoNext(state)
+        }
         playerCoreManager.onBufferingChanged = { buffering -> _isBuffering.value = buffering }
         playerCoreManager.onSubtitlesLoaded = { tracks ->
             _subtitleTracks.value = tracks
@@ -272,7 +272,6 @@ class PlayerViewModel(
         setPlaybackSpeed(appPreferences.defaultPlaybackSpeed)
         // 断点续播：新集装载后查本地进度（>30s 且未看完才询问，看过就静默 seek）
         _resumePositionMs.value = null
-        resumeAsked = false
         runCatching {
             // 查询时集名可能尚未就绪（保存时是"全集"、查询时还是"default"），
             // 按 vodId 前缀取该影片**最新一条**进度，不依赖集名
@@ -313,8 +312,15 @@ class PlayerViewModel(
             fallbackUrls = fallbackUrls,
         )
 
-        // 如果有保存的进度，跳转到该位置
-        if (savedProgress != null && savedProgress.position > 0 && savedProgress.position < savedProgress.duration - 5000) {
+        // 如果有保存的进度，跳转到该位置。
+        // ⚠️ 仅当**不需要弹窗确认**时静默恢复：position > 30s 的场景交给
+        // resumePositionMs 弹窗（用户选"继续"才 seek、"从头"就不动）——
+        // 此前无条件 seek 会让"从头开始"形同虚设（已跳到中间在播）。
+        if (_resumePositionMs.value == null &&
+            savedProgress != null &&
+            savedProgress.position > 0 &&
+            savedProgress.position < savedProgress.duration - 5000
+        ) {
             playerCoreManager.seekTo(savedProgress.position)
             logger.d { "Restored playback position: ${savedProgress.position}ms" }
         }
@@ -371,7 +377,6 @@ class PlayerViewModel(
     fun resumeFromSaved() {
         _resumePositionMs.value?.let { fastSeek(it) }
         _resumePositionMs.value = null
-        resumeAsked = true
     }
 
     /** 从头播放（放弃续播确认后删掉旧进度，避免下次再弹）。 */
@@ -380,7 +385,6 @@ class PlayerViewModel(
             runCatching { playbackProgressDao.deleteByVideoUrl(key) }
         }
         _resumePositionMs.value = null
-        resumeAsked = true
     }
 
     /** 长按倍速：按下临时切到 speed，松手恢复 [resumeLongPressSpeed]。 */
@@ -526,6 +530,26 @@ class PlayerViewModel(
     private fun stopProgressSaving() {
         progressSaveJob?.cancel()
         progressSaveJob = null
+    }
+
+    /**
+     * 自动连播：ENDED + 有下一集 + 开关开启 → 1.5s 后切集。
+     * autoNextFired 防止同一集的重复 ENDED 回调触发多次切集。
+     */
+    private fun handleAutoNext(state: PlayerState) {
+        if (state == PlayerState.ENDED) {
+            if (autoNextFired) return
+            autoNextFired = true
+            if (appPreferences.autoPlayNext && _hasNextEpisode.value) {
+                viewModelScope.launch {
+                    delay(1500)
+                    // 延迟期间用户可能已手动切集/退出，再次确认仍处于 ENDED
+                    if (_playerState.value == PlayerState.ENDED) playNextEpisode()
+                }
+            }
+        } else {
+            autoNextFired = false
+        }
     }
 
     /**

@@ -97,7 +97,10 @@ class SourceManageViewModel(
                                     apiUrl = trimmed,
                                     isBuiltIn = false,
                                 ),
-                            ).also { _importMessage.value = "已添加 CMS 数据源" }
+                            ).also {
+                                _importMessage.value = "已添加 CMS 数据源"
+                                checkSource(CmsApiSite(key = key, name = name.ifBlank { "自定义源" }, apiUrl = trimmed, isBuiltIn = false))
+                            }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

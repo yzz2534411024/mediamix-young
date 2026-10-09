@@ -30,7 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import org.koin.compose.koinInject
 import com.mediamix.ui.viewmodel.CrashLogViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,7 +44,7 @@ import java.util.Locale
 @Composable
 fun CrashLogScreen(
     onBack: () -> Unit,
-    viewModel: CrashLogViewModel = viewModel(),
+    viewModel: CrashLogViewModel = koinInject(),
 ) {
     val entries by viewModel.entries.collectAsState()
     val detail by viewModel.detail.collectAsState()
