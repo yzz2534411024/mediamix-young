@@ -41,3 +41,15 @@
 -keep class com.github.catvod.crawler.** { *; }
 -keep class com.github.catvod.spider.** { *; }
 -dontwarn com.github.catvod.**
+
+# TVBox 蜘蛛 dex 硬编码依赖 okhttp3（TVBox 生态标准 HTTP 库）：
+# DexClassLoader 按原名 loadClass("okhttp3.Request$Builder")，
+# R8 混淆改名后找不到 → NoClassDefFoundError → 切换饭太硬闪透（2026-10-09 实测）
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# 蜘蛛 dex 同样硬编码依赖 Gson（第二处实测缺失）
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
