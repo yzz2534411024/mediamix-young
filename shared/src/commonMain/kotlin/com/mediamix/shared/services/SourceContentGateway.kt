@@ -160,6 +160,11 @@ class SourceContentGateway(
                 result.categories
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: Error) {
+                // dex 蜘蛛桥加载失败抛的是 Error（NoClassDefFoundError 等），
+                // 只 catch Exception 会让 Error 逃逸成闪退 —— 降级为空分类
+                healthStore.recordFailure(siteKey)
+                emptyList()
             } catch (e: Exception) {
                 healthStore.recordFailure(siteKey)
                 throw e
@@ -337,8 +342,9 @@ class SourceContentGateway(
             withTimeout(ENDPOINT_TIMEOUT_MS) { spiderService.fetchTvBoxConfig(url) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (e: Exception) {
-            logger.w { "接口地址不可用，尝试下一条: $url（${e.message}）" }
+        } catch (e: Throwable) {
+            // 含 Error：release 混淆下 dex 桥失败抛 NoClassDefFoundError
+            logger.w { "接口地址不可用: $url（${e.message ?: e.javaClass.simpleName}）" }
             lastEndpointError = e
             null
         }
@@ -359,7 +365,7 @@ class SourceContentGateway(
     }
 
     /** 最近一次线路失败的原因（用于拼装最终的用户可读错误）。 */
-    private var lastEndpointError: Exception? = null
+    private var lastEndpointError: Throwable? = null
 
     private companion object {
         /** 单条线路的探测超时：8s 内没响应即认为该域名不可用，换下一条。 */

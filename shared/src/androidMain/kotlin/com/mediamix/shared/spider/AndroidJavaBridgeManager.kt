@@ -194,7 +194,7 @@ actual class JavaBridgeManager private constructor() {
 
             logger.i { "蜘蛛 JAR 加载成功: ${dest.name}" }
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             logger.e(e) { "加载蜘蛛 JAR 失败: $jarPath" }
             false
         }
@@ -337,7 +337,7 @@ actual class JavaBridgeManager private constructor() {
         } catch (e: kotlinx.coroutines.CancellationException) {
             // 协程取消必须向上传播，不能吞掉 —— 否则外层 loadJob 取消语义失效
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             logger.e(e) { "调用蜘蛛方法失败: $spiderKey.$method" }
             fail("调用失败: $method → ${e.javaClass.name}: ${e.message ?: "未知错误"}")
         }

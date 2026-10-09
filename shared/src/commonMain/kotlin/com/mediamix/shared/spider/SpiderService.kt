@@ -88,8 +88,9 @@ class SpiderService(
                 "TVBox配置解析完成: ${config.sites.size}个站点, spider=${config.spiderUrl}"
             }
             return config
-        } catch (e: Exception) {
-            logger.e { "获取TVBox配置失败: ${e.message}" }
+        } catch (e: Throwable) {
+            // 含 Error：release 混淆下 dex/解码失败可能抛 NoClassDefFoundError
+            logger.e { "获取TVBox配置失败: ${e.message ?: e.javaClass.name}" }
             throw e
         }
     }
